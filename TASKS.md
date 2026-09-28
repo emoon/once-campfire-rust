@@ -4,22 +4,39 @@ Checklist for `plans/cleanup.md`. Read that first: it has the rules, the definit
 the detail behind each ID.
 
 This file lives once, in `/home/emoon/once-campfire-rust` on `refactor/cleanup`. Edit it there,
-never in a worktree copy, and never commit it on a WP branch. Re-read it before each edit.
+never in a worktree copy, and never commit it on a WP branch; only the coordinator commits it, when
+it merges. Re-read it before each edit.
 
 Marks:
 - `[ ]` open.
 - `[~]` in progress: add the branch.
 - `[r]` ready for review: add the branch, the line delta and the allocations/request delta.
 - `[x]` merged into `refactor/cleanup`.
+- `[-]` dropped: say why, and where the numbers are.
 - `[!]` blocked: say on what.
 
-Add anything new under "Found while working".
+Add anything new under "Found while working"; the coordinator triages it.
 
-## Waiting on the human
+## Decisions
 
-- [x] S-1: Rust 1.98.1 installed by the human (2026-09-28); `cargo` and `mise exec rust@1.98.1` both work.
-- [x] S-4: one-time `cargo fmt` commit at `max_width = 140` approved (2026-09-28).
-- [x] X-6: typed ids approved "where it makes sense" (2026-09-28); criteria in `plans/cleanup.md` X-6.
+The human's decisions for this run. Nothing else waits on the human; agents follow "When you'd
+otherwise stop" in `plans/cleanup.md`.
+
+- S-1: Rust 1.98.1 installed by the human (2026-09-28); `cargo` and `mise exec rust@1.98.1` both work.
+- S-4: one-time `cargo fmt` commit at `max_width = 140` approved (2026-09-28).
+- X-6: typed ids approved "where it makes sense" (2026-09-28); criteria in `plans/cleanup.md` X-6.
+- A coordinator agent reviews (with a fresh reviewer agent) and merges WPs into `refactor/cleanup`
+  (2026-09-28).
+- Perf tolerance: CPU/request and throughput may be worse than base by at most T = max(3%, the
+  S-2 run-to-run spread) per target; perf WPs must gain more than T or are dropped. Allocations
+  per request must not go up (2026-09-28).
+- Approved outside the repo (2026-09-28): worktrees in `../campfire-wt/`, removed after merge;
+  Docker images (the base images, plus `campfire-rust:<id>` and `campfire-candidate-<id>` per WP,
+  each pair removed after its WP merges; no other image is touched).
+- Not approved: `cargo install inferno` (skip flamegraph SVGs), and freeing disk any other way
+  (below 60 GB free, the coordinator stops and asks).
+- The run ends after P-5 with everything committed on `refactor/cleanup` and the PR description in
+  `plans/cleanup-pr.md`. Nothing is pushed (2026-09-28).
 
 ## Phase 0: safety net (serial; blocks everything)
 
@@ -123,6 +140,11 @@ Add anything new under "Found while working".
 - [ ] P-3 Lints to `deny`
 - [ ] P-4 (Optional) MIME tables generated at build time
 - [ ] P-5 Final report + README
+
+## For the human
+
+Items the coordinator moved here from "Found while working": behavior changes or calls it
+won't make. They don't block the run and go into the final report.
 
 ## Found while working
 

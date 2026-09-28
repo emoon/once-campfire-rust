@@ -47,8 +47,8 @@ estimate, unconfirmed until done: 2.5–3k production lines can go without touch
 
 - Workspace tests pass (`cargo test --workspace --exclude html5ever`, ~70 s). The seed isn't built,
   though, so the integration tests skip silently. Phase 0 fixes that before anything else lands.
-- Default clippy has one warning (richtext; `nonminimal_bool`), seen with cargo 1.93 because mise
-  can't install 1.98.1 on this machine. Pedantic clippy is almost all doc/attribute noise. The
+- Default clippy has one warning (richtext; `nonminimal_bool`), seen with cargo 1.93 at review time
+  (1.98.1 is installed now; S-1 re-checks on it). Pedantic clippy is almost all doc/attribute noise. The
   useful parts: 44 `push_str(&format!(..))`, 6 redundant clones, 25 by-value arguments that are
   never consumed, 11 lock guards held too long, and ~200 unchecked `as` casts.
 - No `rustfmt.toml`, and the code isn't rustfmt-formatted at any width (140 is closest: 1,872 hunks).
@@ -76,21 +76,76 @@ New code should look like these:
 
 ## How agents work
 
-### Starting an agent
+The whole effort runs from Phase 0 to P-5 without the human. One **coordinator** session drives it,
+starting WP agents, reviewing and merging their work. The human's decisions are recorded in
+`TASKS.md` under "Decisions"; everything else is settled by the rules below. The run ends before
+anything is pushed.
 
-Give a fresh agent this prompt, filling in the WP or lane:
+### Starting the coordinator
+
+Start (or, after a restart, resume) the coordinator with this prompt, in `$MAIN`:
+
+> Coordinate the Campfire cleanup. Read `/home/emoon/once-campfire-rust/plans/cleanup.md` (all of
+> it) and `/home/emoon/once-campfire-rust/TASKS.md`, then run "The coordinator loop" until P-5 is
+> done. All state is in `TASKS.md` and git: pick up wherever they say the run is.
+
+### Starting a WP agent
+
+The coordinator starts each WP agent with this prompt, filling in the WP:
 
 > Work on the Campfire cleanup. Read `/home/emoon/once-campfire-rust/plans/cleanup.md` (all of
-> "How agents work", then your WP) and `/home/emoon/once-campfire-rust/TASKS.md`. Take WP `<id>`
-> (or: the next open WP in lane `<LANE>` whose dependencies are done). Follow the setup and the
-> definition of done exactly, and stop when the WP is ready for review.
+> "How agents work", then your WP) and `/home/emoon/once-campfire-rust/TASKS.md`. Take WP `<id>`.
+> Follow the setup, "When you'd otherwise stop" and the definition of done exactly, and finish when
+> the WP is `[r]`, `[-]` or `[!]`. Report the branch, the gate results and anything left over.
+
+To continue a WP whose agent ran out of context or was stopped, start a fresh agent with the same
+prompt plus "The branch and worktree already exist; read `git log` and your line in `TASKS.md`,
+then continue."
+
+### The coordinator loop
+
+The coordinator doesn't write WP code. It repeats:
+
+1. **Pick.** Re-read `TASKS.md`. A WP is runnable when it's `[ ]`, its lane has no other WP in
+   flight, and what it waits for is finished (`[x]`, or `[-]` for a WP that was optional to it):
+   - Phase 0 runs first, as one agent in `$MAIN`.
+   - Phase 1 waits for Phase 0.
+   - A Phase 2 WP waits for the F-WPs in the lane table and the WPs its own text names ("after
+     DB-2").
+   - Phase 3 waits for all of Phase 2, and runs one WP at a time.
+   - Phase 4 waits for Phase 3. P-2 is one WP per crate; P-5 is last.
+2. **Start** runnable WPs as background agents, at most four at a time (this machine's limit).
+3. **Review** each WP that comes back `[r]`. Start a fresh reviewer agent (not the author) with the
+   WP text, the diff against `refactor/cleanup`, and this plan's rules. It checks that the diff does
+   what the WP says and nothing else, that behavior is unchanged (reading the Rails source where
+   code mirrors it), that "Keep these patterns" and the citations survived, and that the recorded
+   gate numbers pass. It answers approve, or a list of findings. Send findings back to the author
+   (or a fresh agent on the branch); after two rounds, the coordinator decides each open finding
+   itself and records its reasoning in the merge commit.
+4. **Verify** before merging: rebase the branch onto `refactor/cleanup` in its worktree, re-run
+   tests (seed built) and clippy there, and check the recorded perf and parity results against the
+   tolerance. If the rebase changed code the WP touched, re-run the perf gate too.
+5. **Merge** in `$MAIN`: `git merge --no-ff refactor/cleanup-<id>`. Set the WP to `[x]`, then
+   commit `TASKS.md` on `refactor/cleanup` ("Tasks: <id> merged"). This is the only place
+   `TASKS.md` is committed. Remove the worktree (`git worktree remove`) and the WP's two images
+   (`docker rmi campfire-candidate-<id> campfire-rust:<id>`). Keep the branch.
+6. **Triage** "Found while working". An item that's a pure refactor or perf fix in scope becomes a
+   new WP in its lane (next free number, for example `DB-10`) with a line in this plan. An item that
+   would change behavior, or that needs a human call, moves to "For the human" in `TASKS.md` and
+   into the final report. It never blocks the run.
+7. **Check the disk.** If less than 60 GB is free after step 5's cleanup, stop and ask; freeing
+   anything else isn't approved.
+
+The coordinator stops only for the disk check, or for Docker or the toolchain failing in a way no
+agent can fix. A `[!]` WP never stalls the run: after its retry, the WPs that depend on it become
+`[-]`. At the end it runs P-5 and stops before pushing (see P-5).
 
 ### Branches and checkouts
 
 - `main` is untouched until the whole effort (or a phase of it) is merged by PR.
 - `refactor/cleanup` is the branch that collects finished work. It's checked out in the main
-  checkout, `/home/emoon/once-campfire-rust` (called `$MAIN` below). Only the human, or a
-  coordinator agent the human names, merges into it.
+  checkout, `/home/emoon/once-campfire-rust` (called `$MAIN` below). Only the coordinator merges
+  into it.
 - Every WP gets its own branch, `refactor/cleanup-<id>` (for example `refactor/cleanup-db-2`),
   branched from the current tip of `refactor/cleanup`, in its own worktree:
 
@@ -99,7 +154,7 @@ MAIN=/home/emoon/once-campfire-rust
 ID=db-2                                   # the WP id, lower case
 git -C "$MAIN" worktree add "$MAIN/../campfire-wt/$ID" -b "refactor/cleanup-$ID" refactor/cleanup
 cd "$MAIN/../campfire-wt/$ID"
-git submodule update --init reference     # worktrees don't get submodules; crates/assets needs it
+git submodule update --init --reference "$MAIN/reference" reference   # worktrees don't get submodules; crates/assets needs it
 ln -s "$MAIN/parity/.seed" parity/.seed   # gitignored; without it the integration tests skip silently
 ```
 
@@ -114,8 +169,44 @@ before each edit, because other agents edit it too, and keep edits to your own l
 
 - Claim: `[ ]` → `[~]`, adding your branch.
 - Ready for review: `[r]`, adding the branch, the line delta and the allocations/request delta.
-- Done: `[x]`, set by whoever merges.
+- Done: `[x]`, set by the coordinator when it merges.
+- Dropped: `[-]`, with the reason and where the numbers are.
 - Blocked: `[!]`, saying on what.
+
+### When you'd otherwise stop
+
+Don't ask the human; nobody is watching. Decide by these rules, and write the decision into your
+commit message or your `TASKS.md` line.
+
+- **A Rails behavior question** (for example DB-9's clock reads, WEB-5's flash sweep): read the
+  Ruby, and the gem source inside the reference image, and match it.
+- **A gate fails:** fix it inside the WP. After three different attempts, mark `[!]` with what you
+  tried and the evidence, and finish. The coordinator retries a `[!]` WP once, with a fresh agent,
+  after the rest of its lane; if it fails again it stays `[!]` in the final report, and the WPs that
+  depend on it are skipped as `[-]`.
+- **A perf WP gains nothing** (DB-6, WEB-9 and every WP marked **perf** or "measure first"): if no
+  target improves by more than the tolerance, keep the measurements under `bench/results/`, reset
+  the branch, and mark `[-]` "no measurable gain". If a perf WP also cleans up code, keep the
+  cleanup only when it passes the gates on its own.
+- **A cleanup costs performance:** find the cost and remove it. If that isn't possible, drop that
+  part of the WP (performance comes first) and say so.
+- **Something the WP asks for would change behavior** in a way the WP doesn't mention: don't do it.
+  Keep the behavior, and add it under "Found while working".
+- **A parity cell fails** that also fails in the Phase 0 baseline: not your problem; mention it.
+- **A rebase conflicts:** resolve it in your branch, keeping the other side's intent, and re-run
+  the gates.
+- **The plan is wrong** (a file moved, a claim doesn't hold, a site count differs): do what the WP
+  means, and note the correction on your `TASKS.md` line. If the whole WP rests on a false
+  premise, mark it `[-]` with the evidence.
+- **Choices the WP leaves open** have these defaults:
+  - F-1 to F-4, crypto behind a feature: only if a clean build of a crate that gains the dependency
+    gets more than 10% slower.
+  - LIVE-5, tokio worker: do it only if it deletes code and the web-push tests and alloc gate pass.
+    Otherwise skip it and say so.
+  - VIEW-7: render the template if the parity and alloc gates pass. Otherwise add the test.
+  - X-5, `Ctx<C>`: skip it; list it in the final report.
+  - P-3, cast lints: turn them on (`deny`) in the params, headers and range modules only.
+  - P-4: do it only if both conditions in P-4 hold; otherwise `[-]`.
 
 ### Scope
 
@@ -163,7 +254,9 @@ export PARITY_CANDIDATE_APP_IMAGE=campfire-rust:$ID PARITY_CANDIDATE_IMAGE=campf
 flock /tmp/campfire-bench.lock sh -c 'parity/bin/candidate build && parity/bin/candidate compare'
 ```
 
-Compare the report with the Phase 0 baseline in `bench/results/cleanup-baseline-*/`.
+Compare the report with the Phase 0 baseline in `bench/results/cleanup-baseline-*/`. Each WP's
+images take disk space (the disk is 85% full), so the coordinator removes them when it merges the
+WP. Never remove any other image.
 
 ### Definition of done (every WP)
 
@@ -179,18 +272,24 @@ Compare the report with the Phase 0 baseline in `bench/results/cleanup-baseline-
    the same targets and a `bench/run --apps rust` suite that covers the path (http, cable or
    upload). Record before/after under `bench/results/<wp-id>-<date>/`, following the format of
    `bench/results/richtext-20260928/`.
+   **Tolerance** (the human's decision, 2026-09-28): for each target, T is the larger of 3% and the
+   run-to-run spread S-2 measured for it. CPU per request or throughput worse than base by more
+   than T fails the gate. A WP marked **perf** must also improve at least one target by more than
+   T, or it's dropped (see "When you'd otherwise stop").
 5. **Size.** Run `bench/loc` (WP S-3) and put the production-lines delta per crate in the commit
    message.
 6. Match the surrounding code: small named functions, a Rails citation where behavior mirrors
    Rails, and comments only for the non-obvious. Don't delete a "why" comment or a citation. Do
    delete comments that restate the code.
 7. Mark the WP `[r]` in `$MAIN/TASKS.md` with the branch, the delta (lines, allocations/request) and
-   anything left over. Then stop; the merge isn't yours to do.
+   anything left over. Then finish; the coordinator reviews and merges.
 
 ## Phase 0: safety net (one agent, serial; blocks everything)
 
 The Phase 0 agent is the exception to the worktree rule. It works directly in `$MAIN` on
-`refactor/cleanup` and commits there, because every later branch starts from its result.
+`refactor/cleanup` and commits there, because every later branch starts from its result. The
+coordinator reviews those commits (step 3 of the loop) before starting Phase 1, and has them fixed
+in place rather than reverted.
 
 - **S-1 Toolchain.** Rust 1.98.1 (the `Dockerfile` version) is installed (the human did this on
   2026-09-28; `cargo --version` and `mise exec rust@1.98.1 -- cargo --version` both report 1.98.1).
@@ -200,12 +299,14 @@ The Phase 0 agent is the exception to the worktree rule. It works directly in `$
   - Confirm the integration tests now run (count them before and after).
   - Record the parity lean gate result on `main` (expect 873/874, with the manifest allowlisted).
   - Record `bench/profile alloc` and `cpu` on the four standard targets, plus one `bench/run --apps
-    rust --reps 3`.
+    rust --reps 3`. Run `alloc` and `cpu` twice on the same binary and record the run-to-run
+    spread, so the perf gate's tolerance rests on a measured number.
   - Save everything in `bench/results/cleanup-baseline-<date>/`. Every later WP compares against
     this.
   - Dry-run the gate commands from "Commands for the gates" in a throwaway worktree, and fix this
     plan wherever they're wrong. `bench/profile cpu` renders flamegraphs with `inferno`, which isn't
-    installed (`cargo install inferno`).
+    installed, and installing it isn't approved. Without it `cpuprof.py` still writes the folded
+    stacks and the rollup, which is all the gate uses; skip the SVGs.
 - **S-3 `bench/loc`.** Add a small script that prints production, test and comment lines per crate,
   excluding `html5ever` and `storage/src/tables.rs` (same rules as the table above). Record the
   baseline.
@@ -260,7 +361,20 @@ crypto crates, put the crypto parts behind a feature.
 ## Phase 2: lanes (parallel; one agent per lane)
 
 Each lane owns a set of files. Within a lane, the WPs are in suggested order: cheap measurable wins
-first. Lanes can start as soon as Phase 0 is done and the F-WPs they depend on have landed.
+first. A lane starts once Phase 0 is done and the F-WPs whose files it owns have merged:
+
+| Lane | Waits for |
+|---|---|
+| DB | F-2 (`webhook.rs`), F-5 |
+| KIT | F-1 (`front/tls.rs`) |
+| WEB | F-4 (`concerns.rs`), F-5 (its callers) |
+| LIVE | F-1 (`cable/turbo.rs`), F-2 (`cable/json.rs`, opengraph), F-4 (`channels/room.rs`) |
+| VIEW | F-1 (`helpers/html.rs`, `richtext/ruby.rs`) |
+| STORE | F-1 (`assets/tags.rs`), F-2, F-3 (`assets/serve.rs`, `active_storage.rs`) |
+
+Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `integrations/jobs.rs`
+(LIVE), and VIEW-1 changes `campfire/src/controllers/presenters/page.rs` (WEB). Files in no lane
+(`campfire/src/rich_text.rs`) follow the same rule as another lane's files.
 
 ### Lane DB: `crates/db`
 
@@ -534,8 +648,9 @@ first. Lanes can start as soon as Phase 0 is done and the F-WPs they depend on h
 
 ## Phase 3: cross-cutting migrations (serial; one at a time)
 
-Each of these touches many files across lanes. Run them when the lanes they touch are quiet (or right
-after they merge). Use one agent per migration, and let the compiler drive the call sites.
+Each of these touches many files across lanes, so Phase 3 starts once every Phase 2 WP is
+finished, and runs one migration at a time in the order listed. Use one agent per migration, and
+let the compiler drive the call sites.
 
 - **X-1 `Format` enum.** `enum Format { Html, Json, TurboStream, … }` with `mime()`, plus
   `enum Accepted { Any, Format(Format) }` in place of `format::ALL`. `respond_to` returns the
@@ -604,8 +719,8 @@ after they merge). Use one agent per migration, and let the compiler drive the c
   more than once, and move the shared ones to a `dev-dependency` test-support module. Don't reduce
   coverage.
 - **P-2 Comment pass.** Remove comments that restate the code, and doc comments on trivial accessors.
-  Keep every Rails citation and every "why". Do this per crate, as the lane finishes, not as one big
-  diff.
+  Keep every Rails citation and every "why". One WP per crate (`P-2-db`, `P-2-kit`, …), after Phase 3,
+  not as one big diff.
 - **P-3 Lints to `deny`.** Flip each lint from S-5 to `deny` once its count reaches zero. Consider
   `cast_possible_truncation`/`cast_sign_loss` in the places that handle untrusted numbers (params,
   headers, ranges).
@@ -615,6 +730,11 @@ after they merge). Use one agent per migration, and let the compiler drive the c
 - **P-5 Final report.** Size by crate against the S-3 baseline, allocations/request and throughput
   against S-2, and the parity gate result. Update `README.md` (performance table, Known differences
   if anything changed on purpose).
+  - Write the report to `bench/results/cleanup-final-<date>/README.md`. It lists every `[-]` and
+    `[!]` WP with its reason, and everything under "For the human" in `TASKS.md`.
+  - Write the PR description (`refactor/cleanup` → `main`) to `plans/cleanup-pr.md`.
+  - Commit everything on `refactor/cleanup`, run the full gates once more on the tip, and stop.
+    **Don't push or open the PR**; that's the human's (decision of 2026-09-28).
 
 ## Parallelism at a glance
 
@@ -623,8 +743,8 @@ Phase 0  S-1 → S-2 → S-3 → S-4 → S-5                               (one 
 Phase 1  F-1  F-2  F-3  F-4  F-5                                   (up to 5 agents; F-5 before DB/WEB)
 Phase 2  DB   KIT   WEB   LIVE   VIEW   STORE                      (6 lanes, ~4 running at once; benches take turns)
            └─ WEB-8 SQL move after DB-2;  WEB-9 after KIT-1;  VIEW-5 with LIVE-3;  STORE-6 after F-2
-Phase 3  X-1 → X-2 → X-3 → X-4 → X-5 → X-6a…d → X-7                (one at a time)
-Phase 4  P-1 … P-5                                                 (per crate, as lanes finish)
+Phase 3  X-1 → X-2 → X-3 → X-4 → X-5 → X-6a…d → X-7                (one at a time, after all of Phase 2)
+Phase 4  P-1, P-2 (per crate), P-3, P-4 after Phase 3; P-5 last, then stop
 ```
 
 Four agents at a time is the practical limit on this machine (32 threads). More than that and the
