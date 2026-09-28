@@ -1,2 +1,4 @@
 # The width the code was closest to before it was first formatted (plans/cleanup.md, S-4).
 max_width = 140
+# The workspace edition; bare `rustfmt` would default to 2015 and reject let chains.
+edition = "2024"

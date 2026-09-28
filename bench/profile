@@ -72,6 +72,10 @@ def cpu():
     os.makedirs(raw, exist_ok=True)
     for f in glob.glob(os.path.join(raw, "cpu*")):
         os.remove(f)
+    # Written only once every target has run, so a run that dies partway leaves no cpu.json.
+    summary_path = os.path.join(out, "cpu.json")
+    if os.path.exists(summary_path):
+        os.remove(summary_path)
     app = with_preload(LIBPROFILER, {"CPUPROFILE": os.path.join(raw, "cpu"), "CPUPROFILESIGNAL": "12", "CPUPROFILE_FREQUENCY": "1000",
                                      # eh_frame unwinding through the signal frame; the default loses the callers of
                                      # frame-pointer-less Rust code.
@@ -113,7 +117,7 @@ def cpu():
             time.sleep(0.5)
     finally:
         app.stop()
-        json.dump(summary, open(os.path.join(out, "cpu.json"), "w"), indent=1)
+    json.dump(summary, open(summary_path, "w"), indent=1)
     time.sleep(0.5)
     for i, t in enumerate(done):
         f = os.path.join(raw, f"cpu.{i}")
