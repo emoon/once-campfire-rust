@@ -40,8 +40,12 @@ otherwise stop" in `plans/cleanup.md`.
 
 ## Phase 0: safety net (serial; blocks everything)
 
-- [ ] S-1 Toolchain on Rust 1.98.1; clippy clean on it
-- [ ] S-2 Seed, reference and candidate images; integration tests actually run; baselines (parity
+- [r] S-1 Toolchain on Rust 1.98.1; clippy clean on it (refactor/cleanup). cargo and mise both
+      report 1.98.1; default clippy is clean with no change (the richtext `nonminimal_bool`
+      warning seen on 1.93 no longer fires). Tests with the seed: 652 passed, 0 failed, 7 ignored
+      (need a live reference app or a Ruby-made DB); no seed skips left, only the storage vectors'
+      libvips/ffmpeg version-dependent byte comparisons (host 8.18.6 / n9.0.1).
+- [~] S-2 (refactor/cleanup) Seed, reference and candidate images; integration tests actually run; baselines (parity
       lean gate, `bench/profile` alloc and cpu, `bench/run --apps rust`) in
       `bench/results/cleanup-baseline-<date>/`
 - [ ] S-3 `bench/loc` script, with the baseline recorded
