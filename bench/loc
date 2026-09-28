@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""Count lines per crate: production code, production comments and tests.
+
+  bench/loc                       counts for the working tree
+  bench/loc --against REV         the same, plus REV's counts and the delta (REV: any git revision)
+  bench/loc --json                machine-readable
+
+Lines are non-blank. A comment line is one that is only a comment (`//`, `///`, `//!`, or inside
+`/* */`); it counts under "comments" in production code and under "tests" in test code. Test code
+is everything under a crate's tests/, benches/ or examples/, every module declared under
+`#[cfg(test)]` (or `#[cfg(any(test, ...))]`) with its submodules, and the inline items those
+attributes cover. Askama templates (crates/views/templates) are counted on their own row. Excluded:
+vendored code (vendor/, which holds the patched html5ever) and the generated MIME table
+(crates/storage/src/tables.rs). These are the rules of the size table in plans/cleanup.md.
+"""
+import argparse, json, os, re, subprocess, sys, tempfile
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+EXCLUDED_FILES = {"storage/src/tables.rs"}
+TEST_DIRS = {"tests", "benches", "examples"}
+TEMPLATES = "views/templates"
+
+CFG_TEST = re.compile(r"^\s*#\[cfg\((test|any\(test\b.*)\)\]\s*$")
+MOD_DECL = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*;")
+
+
+def source_files(crates):
+    for crate in sorted(os.listdir(crates)):
+        base = os.path.join(crates, crate)
+        if not os.path.isfile(os.path.join(base, "Cargo.toml")):
+            continue
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = sorted(d for d in dirnames if d not in ("vendor", "target"))
+            for f in sorted(filenames):
+                path = os.path.join(dirpath, f)
+                rel = os.path.relpath(path, crates)
+                if (f.endswith(".rs") or rel.startswith(TEMPLATES + os.sep)) and rel not in EXCLUDED_FILES:
+                    yield crate, rel
+
+
+def child_module(rel, name, exists):
+    """The file for `mod name;` declared in `rel`."""
+    d, f = os.path.split(rel)
+    if f not in ("lib.rs", "main.rs", "mod.rs", "build.rs"):
+        d = os.path.join(d, f[:-3])
+    for cand in (os.path.join(d, name + ".rs"), os.path.join(d, name, "mod.rs")):
+        if exists(cand):
+            return cand
+    return None
+
+
+def test_prefixes(files, read, exists):
+    """Files, and directories of submodules, that are test-only because of a cfg(test) module."""
+    prefixes = []
+    for _, rel in files:
+        if not rel.endswith(".rs"):
+            continue
+        lines = read(rel)
+        for i, line in enumerate(lines[:-1]):
+            m = MOD_DECL.match(lines[i + 1]) if CFG_TEST.match(line) else None
+            if m and (child := child_module(rel, m.group(1), exists)):
+                prefixes += [child, os.path.join(os.path.dirname(child), m.group(1)) + os.sep]
+    return prefixes
+
+
+def is_test_file(rel, prefixes):
+    parts = rel.split(os.sep)
+    return parts[1] in TEST_DIRS or any(rel == p or (p.endswith(os.sep) and rel.startswith(p)) for p in prefixes)
+
+
+def classify(lines):
+    """Yields (kind, is_test) per non-blank line: kind is "code" or "comment"."""
+    in_block = False
+    test_until = None  # the closing line of an inline cfg(test) item: its indentation + "}"
+    pending = False
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        if in_block:
+            kind = "comment"
+            in_block = "*/" not in s
+        elif s.startswith("//"):
+            kind = "comment"
+        elif s.startswith("/*"):
+            kind = "comment"
+            in_block = "*/" not in s[2:]
+        else:
+            kind = "code"
+        if test_until is not None:
+            yield kind, True
+            if line.startswith(test_until):
+                test_until = None
+            continue
+        if CFG_TEST.match(line):
+            pending = True
+            yield kind, True
+            continue
+        if pending and kind == "code" and not s.startswith("#["):
+            pending = False
+            if not s.endswith(";") and not s.endswith("}"):
+                test_until = line[: len(line) - len(line.lstrip())] + "}"
+            yield kind, True
+            continue
+        yield kind, pending
+
+
+def template_kind(line):
+    s = line.strip()
+    return "comment" if s.startswith("{#") and s.endswith("#}") else "code"
+
+
+def count(crates):
+    def read(rel):
+        with open(os.path.join(crates, rel), encoding="utf-8", errors="replace") as f:
+            return f.read().split("\n")
+
+    exists = lambda rel: os.path.isfile(os.path.join(crates, rel))
+    files = list(source_files(crates))
+    prefixes = test_prefixes(files, read, exists)
+    rows = {}
+    for crate, rel in files:
+        if rel.startswith(TEMPLATES + os.sep):
+            row = rows.setdefault("views (templates)", {"production": 0, "comments": 0, "tests": 0})
+            for line in read(rel):
+                if line.strip():
+                    row["production" if template_kind(line) == "code" else "comments"] += 1
+            continue
+        row = rows.setdefault(crate, {"production": 0, "comments": 0, "tests": 0})
+        whole_file_test = is_test_file(rel, prefixes)
+        for kind, test in classify(read(rel)):
+            if whole_file_test or test:
+                row["tests"] += 1
+            elif kind == "comment":
+                row["comments"] += 1
+            else:
+                row["production"] += 1
+    return rows
+
+
+def count_rev(rev):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = subprocess.run(["git", "-C", ROOT, "archive", rev, "crates"], check=True, capture_output=True).stdout
+        subprocess.run(["tar", "-x", "-C", tmp], input=archive, check=True)
+        return count(os.path.join(tmp, "crates"))
+
+
+def total(rows):
+    return {k: sum(r[k] for r in rows.values()) for k in ("production", "comments", "tests")}
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--against", metavar="REV")
+    p.add_argument("--json", action="store_true")
+    a = p.parse_args()
+    now = count(os.path.join(ROOT, "crates"))
+    base = count_rev(a.against) if a.against else None
+    if a.json:
+        json.dump({"rows": now, "against": base}, sys.stdout, indent=1)
+        print()
+        return
+    names = sorted(set(now) | set(base or {}))
+    cols = ("production", "comments", "tests")
+    zero = dict.fromkeys(cols, 0)
+    header = "| crate | production | comments | tests |" + (" Δ production | Δ comments | Δ tests |" if base else "")
+    print(header)
+    print("|" + "---|" * (header.count("|") - 1))
+    for name, row, old in [(n, now.get(n, zero), (base or {}).get(n, zero)) for n in names] + [("**total**", total(now), total(base or {}))]:
+        cells = [f"{row[c]:,}" for c in cols]
+        if base is not None:
+            cells += [f"{row[c] - old[c]:+,}" for c in cols]
+        print(f"| {name} | " + " | ".join(cells) + " |")
+
+
+if __name__ == "__main__":
+    main()

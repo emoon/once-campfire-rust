@@ -41,11 +41,26 @@ max(3%, the larger spread).
 | room_show | 18.0 | 18.1 | 0.1708 | 0.1709 | 0.06% | 21,641 | 21,627 | 0.07% | 3% |
 | messages_page | 19.0 | 19.0 | 0.1447 | 0.1448 | 0.07% | 25,410 | 25,377 | 0.13% | 3% |
 | sidebar | 53.1 | 53.0 | 0.2748 | 0.2766 | 0.65% | 13,485 | 13,438 | 0.35% | 3% |
-| post_message | 78.7 | 78.7 | 0.4608 | 0.4586 | 0.48% | 4,803 | 4,729 | 1.55% | 3% |
+| post_message | 78.7 | 78.7 | 0.4608 | 0.4586 | 0.48% | 4,803 | 4,729 | 1.55% | 3.2% (see below) |
 
-**T = 3% for all four targets**: the measured spread is well under 3% everywhere. Allocations per
-request move by at most 0.1 between runs of the same binary, so a difference of 0.1 is noise; 0.2 or
-more is a real change.
+The S-2 dry run of the gate commands (`plans/cleanup.md`, "Commands for the gates") measured the
+same code twice more, as a `base` and a `dryrun` binary built from the same commit in two checkouts:
+
+| target | allocs/req (all runs) | CPU ms/req (4 runs) | req/s (4 runs) | spread over all runs |
+|---|---|---|---|---|
+| room_show | 18.0, 18.1, 18.0, 18.0 | 0.1706–0.1709 | 21,566–21,642 | 0.2% CPU, 0.4% req/s |
+| messages_page | 19.0 ×4 | 0.1438–0.1448 | 25,200–25,415 | 0.7% CPU, 0.8% req/s |
+| sidebar | 53.1, 53.0, 53.1, 53.0 | 0.2748–0.2766 | 13,381–13,517 | 0.7% CPU, 1.0% req/s |
+| post_message | 78.7 ×5, 78.8, 77.2 ×2 | 0.4586–0.4668 | 4,651–4,803 | 1.8% CPU, 3.2% req/s |
+
+**Tolerances.** T = 3% for room_show, messages_page and sidebar, and 3.2% for post_message (its
+req/s spread over the four runs; its CPU ms/req spread is 1.8%).
+
+**Allocations.** room_show, messages_page and sidebar move by at most 0.1 per request between
+runs of the same code, so 0.1 is noise and 0.2 or more is a real change. post_message is bimodal:
+the same binary measures 78.7 (±0.1) most of the time and 77.2 about one run in four. Run it twice
+on each side and compare the higher run of each; a gap of about 1.5 is the mode flipping, not the
+change, so re-run before deciding.
 
 Files: `alloc-{1,2}/<route>/alloc-<route>.json` (and the `jeprof` top sites, `*.alloc_objects.txt`,
 `*.alloc_space.txt`), `cpu-{1,2}/cpu.json` and `cpu-{1,2}/cpu-<target>.top.md` (rollups; the folded
@@ -87,3 +102,23 @@ flock /tmp/campfire-bench.lock bench/run --apps rust --reps 3 --out $OUT/run
 
 `cpu.json` comes from a small change to `bench/profile` in this commit: before it, `cpu` printed
 each target's req/s and CPU ms/req only to the terminal.
+
+## Size (bench/loc, S-3)
+
+Non-blank lines per crate at this commit; the rules are in `bench/loc`'s header. WPs put the
+production delta from `bench/loc --against refactor/cleanup` in their commit message.
+
+| crate | production | comments | tests |
+|---|---|---|---|
+| assets | 1,341 | 126 | 318 |
+| cable | 1,384 | 268 | 1,146 |
+| campfire | 10,887 | 1,552 | 4,844 |
+| db | 4,505 | 476 | 2,562 |
+| kit | 6,002 | 794 | 2,612 |
+| rails_compat | 739 | 182 | 389 |
+| richtext | 2,490 | 313 | 1,026 |
+| routes | 89 | 4 | 0 |
+| storage | 2,154 | 278 | 457 |
+| views | 2,872 | 562 | 1,634 |
+| views (templates) | 1,771 | 36 | 0 |
+| **total** | 34,234 | 4,591 | 14,988 |

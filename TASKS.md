@@ -48,7 +48,10 @@ otherwise stop" in `plans/cleanup.md`.
 - [~] S-2 (refactor/cleanup) Seed, reference and candidate images; integration tests actually run; baselines (parity
       lean gate, `bench/profile` alloc and cpu, `bench/run --apps rust`) in
       `bench/results/cleanup-baseline-<date>/`
-- [ ] S-3 `bench/loc` script, with the baseline recorded
+- [r] S-3 (refactor/cleanup) `bench/loc` script, with the baseline recorded (in
+      `bench/results/cleanup-baseline-20260928/README.md`: 34,234 production lines incl. 1,771 of
+      templates, 4,591 comment lines, 14,988 test lines, before S-4's `cargo fmt`).
+      `bench/loc --against refactor/cleanup` prints the per-crate delta for commit messages.
 - [ ] S-4 (approved) `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`
 - [ ] S-5 Workspace `[lints.clippy]` floor (warn), existing hits allowed
 
