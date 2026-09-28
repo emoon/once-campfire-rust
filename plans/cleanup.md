@@ -127,7 +127,9 @@ The coordinator doesn't write WP code. It repeats:
    tolerance. If the rebase changed code the WP touched, re-run the perf gate too.
 5. **Merge** in `$MAIN`: `git merge --no-ff refactor/cleanup-<id>`. Set the WP to `[x]`, then
    commit `TASKS.md` on `refactor/cleanup` ("Tasks: <id> merged"). This is the only place
-   `TASKS.md` is committed. Remove the worktree (`git worktree remove`) and the WP's two images
+   `TASKS.md` is committed. Remove the worktree (`git worktree remove --force`: git refuses
+   without it because the worktree has the `reference` submodule, so first check that
+   `git -C <worktree> status --short` lists nothing the branch still needs) and the WP's two images
    (`docker rmi campfire-candidate-<id> campfire-rust:<id>`). Keep the branch.
 6. **Triage** "Found while working". An item that's a pure refactor or perf fix in scope becomes a
    new WP in its lane (next free number, for example `DB-10`) with a line in this plan. An item that
@@ -155,8 +157,13 @@ ID=db-2                                   # the WP id, lower case
 git -C "$MAIN" worktree add "$MAIN/../campfire-wt/$ID" -b "refactor/cleanup-$ID" refactor/cleanup
 cd "$MAIN/../campfire-wt/$ID"
 git submodule update --init --reference "$MAIN/reference" reference   # worktrees don't get submodules; crates/assets needs it
-ln -s "$MAIN/parity/.seed" parity/.seed   # gitignored; without it the integration tests skip silently
+mkdir parity/.seed && cp -r "$MAIN"/parity/.seed/* parity/.seed/   # gitignored; without it the integration tests skip silently
 ```
+
+The seed is copied, not symlinked: the parity harness runs its browsers in a container that mounts
+only the worktree, so a link out of it breaks every cell that reads the seed's labels (S-2 dry
+run). The glob leaves out `$MAIN`'s hidden `.instances`/`.candidates` state. Build the seed in
+`$MAIN` (`parity/bin/seed build`) if it's missing there.
 
 - Before marking a WP ready, rebase onto the current `refactor/cleanup` and re-run the gates.
 - Don't push, and don't merge anything yourself.
@@ -223,40 +230,72 @@ both. Wrap every `bench/*` and `parity/bin/*` run in the shared lock (`flock /tm
 …`).
 
 `cargo test` and `cargo clippy` can run in parallel, one per worktree. Each worktree has its own
-`target/`, and a first build takes a few minutes.
+`target/`, and a first build takes a few minutes. The lock doesn't cover builds, so keep them off
+the benchmark's cores: CPUs 8–15 and their SMT siblings 24–31 (CPU 8 pairs with 24; the other CCD,
+with its own L3, is 0–7 and 16–23). Run cargo as `taskset -c 0-7,16-23 cargo …`.
 
 ### Commands for the gates
 
 Perf gate: compare your branch against the tip of `refactor/cleanup`. Build both with symbols; the
-base binary comes from `$MAIN`, which has `refactor/cleanup` checked out.
+base binary comes from `$MAIN`, which has `refactor/cleanup` checked out. Copy it into your
+worktree first: another agent may rebuild `$MAIN` while you measure.
 
 ```sh
 export CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
-(cd "$MAIN" && cargo build --release -p campfire)   # base
-cargo build --release -p campfire                   # this WP
+(cd "$MAIN" && taskset -c 0-7,16-23 cargo build --release -p campfire)   # base
+mkdir -p target && cp "$MAIN/target/release/campfire" target/base-campfire
+taskset -c 0-7,16-23 cargo build --release -p campfire                   # this WP
 OUT=bench/results/$ID-$(date +%Y%m%d)
 LABEL=$(echo "$ID" | tr 'a-z-' 'A-Z_')   # bench/profile reads NATIVE_<LABEL>_BIN; db-2 → DB_2
+export NATIVE_BASE_BIN=$PWD/target/base-campfire "NATIVE_${LABEL}_BIN=$PWD/target/release/campfire"
 for route in room_show messages_page sidebar post_message; do
-  env NATIVE_BASE_BIN="$MAIN/target/release/campfire" flock /tmp/campfire-bench.lock \
-    bench/profile alloc --label base --route $route --out $OUT/base-$route
-  env "NATIVE_${LABEL}_BIN=$PWD/target/release/campfire" flock /tmp/campfire-bench.lock \
-    bench/profile alloc --label $ID --route $route --out $OUT/$ID-$route
+  flock /tmp/campfire-bench.lock bench/profile alloc --label base --route $route --out $OUT/base-$route
+  flock /tmp/campfire-bench.lock bench/profile alloc --label $ID --route $route --out $OUT/$ID-$route
+done
+# post_message is bimodal (78.7 or 77.2 on the same binary): run it a second time on each side
+# (--out $OUT/base-post_message-2, $OUT/$ID-post_message-2) and compare the higher run of each.
+for label in base $ID; do   # CPU ms/req and req/s per target, into $OUT/cpu-<label>/cpu.json
+  flock /tmp/campfire-bench.lock bench/profile cpu --label $label \
+    --targets room_show,messages_page,sidebar,post_message --out $OUT/cpu-$label
 done
 ```
 
-`bench/profile cpu` takes `--targets room_show,messages_page,sidebar,post_message` and the same
-environment. Write a short `README.md` in `$OUT` with the before/after table.
+Each alloc run takes about 12 s and each cpu run about a minute; the first run in a worktree also
+builds the load generator. `cpu` doesn't render flamegraph SVGs (no `inferno`); its `.top.md`
+rollups and `cpu.json` are what the gate uses. Write a short `README.md` in `$OUT` with the
+before/after table and T from `bench/results/cleanup-baseline-20260928/README.md`.
+
+For a `bench/run` suite (WPs marked **perf**), build the base image under your WP's own tags from
+`$MAIN`, measure it, remove it, then build and measure yours. `SUITES` picks the path: `http`,
+`cable` or `upload` (about 4 minutes a rep for `http`). Before each rep `bench/run` waits up to
+`LOAD_WAIT_SECS` (default 900) for the load average to drop below 1.5, which other agents' builds
+keep it above; with builds pinned away from the benchmark's cores, a minute is enough. `bench/run`
+labels both runs with the worktree's HEAD; the image line (id and build time) tells them apart.
+
+```sh
+export PARITY_CANDIDATE_APP_IMAGE=campfire-rust:$ID PARITY_CANDIDATE_IMAGE=campfire-candidate-$ID
+export RUST_IMAGE=campfire-rust:$ID SUITES=http LOAD_WAIT_SECS=60
+flock /tmp/campfire-bench.lock sh -c "
+  '$MAIN/parity/bin/candidate' build && bench/run --apps rust --reps 3 --out $OUT/run-base &&
+  docker rmi campfire-candidate-$ID campfire-rust:$ID &&
+  parity/bin/candidate build && bench/run --apps rust --reps 3 --out $OUT/run-$ID"
+bench/report $OUT/run-base; bench/report $OUT/run-$ID
+```
 
 Parity gate: build images tagged with your WP id so agents don't overwrite each other's images.
+Building takes about 4 minutes and comparing about 33, all under the lock.
 
 ```sh
 export PARITY_CANDIDATE_APP_IMAGE=campfire-rust:$ID PARITY_CANDIDATE_IMAGE=campfire-candidate-$ID
 flock /tmp/campfire-bench.lock sh -c 'parity/bin/candidate build && parity/bin/candidate compare'
 ```
 
-Compare the report with the Phase 0 baseline in `bench/results/cleanup-baseline-*/`. Each WP's
-images take disk space (the disk is 85% full), so the coordinator removes them when it merges the
-WP. Never remove any other image.
+It ends with a line like `874 cells: 873 pass (0 flaky), 0 fail, 1 allowed, 0 error` and the
+path of the report (`parity/out/compare-<stamp>/report.html`). Compare it with the Phase 0
+baseline in `bench/results/cleanup-baseline-20260928/README.md`. If you interrupt a compare, stop
+what it left running with `parity/bin/candidate down --all` and `parity/bin/reference down --all`.
+Each WP's images take disk space (about 165 MB each; 346 GB was free on 2026-09-28), so the
+coordinator removes them when it merges the WP. Never remove any other image.
 
 ### Definition of done (every WP)
 
@@ -270,14 +309,17 @@ WP. Never remove any other image.
    `bench/profile alloc` on `room_show`, `messages_page`, `sidebar` and `post_message`.
    Allocations per request must not go up. For WPs marked **perf**, also run `bench/profile cpu` on
    the same targets and a `bench/run --apps rust` suite that covers the path (http, cable or
-   upload). Record before/after under `bench/results/<wp-id>-<date>/`, following the format of
-   `bench/results/richtext-20260928/`.
+   upload). Record before/after under `bench/results/<wp-id>-<date>/`, with a `README.md` holding
+   the before/after table (see "Commands for the gates").
    **Tolerance** (the human's decision, 2026-09-28): for each target, T is the larger of 3% and the
-   run-to-run spread S-2 measured for it. CPU per request or throughput worse than base by more
-   than T fails the gate. A WP marked **perf** must also improve at least one target by more than
+   run-to-run spread S-2 measured for it. S-2's numbers are in
+   `bench/results/cleanup-baseline-20260928/README.md`: T = 3% for room_show, messages_page and
+   sidebar and 3.2% for post_message, the `bench/run` metrics whose spread is over 3%, and the
+   allocation noise (0.1 per request; post_message is bimodal). CPU per request or throughput
+   worse than base by more than T fails the gate. A WP marked **perf** must also improve at least one target by more than
    T, or it's dropped (see "When you'd otherwise stop").
-5. **Size.** Run `bench/loc` (WP S-3) and put the production-lines delta per crate in the commit
-   message.
+5. **Size.** Run `bench/loc --against refactor/cleanup` (WP S-3) and put the production-lines
+   delta per crate in the commit message.
 6. Match the surrounding code: small named functions, a Rails citation where behavior mirrors
    Rails, and comments only for the non-obvious. Don't delete a "why" comment or a citation. Do
    delete comments that restate the code.
@@ -396,7 +438,9 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
 - **DB-5 perf: one statement per bulk membership insert.** Replace the chunked `VALUES` builders in
   `grant_membership_to_open_rooms` (`user.rs:692`) and `insert_memberships`/`grant_to_active_users`
   (`room.rs:428,461`) with `INSERT … SELECT … ON CONFLICT DO NOTHING`. Explicit id lists use
-  `json_each(?)`. Check that row order stays the same (`differential_test`).
+  `json_each(?)`. Check that row order stays the same (`differential_test`, which is `#[ignore]`d
+  in a plain `cargo test`; `reference-tools/db/differential.sh` runs it against the reference
+  image).
 - **DB-6 perf (measure first): variable-length `IN (?, …)`.** Six queries (`where_ids`,
   `mentionees_in_room`, `for_mentioned_users`, `page_updated_since`, `revoke_from`,
   `trim_recent_searches`) create one `prepare_cached` entry per list length. Try

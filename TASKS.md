@@ -45,9 +45,16 @@ otherwise stop" in `plans/cleanup.md`.
       warning seen on 1.93 no longer fires). Tests with the seed: 652 passed, 0 failed, 7 ignored
       (need a live reference app or a Ruby-made DB); no seed skips left, only the storage vectors'
       libvips/ffmpeg version-dependent byte comparisons (host 8.18.6 / n9.0.1).
-- [~] S-2 (refactor/cleanup) Seed, reference and candidate images; integration tests actually run; baselines (parity
-      lean gate, `bench/profile` alloc and cpu, `bench/run --apps rust`) in
-      `bench/results/cleanup-baseline-<date>/`
+- [r] S-2 (refactor/cleanup) Seed, reference and candidate images; integration tests actually
+      run; baselines (parity lean gate, `bench/profile` alloc and cpu, `bench/run --apps rust`)
+      in `bench/results/cleanup-baseline-20260928/`. Seed-backed tests: 53 skipped before the seed,
+      0 after (652 pass, 7 ignored). Parity 873/874 (manifest allowed). T = 3% (room_show,
+      messages_page, sidebar), 3.2% (post_message); allocs noise 0.1/req, post_message bimodal.
+      `bench/profile cpu` now writes `cpu.json`. Gate dry run (worktree `dryrun`, removed with
+      its branch and images) fixed the plan: copy the seed instead of symlinking it (the parity
+      container can't follow the link, so every cell that reads the seed's labels errored), `git worktree remove --force`, copy the
+      base binary, post_message twice, explicit cpu and `bench/run` recipes, `LOAD_WAIT_SECS=60`,
+      cargo pinned off the benchmark CCD (`taskset -c 0-7,16-23`), DB-5's differential runner.
 - [r] S-3 (refactor/cleanup) `bench/loc` script, with the baseline recorded (in
       `bench/results/cleanup-baseline-20260928/README.md`: 34,234 production lines incl. 1,771 of
       templates, 4,591 comment lines, 14,988 test lines, before S-4's `cargo fmt`).
@@ -165,5 +172,12 @@ won't make. They don't block the run and go into the final report.
 
 ## Found while working
 
+- (S-2) `reference-tools/db/differential.sh` stops at its schema-identity diff: it doesn't know
+  about `index_messages_on_room_id_and_created_at`, which the app adds on boot on purpose (README,
+  "One more index"). Its three Rust tests pass; the last step (Rails on the Rust-written database)
+  never runs. Tooling fix: filter that index out of the Rust side of the diff.
+- (S-2) `post_message` allocations are bimodal: the same binary measures 78.7 or 77.2 per request
+  (4 of 10 runs landed low). The gate works around it (run twice, compare the higher run); the cause
+  (probably a timing-dependent job or broadcast path) is unexplained.
 - Verify: `Layout::render` reads (and so sweeps) the flash even for `layout false` renders; Rails
   wouldn't. Possible parity edge (see WEB-5).

@@ -43,22 +43,26 @@ max(3%, the larger spread).
 | sidebar | 53.1 | 53.0 | 0.2748 | 0.2766 | 0.65% | 13,485 | 13,438 | 0.35% | 3% |
 | post_message | 78.7 | 78.7 | 0.4608 | 0.4586 | 0.48% | 4,803 | 4,729 | 1.55% | 3.2% (see below) |
 
-The S-2 dry run of the gate commands (`plans/cleanup.md`, "Commands for the gates") measured the
-same code twice more, as a `base` and a `dryrun` binary built from the same commit in two checkouts:
+The S-2 dry runs of the gate commands (`plans/cleanup.md`, "Commands for the gates") measured the
+same code again, as a `base` and a `dryrun` binary built in two checkouts, twice over about an hour
+(the second `base` was after S-4 and S-5, which change formatting and lint attributes only):
 
-| target | allocs/req (all runs) | CPU ms/req (4 runs) | req/s (4 runs) | spread over all runs |
+| target | allocs/req (all runs) | CPU ms/req (6 runs) | req/s (6 runs) | spread over all runs |
 |---|---|---|---|---|
-| room_show | 18.0, 18.1, 18.0, 18.0 | 0.1706–0.1709 | 21,566–21,642 | 0.2% CPU, 0.4% req/s |
-| messages_page | 19.0 ×4 | 0.1438–0.1448 | 25,200–25,415 | 0.7% CPU, 0.8% req/s |
-| sidebar | 53.1, 53.0, 53.1, 53.0 | 0.2748–0.2766 | 13,381–13,517 | 0.7% CPU, 1.0% req/s |
-| post_message | 78.7 ×5, 78.8, 77.2 ×2 | 0.4586–0.4668 | 4,651–4,803 | 1.8% CPU, 3.2% req/s |
+| room_show | 18.0 ×4, 18.1 ×2 | 0.1706–0.1730 | 21,236–21,642 | 1.4% CPU, 1.9% req/s |
+| messages_page | 19.0 ×4 | 0.1438–0.1448 | 25,200–25,467 | 0.7% CPU, 1.1% req/s |
+| sidebar | 53.1, 53.0, 53.1, 53.0 | 0.2748–0.2824 | 13,114–13,517 | 2.7% CPU, 3.0% req/s |
+| post_message | 78.7 ×5, 78.8, 77.2 ×2, 77.3 ×2 | 0.4586–0.4668 | 4,651–4,803 | 1.8% CPU, 3.2% req/s |
+
+Runs back to back agree much more closely than runs an hour apart, which is why the gate measures
+base and WP in the same session.
 
 **Tolerances.** T = 3% for room_show, messages_page and sidebar, and 3.2% for post_message (its
-req/s spread over the four runs; its CPU ms/req spread is 1.8%).
+req/s spread over all runs; its CPU ms/req spread is 1.8%).
 
 **Allocations.** room_show, messages_page and sidebar move by at most 0.1 per request between
 runs of the same code, so 0.1 is noise and 0.2 or more is a real change. post_message is bimodal:
-the same binary measures 78.7 (±0.1) most of the time and 77.2 about one run in four. Run it twice
+the same binary measures either 78.7 (±0.1) or 77.2 (±0.1); 4 of 10 runs landed low. Run it twice
 on each side and compare the higher run of each; a gap of about 1.5 is the mode flipping, not the
 change, so re-run before deciding.
 
