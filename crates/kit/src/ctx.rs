@@ -450,6 +450,7 @@ impl Ctx {
     }
 
     /// `send_data data, type:, disposition:, filename:`
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     pub fn send_data(&mut self, data: impl Into<Bytes>, options: SendOptions) -> Response {
         let range = self.request.header("range").map(str::to_string);
         response::send(&options, range.as_deref(), SendBody::Bytes(data.into()))
@@ -458,6 +459,7 @@ impl Ctx {
     // --- Conditional GET -----------------------------------------------------------------------
 
     /// `fresh_when`: sets ETag/Last-Modified and returns `Some(304)` when the request is fresh.
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     pub fn fresh_when(&mut self, freshness: Freshness) -> Option<Response> {
         self.cache_control.no_store = false;
         let etagged = freshness.strong_etag.is_some() || freshness.etag.is_some() || freshness.template.is_some();
@@ -512,6 +514,7 @@ impl Ctx {
     }
 
     /// `expires_in seconds, public:, stale_while_revalidate:, ...`
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     pub fn expires_in(&mut self, seconds: u64, options: ExpiresIn) {
         let cc = &mut self.cache_control;
         cc.no_store = false;
@@ -679,6 +682,7 @@ impl Ctx {
     }
 
     /// What `ShowExceptions` + `PublicExceptions` render for an error raised in the action.
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     fn error_response(&mut self, error: Error) -> Response {
         if error.status().is_server_error() {
             tracing::error!(error = %error, path = self.request.path(), "request failed");

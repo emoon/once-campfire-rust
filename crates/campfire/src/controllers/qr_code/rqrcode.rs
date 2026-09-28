@@ -11,6 +11,7 @@
 
 /// `RQRCode::QRCode.new(data).as_svg(viewbox: true, fill: :white, color: :black)`, for the binary
 /// string `Base64.urlsafe_decode64` returns; `None` when it doesn't fit a version 40 code.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn svg_bytes(data: &[u8]) -> Option<String> {
     let modules = QrCode::new(data)?.modules;
     let module_size = 11;

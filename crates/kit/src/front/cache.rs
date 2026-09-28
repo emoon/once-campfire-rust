@@ -82,6 +82,7 @@ impl MemoryCache {
         }
     }
 
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     pub fn get(&self, key: &str, now: Instant) -> Option<Arc<CachedResponse>> {
         let mut inner = self.inner.lock().unwrap();
         let item = inner.items.get_mut(key)?;
@@ -319,6 +320,7 @@ fn query_unescape(s: &str) -> Option<String> {
 }
 
 /// `url.QueryEscape`
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn query_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for &b in s.as_bytes() {
@@ -485,6 +487,7 @@ mod tests {
     }
 
     #[test]
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     fn memory_cache_charges_keys() {
         let now = Instant::now();
         let capacity = 64 * 1024;

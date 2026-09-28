@@ -54,3 +54,6 @@ tempfile.workspace = true
 hyper = { workspace = true, features = ["client", "http1", "http2"] }
 tokio-tungstenite.workspace = true
 x509-parser.workspace = true
+
+[lints]
+workspace = true

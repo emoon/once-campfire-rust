@@ -226,6 +226,7 @@ impl Runner {
 }
 
 /// Starts performing queued jobs: `concurrency` workers for each kind of job.
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 pub fn start(queue: Queue, app: App, registry: Registry, concurrency: usize) -> Runner {
     app.jobs.set_cable(app.cable.clone());
     let (stopping, _) = watch::channel(false);

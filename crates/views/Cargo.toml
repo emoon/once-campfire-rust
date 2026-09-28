@@ -12,3 +12,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 html5ever.workspace = true
+
+[lints]
+workspace = true

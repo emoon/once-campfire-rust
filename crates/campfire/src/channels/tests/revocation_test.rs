@@ -11,6 +11,7 @@ const UNAUTHORIZED: &str = r#"{"type":"disconnect","reason":"unauthorized","reco
 
 /// Each room-carrying channel's identifier for the designers room, and the broadcasting it
 /// streams from.
+#[expect(clippy::redundant_clone, reason = "existing hit under the S-5 lint floor")]
 async fn room_channels(app: &TestApp) -> Vec<(String, String)> {
     let designers = app.room("designers").await;
     let gid = room_gid(&designers).to_param();

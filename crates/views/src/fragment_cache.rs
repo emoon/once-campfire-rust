@@ -181,6 +181,7 @@ impl FragmentCache {
         *self.lock() = Entries::default();
     }
 
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     fn read<T: Clone + 'static>(&self, key: &str) -> Option<T> {
         let mut entries = self.lock();
         let Entries {
@@ -194,6 +195,7 @@ impl FragmentCache {
     }
 
     /// Stores `value` unless `key` already holds one of its type, and returns what `key` holds.
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     fn write<T: Clone + Send + Sync + 'static>(&self, key: &str, value: T, size: usize) -> T {
         let mut entries = self.lock();
         let Entries {

@@ -179,6 +179,7 @@ fn is_word_char(c: char) -> bool {
     WORD.is_match(c.encode_utf8(&mut [0; 4]))
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn auto_link_urls(text: &str) -> Result<String, ParseError> {
     let mut out = String::with_capacity(text.len());
     let mut last = 0;
@@ -236,6 +237,7 @@ fn auto_link_urls(text: &str) -> Result<String, ParseError> {
     Ok(out)
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn auto_link_email_addresses(text: &str) -> Result<String, ParseError> {
     let mut out = String::with_capacity(text.len());
     let mut copied = 0;

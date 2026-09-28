@@ -24,6 +24,7 @@ pub enum Serializer {
 }
 
 impl Serializer {
+    #[expect(clippy::trivially_copy_pass_by_ref, reason = "existing hit under the S-5 lint floor")]
     pub(crate) fn dump(&self, value: &Value) -> Vec<u8> {
         match self {
             Serializer::Null => match value {
@@ -35,6 +36,7 @@ impl Serializer {
         }
     }
 
+    #[expect(clippy::trivially_copy_pass_by_ref, reason = "existing hit under the S-5 lint floor")]
     pub(crate) fn load(&self, bytes: &[u8]) -> Result<Value, Error> {
         match self {
             Serializer::Null => String::from_utf8(bytes.to_vec())
@@ -57,6 +59,7 @@ impl Serializer {
         }
     }
 
+    #[expect(clippy::trivially_copy_pass_by_ref, reason = "existing hit under the S-5 lint floor")]
     pub(crate) fn encode_json(&self, value: &Value) -> String {
         match self {
             Serializer::Json => json::generate(value),
@@ -64,6 +67,7 @@ impl Serializer {
         }
     }
 
+    #[expect(clippy::trivially_copy_pass_by_ref, reason = "existing hit under the S-5 lint floor")]
     fn uses_envelope(&self) -> bool {
         !matches!(self, Serializer::Null)
     }
@@ -87,6 +91,7 @@ pub(crate) fn serialize_with_metadata(
 
 /// Like [`serialize_with_metadata`] for a value the caller already dumped with `serializer`
 /// (so the caller controls key order and escaping).
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub(crate) fn serialize_dumped_with_metadata(
     serializer: Serializer,
     dumped: &[u8],

@@ -1101,6 +1101,7 @@ pub(crate) mod tests {
     }
 
     /// Compares a Ruby value (`{"error": ...}` when it raised) with ours.
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     pub(crate) fn check(failures: &mut Vec<String>, context: &str, expected: &Value, actual: Rb<Value>) {
         let ok = match (expected.get("error"), &actual) {
             (Some(_), Err(Raised)) => true,

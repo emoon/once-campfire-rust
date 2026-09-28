@@ -29,3 +29,6 @@ test-support = ["dep:serde_yaml"]
 [dev-dependencies]
 campfire_db = { path = ".", features = ["test-support"] }
 tempfile.workspace = true
+
+[lints]
+workspace = true

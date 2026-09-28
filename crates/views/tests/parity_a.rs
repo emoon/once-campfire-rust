@@ -11,6 +11,7 @@ use campfire_views::*;
 use support::dom::{diff, normalize_html};
 use support::facts::*;
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 fn assert_parity(name: &str, ext: &str, rendered: String) {
     let expected = normalize_html(&golden(name, ext));
     let actual = normalize_html(&rendered);
@@ -115,6 +116,7 @@ fn account_fact(name: &str, key: &str) -> serde_json::Value {
 }
 
 #[test]
+#[expect(clippy::needless_collect, reason = "existing hit under the S-5 lint floor")]
 fn accounts_edit() {
     for (name, notice) in [
         ("account_edit_admin", None),

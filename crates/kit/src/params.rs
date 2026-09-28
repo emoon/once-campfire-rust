@@ -464,6 +464,7 @@ pub fn query_pairs(qs: &str) -> Result<Vec<RawPair>, ParamError> {
 
 /// `Rack::Request#form_pairs` for an urlencoded body: Rack's limits, and the trailing `\0`
 /// Safari once appended is dropped.
+#[expect(clippy::needless_collect, reason = "existing hit under the S-5 lint floor")]
 pub fn form_pairs(body: &[u8]) -> Result<Vec<RawPair>, ParamError> {
     if body.len() > FORM_BYTESIZE_LIMIT {
         return Err(ParamError::Limit(format!("total query size exceeds limit ({FORM_BYTESIZE_LIMIT})")));

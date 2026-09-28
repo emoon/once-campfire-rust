@@ -85,3 +85,16 @@ tikv-jemalloc-sys = "0.6"
 [profile.release]
 lto = "fat"
 codegen-units = 1
+
+# The cleanup's lint floor (plans/cleanup.md, S-5): pedantic and nursery lints that match its
+# priorities. Existing hits carry `#[expect(...)]`; each lane removes its own and P-3 makes these
+# `deny`.
+[workspace.lints.clippy]
+format_push_string = "warn"
+redundant_clone = "warn"
+needless_pass_by_value = "warn"
+significant_drop_tightening = "warn"
+large_enum_variant = "warn"
+trivially_copy_pass_by_ref = "warn"
+needless_collect = "warn"
+inefficient_to_string = "warn"

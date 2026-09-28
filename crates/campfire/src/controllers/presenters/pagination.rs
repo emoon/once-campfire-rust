@@ -150,6 +150,7 @@ fn unencode(value: &str) -> String {
 }
 
 /// `Addressable::URI.encode_component(value, CharacterClasses::UNRESERVED)`.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn encode_component(value: &str) -> String {
     let mut encoded = String::new();
     for byte in value.bytes() {

@@ -17,6 +17,7 @@ pub fn apply(content: Content, ctx: &RenderContext) -> Result<Content, Error> {
 // --- RemoveSoloUnfurledLinkText -----------------------------------------------------------------
 
 /// A message that is nothing but a link to what it unfurls shows just the unfurl.
+#[expect(clippy::needless_collect, reason = "existing hit under the S-5 lint floor")]
 pub fn remove_solo_unfurled_link_text(content: Content, ctx: &RenderContext) -> Result<Content, Error> {
     let unfurled_links: Vec<_> = content
         .dom
@@ -107,6 +108,7 @@ pub fn sanitize_tags(content: Content) -> Content {
 // --- SanitizeAttributes ------------------------------------------------------------------------
 
 /// Scrubs attributes with Rails' safe-list sanitizer over SanitizeTags' own tags.
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 pub fn sanitize_attributes(content: Content) -> Result<Content, Error> {
     let html = sanitizer::sanitize(&content.to_html(), &SafeList::content_filter()).map_err(Error::Parse)?;
     Content::wrap(&html)

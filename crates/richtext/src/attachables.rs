@@ -384,6 +384,7 @@ impl OpengraphEmbed {
 
 /// `render_action_text_attachment(attachment)`: the attachable's partial, chomped. `render_content`
 /// renders a nested content attachment's own content (`ContentAttachment#to_html`).
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) -> Result<String, Error>) -> Result<String, Error> {
     let html = match &attachment.attachable {
         Attachable::User(user) => render_mention(user),
@@ -456,6 +457,7 @@ pub fn render_mention(user: &MentionUser) -> String {
 }
 
 /// reference/app/views/action_text/attachables/_opengraph_embed.html.erb
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn render_opengraph_embed(embed: &OpengraphEmbed) -> String {
     let title = match (&embed.href, &embed.filename) {
         (Some(href), filename) => {
@@ -492,6 +494,7 @@ static ASSET_URI_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?mi)^[-a-z
 
 /// `image_tag(url, width:, height:)` for a remote image. Sources that aren't URLs go through the
 /// asset pipeline, which raises for anything it doesn't know; a rooted path passes through.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn image_tag(url: &str, width: Option<&str>, height: Option<&str>) -> Result<String, Error> {
     let src = if is_blank(url) {
         String::new()

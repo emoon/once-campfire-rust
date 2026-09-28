@@ -74,6 +74,7 @@ pub fn truncate(text: &str, length: usize, omission: &str) -> String {
 }
 
 /// `ERB::Util.url_encode`: percent-encodes everything but unreserved characters.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn url_encode(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {
@@ -87,6 +88,7 @@ pub fn url_encode(s: &str) -> String {
 }
 
 /// Active Support's `String#to_json` with `escape_html_entities_in_json` on.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn to_json_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
@@ -204,6 +206,7 @@ pub fn json_value_inspect(v: &Value) -> String {
     }
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn string_inspect(s: &str) -> String {
     let mut out = String::from("\"");
     let mut chars = s.chars().peekable();

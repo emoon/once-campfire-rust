@@ -68,6 +68,7 @@ fn representation_path(kind: &str, verifier: &dyn Verifier, blob: &Blob, variati
 }
 
 /// `CGI.escape` as `Hash#to_query` applies it.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn query_escape(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {

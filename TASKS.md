@@ -56,7 +56,14 @@ otherwise stop" in `plans/cleanup.md`.
       fmt commit 63b72b1 (233 files, 1,635 hunks; production lines 34,234 → 36,776). The vendored
       html5ever is a workspace member, so `crates/richtext/vendor/rustfmt.toml` disables formatting
       there; `cargo fmt` is safe to run anywhere now. Tests (seed built) and clippy clean after.
-- [ ] S-5 Workspace `[lints.clippy]` floor (warn), existing hits allowed
+- [r] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
+      The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
+      `[lints] workspace = true`. The 99 existing hits carry `#[expect(clippy::…, reason = "existing
+      hit under the S-5 lint floor")]` on their 81 enclosing fns (48 format_push_string, 25
+      needless_pass_by_value, 11 significant_drop_tightening, 5 redundant_clone, 5 needless_collect,
+      5 trivially_copy_pass_by_ref; 0 large_enum_variant, 0 inefficient_to_string). `expect`
+      rather than `allow`, so fixing a hit makes clippy flag the stale attribute; find a lane's
+      with `grep -rn "S-5 lint floor" crates/<lane>`.
 
 ## Phase 1: shared foundations
 

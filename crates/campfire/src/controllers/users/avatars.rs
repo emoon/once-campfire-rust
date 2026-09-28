@@ -126,6 +126,7 @@ fn render_initials(c: &mut Ctx, user: &User) -> Result {
 /// written once per process to a private directory under its own name, so the response carries
 /// the same filename and, like Rails' file bodies, gets no `Rack::ETag` digest. The lock makes the
 /// first write race-free: concurrent first requests would otherwise see a half-written file.
+#[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
 pub fn asset_file(logical_path: &str) -> Result<std::path::PathBuf> {
     static DIR: std::sync::Mutex<Option<tempfile::TempDir>> = std::sync::Mutex::new(None);
     let mut dir = DIR.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -157,6 +158,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[expect(clippy::needless_collect, reason = "existing hit under the S-5 lint floor")]
     fn concurrent_first_requests_all_get_the_whole_file() {
         let threads: Vec<_> = (0..16)
             .map(|_| std::thread::spawn(|| std::fs::read(asset_file("default-bot-avatar.svg").unwrap()).unwrap()))

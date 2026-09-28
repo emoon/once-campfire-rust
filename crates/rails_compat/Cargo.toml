@@ -16,3 +16,6 @@ aes-gcm.workspace = true
 rand.workspace = true
 hex.workspace = true
 bcrypt.workspace = true
+
+[lints]
+workspace = true

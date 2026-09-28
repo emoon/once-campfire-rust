@@ -516,6 +516,7 @@ async fn the_pool_keeps_subscriptions_it_failed_to_reach() {
 }
 
 #[tokio::test]
+#[expect(clippy::redundant_clone, reason = "existing hit under the S-5 lint floor")]
 async fn the_pool_drops_deliveries_past_its_queue() {
     let service = push_service(201, "Created").await;
     let pool = Pool::new(service.net.clone(), vapid(), |_| -> Result<(), String> { Ok(()) });

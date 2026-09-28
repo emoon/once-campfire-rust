@@ -31,6 +31,7 @@ pub struct GlobalId {
 }
 
 impl GlobalId {
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     pub fn new(model_name: &str, id: impl ToString) -> Self {
         Self {
             app: APP.to_string(),

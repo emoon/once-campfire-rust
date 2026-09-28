@@ -49,6 +49,7 @@ pub enum HttpError {
 }
 
 impl HttpError {
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     fn from_hyper(error: hyper::Error) -> Self {
         let mut source: Option<&(dyn std::error::Error + 'static)> = Some(&error);
         while let Some(e) = source {
@@ -454,6 +455,7 @@ impl Decoder {
     }
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 fn inflate_error(error: io::Error) -> HttpError {
     HttpError::Inflate(error.to_string())
 }

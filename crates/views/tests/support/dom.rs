@@ -106,6 +106,7 @@ pub fn normalize_html(html: &str) -> Vec<String> {
 }
 
 /// A readable report of the first differences between two normalized documents, or `None`.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn diff(expected: &[String], actual: &[String]) -> Option<String> {
     if expected == actual {
         return None;

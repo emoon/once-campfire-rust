@@ -44,6 +44,7 @@ impl AppMessageVerifier {
 }
 
 impl Verifier for AppMessageVerifier {
+    #[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
     fn generate(&self, data_json: &str, purpose: &str, expires_at: Option<jiff::Timestamp>) -> String {
         let mut envelope = format!("{{\"_rails\":{{\"data\":{data_json}");
         if let Some(expires_at) = expires_at {

@@ -79,6 +79,7 @@ impl Hub {
 
     /// Subscribes to `broadcasting`, receiving each payload wrapped as a message frame for the
     /// encoded channel `identifier`, or raw when it's `None`.
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     pub fn subscribe(self: &Arc<Self>, broadcasting: &str, identifier: Option<Arc<str>>) -> Subscriber {
         let mut streams = self.streams.lock().unwrap();
         let groups = streams.entry(broadcasting.to_string()).or_default();

@@ -72,10 +72,12 @@ fn subscribe(identifier: &Value) -> String {
     json!({ "command": "subscribe", "identifier": identifier.to_string() }).to_string()
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 fn perform(identifier: &Value, data: Value) -> String {
     json!({ "command": "message", "identifier": identifier.to_string(), "data": data.to_string() }).to_string()
 }
 
+#[expect(clippy::redundant_clone, reason = "existing hit under the S-5 lint floor")]
 fn script(tokens: &BTreeMap<String, String>) -> Vec<(String, Step)> {
     let t = |name: &str| tokens[name].clone();
     let room_id: i64 = t("ROOM_ID").parse().unwrap();

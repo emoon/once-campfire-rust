@@ -151,6 +151,7 @@ impl Config {
 }
 
 /// The install's own HTTPS URL when it has a TLS domain; the project's otherwise.
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 fn default_vapid_subject(tls_domains: Option<String>) -> String {
     let domain = tls_domains
         .as_deref()

@@ -116,6 +116,7 @@ async fn rate_limit(c: &mut Ctx) -> Result<()> {
     Ok(())
 }
 
+#[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
 fn increment(key: &str, now: Timestamp) -> u64 {
     let mut limits = RATE_LIMITS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     limits.retain(|_, (_, expires_at)| *expires_at > now);

@@ -161,6 +161,7 @@ impl CertManager {
 
     /// Forgets `name`'s lock unless another `obtain` holds it too. Clones are only taken with
     /// `obtaining` locked, so under that lock a count of two (the map's and ours) is final.
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     fn finish_obtaining(&self, name: &str, lock: Arc<tokio::sync::Mutex<()>>) {
         let mut obtaining = self.obtaining.lock().unwrap();
         if obtaining.get(name).is_some_and(|current| Arc::ptr_eq(current, &lock)) && Arc::strong_count(&lock) == 2 {
@@ -317,6 +318,7 @@ impl CertManager {
     }
 
     /// The ACME account, registered with the cached account key (or a new one, cached first).
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     async fn account(&self) -> Result<Account, Error> {
         let mut account = self.account.lock().await;
         if let Some(account) = account.as_ref() {
@@ -377,6 +379,7 @@ struct Provisioned<'a> {
 }
 
 impl Drop for Provisioned<'_> {
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     fn drop(&mut self) {
         let mut tokens = self.manager.http_tokens.write().unwrap();
         for path in &self.http_paths {
@@ -504,6 +507,7 @@ fn covers(certificate: &x509_parser::certificate::X509Certificate<'_>, domain: &
     })
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn pem_block(label: &str, der: &[u8]) -> String {
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(der);

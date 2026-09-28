@@ -33,6 +33,7 @@ pub async fn new(c: &mut Ctx) -> Result {
     .await
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub async fn create(c: &mut Ctx) -> Result {
     concerns::before_actions(c, Before::default().require_unauthenticated_access()).await?;
     verify_join_code(c).await?;

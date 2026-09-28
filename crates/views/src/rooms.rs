@@ -342,6 +342,7 @@ mod filters {
     use crate::helpers::Html;
 
     /// `render layout: "rooms/layouts/form", locals: { room: } do ... end`.
+    #[expect(clippy::trivially_copy_pass_by_ref, reason = "existing hit under the S-5 lint floor")]
     pub fn room_form(
         content: impl Display,
         _: &dyn Values,

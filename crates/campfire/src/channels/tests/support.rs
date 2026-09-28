@@ -199,6 +199,7 @@ impl Partials for FakePartials {
     }
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 pub fn identifier(value: Value) -> String {
     value.to_string()
 }

@@ -358,6 +358,7 @@ async fn turbo_streams_channel_verifies_and_guards_stream_names() {
     client.assert_silent().await;
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 async fn http_get(url: &str, headers: &[(&str, &str)]) -> (u16, Option<String>, String) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let url = url.strip_prefix("http://").unwrap();

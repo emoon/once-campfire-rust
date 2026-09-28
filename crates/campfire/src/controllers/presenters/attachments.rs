@@ -233,6 +233,7 @@ pub async fn processed_variant(app: &App, record: Record, name: &str, transforma
         .map(Some)
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 pub fn storage_error(error: campfire_storage::Error) -> campfire_db::Error {
     campfire_db::Error::Other(error.to_string())
 }

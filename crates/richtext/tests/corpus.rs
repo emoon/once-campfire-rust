@@ -128,6 +128,7 @@ fn normalized_dom(html: &str) -> String {
     out
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn normalize_into(dom: &Dom, node: usize, out: &mut String) {
     for &child in dom.children(node) {
         if let Some(text) = dom.text(child) {
@@ -317,6 +318,7 @@ struct Tally {
 }
 
 impl Tally {
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     fn record(&mut self, label: String, expected: &str, actual: &str) {
         if expected == actual {
             self.exact += 1;

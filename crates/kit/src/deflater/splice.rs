@@ -396,6 +396,7 @@ fn fragment_key(fragment: &Arc<String>) -> usize {
 
 /// Each fragment's SHA-256, hashing (and remembering) the ones not seen before. A remembered
 /// entry at the same address is the same fragment while its `Weak` keeps the address taken.
+#[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
 fn fragment_shas<'a>(fragments: impl Iterator<Item = &'a Arc<String>> + Clone) -> Vec<Sha> {
     let mut known = lock(&FRAGMENTS);
     let missing = fragments.clone().filter(|f| !known.contains_key(&fragment_key(f))).count();
@@ -492,6 +493,7 @@ mod tests {
     }
 
     #[test]
+    #[expect(clippy::redundant_clone, reason = "existing hit under the S-5 lint floor")]
     fn missing_small_repeated_and_far_apart_fragments() {
         let messages: Vec<_> = (200..206).map(message).collect();
         let small = Arc::new("<i>small</i>".to_string());

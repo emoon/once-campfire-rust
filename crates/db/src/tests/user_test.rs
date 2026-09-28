@@ -160,6 +160,7 @@ fn create_bot_with_webhook() {
 }
 
 #[test]
+#[expect(clippy::redundant_clone, reason = "existing hit under the S-5 lint floor")]
 fn reset_bot_key() {
     let t = TestDb::new();
     let bot = t.write(|tx| User::create_bot(tx, "Bender", None));

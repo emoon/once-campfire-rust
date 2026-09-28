@@ -2,6 +2,7 @@
 //! and format extensions (`path(format: :json)`).
 
 /// `CGI.escape`: everything but `A-Za-z0-9_.-~` is percent-encoded, and spaces become `+`.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn cgi_escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for byte in text.bytes() {

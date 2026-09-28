@@ -53,6 +53,7 @@ enum Step {
     RemoteDisconnect,
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 fn identifier(value: Value) -> String {
     value.to_string()
 }
@@ -65,6 +66,7 @@ fn unsubscribe(identifier: &str) -> String {
     json!({ "command": "unsubscribe", "identifier": identifier }).to_string()
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 fn perform(identifier: &str, data: Value) -> String {
     json!({ "command": "message", "identifier": identifier, "data": data.to_string() }).to_string()
 }

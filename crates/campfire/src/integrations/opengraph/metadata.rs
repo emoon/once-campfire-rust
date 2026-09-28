@@ -60,6 +60,7 @@ impl Metadata {
 
     /// `render json: opengraph` after `valid?`: `instance_values`, which by then include the
     /// validation context and the (empty) errors.
+    #[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
     pub fn to_json(&self) -> String {
         let mut json = String::from("{");
         for (key, value) in &self.attributes {

@@ -49,6 +49,7 @@ impl TestCrypto {
         hex::encode(&hasher.finalize()[..16])
     }
 
+    #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
     fn envelope(&self, kind: &str, name: &str, value: Value, expires_at: Option<Timestamp>) -> String {
         let payload = json!({ "v": value, "exp": expires_at.map(|t| t.to_string()), "pur": format!("cookie.{name}") });
         let data = STANDARD.encode(payload.to_string());

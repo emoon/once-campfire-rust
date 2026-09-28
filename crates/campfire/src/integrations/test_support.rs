@@ -39,6 +39,7 @@ impl FakeResolver {
 }
 
 impl Resolver for FakeResolver {
+    #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
     fn lookup<'a>(&'a self, host: &'a str) -> BoxFuture<'a, io::Result<Vec<IpAddr>>> {
         self.lookups.lock().unwrap().push(host.to_string());
         let mut answers = self.answers.lock().unwrap();
@@ -201,6 +202,7 @@ impl FakeServer {
     }
 }
 
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 async fn serve<S: AsyncRead + AsyncWrite + Unpin>(stream: S, routes: &[Route], log: &Mutex<Vec<Received>>) -> io::Result<()> {
     let mut reader = BufReader::new(stream);
     let mut line = String::new();

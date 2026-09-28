@@ -285,6 +285,7 @@ impl Attrs {
     }
 
     /// `tag_options`: the rendered attributes, each with a leading space.
+    #[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
     pub fn render(&self) -> String {
         let mut out = String::new();
         for (name, value) in &self.0 {

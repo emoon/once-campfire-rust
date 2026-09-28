@@ -162,6 +162,7 @@ fn mailto_to_valid(to: &str) -> bool {
 }
 
 /// `URI::Generic#query=`: rejects `%` followed by two non-hex characters and escapes the rest.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn escape_query(query: &str) -> Result<String, UriError> {
     let cleaned: Vec<u8> = query.bytes().filter(|b| !matches!(b, b'\t' | b'\r' | b'\n')).collect();
     for w in cleaned.windows(3) {

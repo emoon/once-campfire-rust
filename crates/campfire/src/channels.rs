@@ -60,6 +60,7 @@ pub struct Deps {
 
 /// The cable server with `ApplicationCable::Connection` and every channel registered. Mount it
 /// with `cable.router("/cable")`.
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 pub fn server(deps: Deps, config: Config) -> Cable {
     let authenticator = SessionAuthenticator::new(deps.db.clone(), deps.crypto.clone(), deps.clock.clone());
     register(

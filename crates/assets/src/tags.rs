@@ -29,6 +29,7 @@ pub fn stylesheet_link_tag_all(options: &[(&str, &str)]) -> StylesheetTags {
 
 /// `stylesheet_link_tag *sources, **options` as Propshaft::Helper renders it: one Rails
 /// `stylesheet_link_tag` per source, joined by newlines. Missing sources panic, like Rails raises.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn stylesheet_link_tag(sources: &[&str], options: &[(&str, &str)]) -> StylesheetTags {
     let mut html = Vec::with_capacity(sources.len());
     let mut preload_links = Vec::with_capacity(sources.len());

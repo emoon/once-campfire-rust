@@ -163,6 +163,7 @@ where
     into_axum(ctx.finish(result), head).await
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 fn panic_error(panic: Box<dyn std::any::Any + Send>) -> Error {
     let message = panic
         .downcast_ref::<String>()
@@ -434,6 +435,7 @@ pub async fn not_found(State(kit): State<Kit>, req: axum::extract::Request) -> a
 
 /// Finish an app router: Rails-style 404s for unknown paths *and* unknown methods (Axum would say
 /// 405), the Kit state, the pre-routing middleware, and the configured request timeout.
+#[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 pub fn app(router: Router<Kit>, kit: Kit) -> Router {
     let routed = router
         .fallback(not_found)

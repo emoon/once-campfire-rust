@@ -308,6 +308,7 @@ fn same_site_attribute(same_site: Option<SameSite>) -> &'static str {
 }
 
 /// `Rack::Utils.set_cookie_header(key, value_hash)`.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn set_cookie_header(name: &str, cookie: &Cookie) -> String {
     let mut header = format!("{name}={}", escape(&cookie.value));
     if let Some(domain) = &cookie.domain {
@@ -331,6 +332,7 @@ pub fn set_cookie_header(name: &str, cookie: &Cookie) -> String {
 }
 
 /// `Rack::Utils.delete_set_cookie_header(key, options)`.
+#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn delete_cookie_header(name: &str, options: &DeleteOptions) -> String {
     let mut header = format!("{name}=");
     if let Some(domain) = &options.domain {
