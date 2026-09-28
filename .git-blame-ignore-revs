@@ -1,0 +1,6 @@
+# Mechanical commits that `git blame` should skip. Use it with
+#   git blame --ignore-revs-file .git-blame-ignore-revs <file>
+# or once per clone: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# cargo fmt --all (max_width = 140)
+63b72b1473a701ddea1457878716ff786ffcd5c9

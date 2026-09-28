@@ -52,7 +52,10 @@ otherwise stop" in `plans/cleanup.md`.
       `bench/results/cleanup-baseline-20260928/README.md`: 34,234 production lines incl. 1,771 of
       templates, 4,591 comment lines, 14,988 test lines, before S-4's `cargo fmt`).
       `bench/loc --against refactor/cleanup` prints the per-crate delta for commit messages.
-- [ ] S-4 (approved) `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`
+- [r] S-4 (refactor/cleanup) (approved) `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`.
+      fmt commit 63b72b1 (233 files, 1,635 hunks; production lines 34,234 → 36,776). The vendored
+      html5ever is a workspace member, so `crates/richtext/vendor/rustfmt.toml` disables formatting
+      there; `cargo fmt` is safe to run anywhere now. Tests (seed built) and clippy clean after.
 - [ ] S-5 Workspace `[lints.clippy]` floor (warn), existing hits allowed
 
 ## Phase 1: shared foundations

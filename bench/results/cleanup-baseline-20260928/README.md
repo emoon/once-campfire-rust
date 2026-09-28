@@ -122,3 +122,20 @@ production delta from `bench/loc --against refactor/cleanup` in their commit mes
 | views | 2,872 | 562 | 1,634 |
 | views (templates) | 1,771 | 36 | 0 |
 | **total** | 34,234 | 4,591 | 14,988 |
+
+After S-4's `cargo fmt --all` (63b72b1), the baseline later WPs actually diff against:
+
+| crate | production | comments | tests |
+|---|---|---|---|
+| assets | 1,163 | 126 | 273 |
+| cable | 1,473 | 268 | 1,393 |
+| campfire | 12,252 | 1,552 | 6,007 |
+| db | 4,073 | 476 | 2,094 |
+| kit | 6,683 | 794 | 3,258 |
+| rails_compat | 828 | 182 | 440 |
+| richtext | 2,823 | 313 | 1,239 |
+| routes | 106 | 4 | 0 |
+| storage | 2,319 | 278 | 561 |
+| views | 3,285 | 562 | 1,869 |
+| views (templates) | 1,771 | 36 | 0 |
+| **total** | 36,776 | 4,591 | 17,134 |
