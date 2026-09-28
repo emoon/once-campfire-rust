@@ -39,16 +39,20 @@ lines. Tests are excluded, and so is the generated MIME table.
 | App-equivalent Rust: campfire 6.3k, db 4.1k, views 2.9k, routes 0.1k, plus Askama templates 1.8k | ~15.2k |
 | Rust tests (vs Rails tests: 3.9k) | 15.0k |
 
+These are review-time estimates. The measured numbers, which WPs diff against, are the `bench/loc`
+tables in `bench/results/cleanup-baseline-20260928/README.md` (36.4k production lines after S-4's
+`cargo fmt`, templates included).
+
 So the part that corresponds to the Rails app is about 2.8× its size, not 6×. Some of that is the
 language: types, explicit errors and borrowing. Some of it is duplication this plan removes. Rough
 estimate, unconfirmed until done: 2.5–3k production lines can go without touching behavior or speed.
 
 ### Health
 
-- Workspace tests pass (`cargo test --workspace --exclude html5ever`, ~70 s). The seed isn't built,
-  though, so the integration tests skip silently. Phase 0 fixes that before anything else lands.
-- Default clippy has one warning (richtext; `nonminimal_bool`), seen with cargo 1.93 at review time
-  (1.98.1 is installed now; S-1 re-checks on it). Pedantic clippy is almost all doc/attribute noise. The
+- Workspace tests pass (`cargo test --workspace --exclude html5ever`, ~70 s). At review time the
+  seed wasn't built, so the integration tests skipped silently; S-2 built it (53 tests now run).
+- Default clippy is clean on 1.98.1 (S-1; the richtext `nonminimal_bool` warning seen with cargo
+  1.93 at review time no longer fires). Pedantic clippy is almost all doc/attribute noise. The
   useful parts: 44 `push_str(&format!(..))`, 6 redundant clones, 25 by-value arguments that are
   never consumed, 11 lock guards held too long, and ~200 unchecked `as` casts.
 - No `rustfmt.toml`, and the code isn't rustfmt-formatted at any width (140 is closest: 1,872 hunks).
@@ -118,12 +122,14 @@ The coordinator doesn't write WP code. It repeats:
 3. **Review** each WP that comes back `[r]`. Start a fresh reviewer agent (not the author) with the
    WP text, the diff against `refactor/cleanup`, and this plan's rules. It checks that the diff does
    what the WP says and nothing else, that behavior is unchanged (reading the Rails source where
-   code mirrors it), that "Keep these patterns" and the citations survived, and that the recorded
-   gate numbers pass. It answers approve, or a list of findings. Send findings back to the author
-   (or a fresh agent on the branch); after two rounds, the coordinator decides each open finding
-   itself and records its reasoning in the merge commit.
+   code mirrors it), that "Keep these patterns" and the citations survived, that new code inside a
+   fn carrying an S-5 `#[expect]` doesn't add hits of that lint (the attribute hides them), and
+   that the recorded gate numbers pass. It answers approve, or a list of findings. Send findings
+   back to the author (or a fresh agent on the branch); after two rounds, the coordinator decides
+   each open finding itself and records its reasoning in the merge commit.
 4. **Verify** before merging: rebase the branch onto `refactor/cleanup` in its worktree, re-run
-   tests (seed built) and clippy there, and check the recorded perf and parity results against the
+   tests (seed built) and clippy there (`taskset -c 0-7,16-23 cargo test …` / `cargo clippy …`,
+   as in the definition of done), and check the recorded perf and parity results against the
    tolerance. If the rebase changed code the WP touched, re-run the perf gate too.
 5. **Merge** in `$MAIN`: `git merge --no-ff refactor/cleanup-<id>`. Set the WP to `[x]`, then
    commit `TASKS.md` on `refactor/cleanup` ("Tasks: <id> merged"). This is the only place
@@ -163,7 +169,7 @@ mkdir parity/.seed && cp -r "$MAIN"/parity/.seed/* parity/.seed/   # gitignored;
 The seed is copied, not symlinked: the parity harness runs its browsers in a container that mounts
 only the worktree, so a link out of it breaks every cell that reads the seed's labels (S-2 dry
 run). The glob leaves out `$MAIN`'s hidden `.instances`/`.candidates` state. Build the seed in
-`$MAIN` (`parity/bin/seed build`) if it's missing there.
+`$MAIN` (`flock /tmp/campfire-bench.lock parity/bin/seed build`) if it's missing there.
 
 - Before marking a WP ready, rebase onto the current `refactor/cleanup` and re-run the gates.
 - Don't push, and don't merge anything yourself.
@@ -248,29 +254,40 @@ taskset -c 0-7,16-23 cargo build --release -p campfire                   # this 
 OUT=bench/results/$ID-$(date +%Y%m%d)
 LABEL=$(echo "$ID" | tr 'a-z-' 'A-Z_')   # bench/profile reads NATIVE_<LABEL>_BIN; db-2 → DB_2
 export NATIVE_BASE_BIN=$PWD/target/base-campfire "NATIVE_${LABEL}_BIN=$PWD/target/release/campfire"
-for route in room_show messages_page sidebar post_message; do
-  flock /tmp/campfire-bench.lock bench/profile alloc --label base --route $route --out $OUT/base-$route
-  flock /tmp/campfire-bench.lock bench/profile alloc --label $ID --route $route --out $OUT/$ID-$route
+# post_message runs twice per side: it's bimodal (78.7 or 77.2 on the same binary), so compare the
+# higher of the two runs on each side.
+for route in room_show messages_page sidebar post_message post_message-2; do
+  r=${route%-2}
+  flock /tmp/campfire-bench.lock bench/profile alloc --label base --route $r --out $OUT/base-$route
+  flock /tmp/campfire-bench.lock bench/profile alloc --label $ID --route $r --out $OUT/$ID-$route
 done
-# post_message is bimodal (78.7 or 77.2 on the same binary): run it a second time on each side
-# (--out $OUT/base-post_message-2, $OUT/$ID-post_message-2) and compare the higher run of each.
-for label in base $ID; do   # CPU ms/req and req/s per target, into $OUT/cpu-<label>/cpu.json
+# CPU ms/req and req/s per target, in ABBA order (base, WP, WP, base) so drift over the session
+# cancels out; each run writes $OUT/cpu-<label>-<n>/cpu.json.
+for run in base:1 $ID:1 $ID:2 base:2; do
+  label=${run%:*} n=${run#*:}
   flock /tmp/campfire-bench.lock bench/profile cpu --label $label \
-    --targets room_show,messages_page,sidebar,post_message --out $OUT/cpu-$label
+    --targets room_show,messages_page,sidebar,post_message --out $OUT/cpu-$label-$n
 done
 ```
 
+Compare each target's mean of the two base runs with the mean of the two WP runs. If a target
+lands within half of T of the pass/fail line (worse by between T/2 and 1.5 T, or, for a perf WP's
+gain, better by between T/2 and 1.5 T), run the four again and decide on the mean of all eight.
 Each alloc run takes about 12 s and each cpu run about a minute; the first run in a worktree also
 builds the load generator. `cpu` doesn't render flamegraph SVGs (no `inferno`); its `.top.md`
-rollups and `cpu.json` are what the gate uses. Write a short `README.md` in `$OUT` with the
-before/after table and T from `bench/results/cleanup-baseline-20260928/README.md`.
+rollups and `cpu.json` are what the gate uses (`cpu.json` is written only when every target ran).
+Write a short `README.md` in `$OUT` with the before/after table and T from
+`bench/results/cleanup-baseline-20260928/README.md`.
 
 For a `bench/run` suite (WPs marked **perf**), build the base image under your WP's own tags from
 `$MAIN`, measure it, remove it, then build and measure yours. `SUITES` picks the path: `http`,
 `cable` or `upload` (about 4 minutes a rep for `http`). Before each rep `bench/run` waits up to
-`LOAD_WAIT_SECS` (default 900) for the load average to drop below 1.5, which other agents' builds
-keep it above; with builds pinned away from the benchmark's cores, a minute is enough. `bench/run`
-labels both runs with the worktree's HEAD; the image line (id and build time) tells them apart.
+`LOAD_WAIT_SECS` (default 900) for the load average to drop below 1.5. The load average is
+system-wide, so other agents' builds (and the previous rep) keep it above that whether or not they
+are pinned; `LOAD_WAIT_SECS=60` means wait up to a minute, then run anyway (the log records the
+load). Pinning builds away from the benchmark's cores is what keeps the measurement clean.
+`bench/run` labels both runs with the worktree's HEAD; the image line (id and build time) tells
+them apart.
 
 ```sh
 export PARITY_CANDIDATE_APP_IMAGE=campfire-rust:$ID PARITY_CANDIDATE_IMAGE=campfire-candidate-$ID
@@ -299,9 +316,9 @@ coordinator removes them when it merges the WP. Never remove any other image.
 
 ### Definition of done (every WP)
 
-1. `cargo test --workspace --exclude html5ever` passes **with the seed built**. Say so in the
-   report. If any test skipped, say which.
-2. `cargo clippy --workspace --exclude html5ever --all-targets` is clean.
+1. `taskset -c 0-7,16-23 cargo test --workspace --exclude html5ever` passes **with the seed
+   built**. Say so in the report. If any test skipped, say which.
+2. `taskset -c 0-7,16-23 cargo clippy --workspace --exclude html5ever --all-targets` is clean.
 3. If the WP can change output (anything in `views`, `richtext`, `kit`, `cable`, `storage`
    serving, or the controllers), the parity lean gate (`parity/bin/candidate compare`) matches the
    Phase 0 baseline: no new failing cells.
@@ -316,8 +333,8 @@ coordinator removes them when it merges the WP. Never remove any other image.
    `bench/results/cleanup-baseline-20260928/README.md`: T = 3% for room_show, messages_page and
    sidebar and 3.2% for post_message, the `bench/run` metrics whose spread is over 3%, and the
    allocation noise (0.1 per request; post_message is bimodal). CPU per request or throughput
-   worse than base by more than T fails the gate. A WP marked **perf** must also improve at least one target by more than
-   T, or it's dropped (see "When you'd otherwise stop").
+   worse than base by more than T fails the gate. A WP marked **perf** must also improve at least
+   one target by more than T, or it's dropped (see "When you'd otherwise stop").
 5. **Size.** Run `bench/loc --against refactor/cleanup` (WP S-3) and put the production-lines
    delta per crate in the commit message.
 6. Match the surrounding code: small named functions, a Rails citation where behavior mirrors
@@ -329,9 +346,10 @@ coordinator removes them when it merges the WP. Never remove any other image.
 ## Phase 0: safety net (one agent, serial; blocks everything)
 
 The Phase 0 agent is the exception to the worktree rule. It works directly in `$MAIN` on
-`refactor/cleanup` and commits there, because every later branch starts from its result. The
-coordinator reviews those commits (step 3 of the loop) before starting Phase 1, and has them fixed
-in place rather than reverted.
+`refactor/cleanup` and commits there, because every later branch starts from its result. That
+includes committing its own S-* lines in `TASKS.md`, the one exception to the coordinator-only
+rule. The coordinator reviews those commits (step 3 of the loop) before starting Phase 1, and has
+them fixed in place rather than reverted.
 
 - **S-1 Toolchain.** Rust 1.98.1 (the `Dockerfile` version) is installed (the human did this on
   2026-09-28; `cargo --version` and `mise exec rust@1.98.1 -- cargo --version` both report 1.98.1).
@@ -360,7 +378,10 @@ in place rather than reverted.
   priorities: `format_push_string`, `redundant_clone`, `needless_pass_by_value`,
   `significant_drop_tightening`, `large_enum_variant`, `trivially_copy_pass_by_ref`,
   `needless_collect`, `inefficient_to_string`. Start them at `warn` and allow the existing hits. Each
-  lane burns down its own and flips the lint to `deny` at the end (P-3).
+  lane burns down its own and flips the lint to `deny` at the end (P-3). Done with
+  `#[expect(clippy::…, reason = "existing hit under the S-5 lint floor")]` on each hit's enclosing
+  fn. An `expect` there also absorbs new hits of the same lint in that fn until the old one is
+  fixed, so reviewers should check new code inside such fns for those lints by eye.
 
 ## Phase 1: shared foundations (small, early; lanes depend on them)
 
