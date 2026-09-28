@@ -36,7 +36,10 @@ pub fn raise_open_file_limit() -> Option<u64> {
             return None;
         }
         if limit.rlim_cur < limit.rlim_max {
-            let raised = libc::rlimit { rlim_cur: limit.rlim_max, rlim_max: limit.rlim_max };
+            let raised = libc::rlimit {
+                rlim_cur: limit.rlim_max,
+                rlim_max: limit.rlim_max,
+            };
             if libc::setrlimit(libc::RLIMIT_NOFILE, &raised) == 0 {
                 return Some(raised.rlim_cur);
             }

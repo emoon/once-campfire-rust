@@ -23,20 +23,35 @@ pub async fn show(c: &mut Ctx) -> Result {
 
     // `stale?(etag: Current.account)`; there's no accounts/logos/show template to digest.
     let freshness = Freshness {
-        etag: account.as_ref().map(|account| cache_key_with_version("accounts", account.id, account.updated_at.jiff())),
+        etag: account
+            .as_ref()
+            .map(|account| cache_key_with_version("accounts", account.id, account.updated_at.jiff())),
         ..Freshness::default()
     };
     if let Some(not_modified) = c.fresh_when(freshness) {
         return Ok(not_modified);
     }
-    c.expires_in(MAX_AGE, ExpiresIn { public: true, stale_while_revalidate: Some(STALE_WHILE_REVALIDATE), ..ExpiresIn::default() });
+    c.expires_in(
+        MAX_AGE,
+        ExpiresIn {
+            public: true,
+            stale_while_revalidate: Some(STALE_WHILE_REVALIDATE),
+            ..ExpiresIn::default()
+        },
+    );
 
     let small = c.param_str("size") == Some("small");
     let variant = match &account {
         // `logo.variant(size).processed if logo.variable?`: :small is 192, :large 512, both PNG.
         Some(account) => {
             let size = if small { 192 } else { 512 };
-            attachments::processed_variant(c.app(), Record::account(account.id), "logo", Variation::resize_to_limit(size, size, Some("png"))).await?
+            attachments::processed_variant(
+                c.app(),
+                Record::account(account.id),
+                "logo",
+                Variation::resize_to_limit(size, size, Some("png")),
+            )
+            .await?
         }
         None => None,
     };

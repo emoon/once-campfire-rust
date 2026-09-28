@@ -86,12 +86,7 @@ impl Attachment {
     }
 
     /// `has_one_attached`'s lookup.
-    pub fn find_for(
-        conn: &Connection,
-        record_type: &str,
-        record_id: i64,
-        name: &str,
-    ) -> Result<Option<Self>> {
+    pub fn find_for(conn: &Connection, record_type: &str, record_id: i64, name: &str) -> Result<Option<Self>> {
         query_one(
             conn,
             r#"SELECT * FROM "active_storage_attachments" WHERE "active_storage_attachments"."record_id" = ? AND "active_storage_attachments"."record_type" = ? AND "active_storage_attachments"."name" = ? LIMIT 1"#,
@@ -100,13 +95,7 @@ impl Attachment {
         )
     }
 
-    pub fn create(
-        tx: &Tx<'_>,
-        record_type: &str,
-        record_id: i64,
-        name: &str,
-        blob_id: i64,
-    ) -> Result<Self> {
+    pub fn create(tx: &Tx<'_>, record_type: &str, record_id: i64, name: &str, blob_id: i64) -> Result<Self> {
         let now = tx.now();
         let id: i64 = tx.conn().query_row_cached(
             r#"INSERT INTO "active_storage_attachments" ("blob_id", "created_at", "name", "record_id", "record_type") VALUES (?, ?, ?, ?, ?) RETURNING "id""#,
@@ -124,7 +113,10 @@ impl Attachment {
     }
 
     pub fn delete(&self, tx: &Tx<'_>) -> Result<()> {
-        tx.conn().execute_cached(r#"DELETE FROM "active_storage_attachments" WHERE "active_storage_attachments"."id" = ?"#, [self.id])?;
+        tx.conn().execute_cached(
+            r#"DELETE FROM "active_storage_attachments" WHERE "active_storage_attachments"."id" = ?"#,
+            [self.id],
+        )?;
         Ok(())
     }
 

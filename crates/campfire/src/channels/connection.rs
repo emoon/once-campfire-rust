@@ -37,7 +37,10 @@ impl Authenticate<CableUser> for SessionAuthenticator {
             })
             .await;
         match user {
-            Ok(user) => user.map(|user| CableUser { id: user.id, name: user.name }),
+            Ok(user) => user.map(|user| CableUser {
+                id: user.id,
+                name: user.name,
+            }),
             Err(error) => {
                 tracing::error!(%error, "Could not look up the cable session");
                 None

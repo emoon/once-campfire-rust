@@ -17,7 +17,13 @@ pub async fn show(c: &mut Ctx) -> Result {
     let qr_code = rqrcode::svg_bytes(&url).ok_or(Error::Status(StatusCode::UNPROCESSABLE_ENTITY))?;
 
     // `expires_in 1.year, public: true`
-    c.expires_in(31_556_952, ExpiresIn { public: true, ..ExpiresIn::default() });
+    c.expires_in(
+        31_556_952,
+        ExpiresIn {
+            public: true,
+            ..ExpiresIn::default()
+        },
+    );
     Ok(c.render_as(StatusCode::OK, "image/svg+xml; charset=utf-8", qr_code))
 }
 

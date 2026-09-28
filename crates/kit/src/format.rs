@@ -47,7 +47,13 @@ macro_rules! mime {
 // (the order matters for `text/*` expansion).
 mime!(HTML, "html", "text/html", ["application/xhtml+xml"], ["xhtml"]);
 mime!(TEXT, "text", "text/plain", [], ["txt"]);
-mime!(JS, "js", "text/javascript", ["application/javascript", "application/x-javascript"], []);
+mime!(
+    JS,
+    "js",
+    "text/javascript",
+    ["application/javascript", "application/x-javascript"],
+    []
+);
 mime!(CSS, "css", "text/css", [], []);
 mime!(ICS, "ics", "text/calendar", [], []);
 mime!(CSV, "csv", "text/csv", [], []);
@@ -77,23 +83,71 @@ mime!(ATOM, "atom", "application/atom+xml", [], []);
 mime!(YAML, "yaml", "application/x-yaml", ["text/yaml"], ["yml", "yaml"]);
 mime!(MULTIPART_FORM, "multipart_form", "multipart/form-data", [], []);
 mime!(URL_ENCODED_FORM, "url_encoded_form", "application/x-www-form-urlencoded", [], []);
-mime!(JSON, "json", "application/json", ["text/x-json", "application/jsonrequest", "application/problem+json"], []);
+mime!(
+    JSON,
+    "json",
+    "application/json",
+    ["text/x-json", "application/jsonrequest", "application/problem+json"],
+    []
+);
 mime!(PDF, "pdf", "application/pdf", [], ["pdf"]);
 mime!(ZIP, "zip", "application/zip", [], ["zip"]);
 mime!(GZIP, "gzip", "application/gzip", ["application/x-gzip"], ["gz"]);
 mime!(TURBO_STREAM, "turbo_stream", "text/vnd.turbo-stream.html", [], []);
 /// `Mime::ALL`: the `*/*` wildcard, only meaningful in negotiation.
-pub static ALL: Mime = Mime { symbol: "*/*", string: "*/*", synonyms: &[], extensions: &[] };
+pub static ALL: Mime = Mime {
+    symbol: "*/*",
+    string: "*/*",
+    synonyms: &[],
+    extensions: &[],
+};
 
 pub static REGISTERED: [&Mime; 37] = [
-    &HTML, &TEXT, &JS, &CSS, &ICS, &CSV, &VCF, &VTT, &MD, &PNG, &JPEG, &GIF, &BMP, &TIFF, &SVG, &WEBP, &MPEG, &MP3,
-    &OGG, &M4A, &WEBM, &MP4, &OTF, &TTF, &WOFF, &WOFF2, &XML, &RSS, &ATOM, &YAML, &MULTIPART_FORM, &URL_ENCODED_FORM,
-    &JSON, &PDF, &ZIP, &GZIP, &TURBO_STREAM,
+    &HTML,
+    &TEXT,
+    &JS,
+    &CSS,
+    &ICS,
+    &CSV,
+    &VCF,
+    &VTT,
+    &MD,
+    &PNG,
+    &JPEG,
+    &GIF,
+    &BMP,
+    &TIFF,
+    &SVG,
+    &WEBP,
+    &MPEG,
+    &MP3,
+    &OGG,
+    &M4A,
+    &WEBM,
+    &MP4,
+    &OTF,
+    &TTF,
+    &WOFF,
+    &WOFF2,
+    &XML,
+    &RSS,
+    &ATOM,
+    &YAML,
+    &MULTIPART_FORM,
+    &URL_ENCODED_FORM,
+    &JSON,
+    &PDF,
+    &ZIP,
+    &GZIP,
+    &TURBO_STREAM,
 ];
 
 /// `Mime[ext]` / `Mime::Type.lookup_by_extension`.
 pub fn lookup_by_extension(extension: &str) -> Option<Format> {
-    REGISTERED.iter().copied().find(|m| m.symbol == extension || m.extensions.contains(&extension))
+    REGISTERED
+        .iter()
+        .copied()
+        .find(|m| m.symbol == extension || m.extensions.contains(&extension))
 }
 
 /// `Mime::Type.lookup`: exact type string or synonym, else the part before `;`.
@@ -109,11 +163,18 @@ pub fn lookup(string: &str) -> Result<Option<Format>, InvalidMimeType> {
     if base == "*/*" {
         return Ok(Some(&ALL));
     }
-    if valid_mime_type(string) { Ok(None) } else { Err(InvalidMimeType(string.to_string())) }
+    if valid_mime_type(string) {
+        Ok(None)
+    } else {
+        Err(InvalidMimeType(string.to_string()))
+    }
 }
 
 fn lookup_exact(string: &str) -> Option<Format> {
-    REGISTERED.iter().copied().find(|m| m.string == string || m.synonyms.contains(&string))
+    REGISTERED
+        .iter()
+        .copied()
+        .find(|m| m.string == string || m.synonyms.contains(&string))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -188,7 +249,11 @@ pub fn parse_accept(header: &str) -> Result<Vec<Format>, InvalidMimeType> {
                 None if name == "*/*" => 0.0,
                 None => 1.0,
             };
-            list.push(AcceptItem { index, name, q: (q * 100.0) as i64 });
+            list.push(AcceptItem {
+                index,
+                name,
+                q: (q * 100.0) as i64,
+            });
             index += 1;
         }
     }
@@ -197,9 +262,10 @@ pub fn parse_accept(header: &str) -> Result<Vec<Format>, InvalidMimeType> {
 
     for item in &list {
         if let Some(mime) = lookup(&item.name)?
-            && !formats.contains(&mime) {
-                formats.push(mime);
-            }
+            && !formats.contains(&mime)
+        {
+            formats.push(mime);
+        }
     }
     Ok(formats)
 }
@@ -351,8 +417,7 @@ pub fn should_apply_vary_header(input: &NegotiationInput) -> bool {
 fn valid_accept_header(input: &NegotiationInput) -> bool {
     let accept = input.accept.unwrap_or("");
     let present = !accept.trim().is_empty();
-    (input.xhr && (present || input.content_type.is_some_and(|ct| !ct.is_empty())))
-        || (present && !browser_like(accept))
+    (input.xhr && (present || input.content_type.is_some_and(|ct| !ct.is_empty()))) || (present && !browser_like(accept))
 }
 
 /// `BROWSER_LIKE_ACCEPTS = /,\s*\*\/\*|\*\/\*\s*,/`
@@ -390,7 +455,15 @@ mod tests {
     }
 
     fn fmts(accept: Option<&str>, path: &str, xhr: bool) -> Vec<&'static str> {
-        symbols(&formats(&NegotiationInput { accept, path, xhr, ..Default::default() }).unwrap())
+        symbols(
+            &formats(&NegotiationInput {
+                accept,
+                path,
+                xhr,
+                ..Default::default()
+            })
+            .unwrap(),
+        )
     }
 
     #[test]
@@ -412,7 +485,10 @@ mod tests {
         assert_eq!(fmts(Some("text/html;q=0.5, application/json"), "/", false), vec!["json", "html"]);
         assert_eq!(fmts(Some("application/json, */*"), "/", false), vec!["html"]);
         assert_eq!(fmts(Some("*/*, application/json;q=0.1"), "/", false), vec!["html"]);
-        assert_eq!(fmts(Some("application/json;q=0.1,text/html;q=0.1"), "/", false), vec!["json", "html"]);
+        assert_eq!(
+            fmts(Some("application/json;q=0.1,text/html;q=0.1"), "/", false),
+            vec!["json", "html"]
+        );
     }
 
     #[test]
@@ -421,7 +497,14 @@ mod tests {
         assert_eq!(fmts(Some("application/json; charset=utf-8"), "/", false), vec!["json"]);
         assert_eq!(fmts(Some("image/svg+xml"), "/", false), vec!["svg"]);
         assert_eq!(fmts(Some("application/x-unknown"), "/", false), Vec::<&str>::new());
-        assert!(formats(&NegotiationInput { accept: Some("garbage"), path: "/", ..Default::default() }).is_err());
+        assert!(
+            formats(&NegotiationInput {
+                accept: Some("garbage"),
+                path: "/",
+                ..Default::default()
+            })
+            .is_err()
+        );
     }
 
     #[test]
@@ -434,7 +517,10 @@ mod tests {
     fn xml_folding() {
         assert_eq!(fmts(Some("text/xml, application/rss+xml"), "/", false), vec!["xml", "rss"]);
         assert_eq!(fmts(Some("application/xml, application/rss+xml"), "/", false), vec!["rss", "xml"]);
-        assert_eq!(fmts(Some("text/xml;q=0.9, application/xml;q=0.5, text/html"), "/", false), vec!["html", "xml"]);
+        assert_eq!(
+            fmts(Some("text/xml;q=0.9, application/xml;q=0.5, text/html"), "/", false),
+            vec!["html", "xml"]
+        );
     }
 
     #[test]
@@ -442,16 +528,30 @@ mod tests {
         assert_eq!(fmts(None, "/users/1/avatar.svg", false), vec!["svg"]);
         assert_eq!(fmts(None, "/messages.json", false), vec!["json"]);
         assert_eq!(fmts(None, "/x.unknownext", false), vec!["html"]);
-        let input = NegotiationInput { format_param: Some("json"), accept: Some("text/html"), path: "/", ..Default::default() };
+        let input = NegotiationInput {
+            format_param: Some("json"),
+            accept: Some("text/html"),
+            path: "/",
+            ..Default::default()
+        };
         assert_eq!(symbols(&formats(&input).unwrap()), vec!["json"]);
-        let input = NegotiationInput { format_param: Some("nope"), path: "/", ..Default::default() };
+        let input = NegotiationInput {
+            format_param: Some("nope"),
+            path: "/",
+            ..Default::default()
+        };
         assert!(formats(&input).unwrap().is_empty());
     }
 
     #[test]
     fn xhr_defaults_to_js() {
         assert_eq!(fmts(None, "/", true), vec!["js"]);
-        let input = NegotiationInput { xhr: true, content_type: Some("application/json"), path: "/", ..Default::default() };
+        let input = NegotiationInput {
+            xhr: true,
+            content_type: Some("application/json"),
+            path: "/",
+            ..Default::default()
+        };
         assert_eq!(symbols(&formats(&input).unwrap()), vec!["json"]);
     }
 

@@ -24,7 +24,8 @@ fn seed_dir() -> Option<PathBuf> {
 
 fn parity_env(name: &str) -> Option<String> {
     let env = std::fs::read_to_string(Path::new(ROOT).join("parity/.env.reference")).ok()?;
-    env.lines().find_map(|line| line.strip_prefix(&format!("{name}=")).map(str::to_string))
+    env.lines()
+        .find_map(|line| line.strip_prefix(&format!("{name}=")).map(str::to_string))
 }
 
 #[derive(serde::Deserialize)]
@@ -51,7 +52,11 @@ struct CookieVector {
 }
 
 fn vectors() -> Vectors {
-    serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vectors/campfire_sessions.json"))).unwrap()
+    serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../vectors/campfire_sessions.json"
+    )))
+    .unwrap()
 }
 
 /// A booted app over a private copy of the seed.
@@ -79,7 +84,10 @@ async fn boot_seeded() -> Option<Test> {
         _ => None,
     })
     .unwrap();
-    Some(Test { booted: boot(config).await.unwrap(), _dir: dir })
+    Some(Test {
+        booted: boot(config).await.unwrap(),
+        _dir: dir,
+    })
 }
 
 fn copy_dir(from: &Path, to: &Path) {
@@ -119,11 +127,18 @@ async fn send(router: &axum::Router, request: Request<Body>) -> Reply {
 }
 
 fn get(path: &str) -> Request<Body> {
-    Request::get(path).header(header::HOST, "campfire.test").body(Body::empty()).unwrap()
+    Request::get(path)
+        .header(header::HOST, "campfire.test")
+        .body(Body::empty())
+        .unwrap()
 }
 
 fn get_with_cookie(path: &str, cookie: &str) -> Request<Body> {
-    Request::get(path).header(header::HOST, "campfire.test").header(header::COOKIE, cookie).body(Body::empty()).unwrap()
+    Request::get(path)
+        .header(header::HOST, "campfire.test")
+        .header(header::COOKIE, cookie)
+        .body(Body::empty())
+        .unwrap()
 }
 
 #[tokio::test]
@@ -131,7 +146,10 @@ async fn health_check() {
     let Some(test) = boot_seeded().await else { return };
     let up = send(&test.booted.router, get("/up")).await;
     assert_eq!(up.status, StatusCode::OK);
-    assert_eq!(up.text(), r#"<!DOCTYPE html><html><body style="background-color: green"></body></html>"#);
+    assert_eq!(
+        up.text(),
+        r#"<!DOCTYPE html><html><body style="background-color: green"></body></html>"#
+    );
     assert_eq!(up.header("content-type"), Some("text/html; charset=utf-8"));
 
     let json = send(&test.booted.router, get("/up.json")).await;
@@ -171,8 +189,16 @@ async fn whoami(c: &mut Ctx) -> Result {
 }
 
 fn whoami_router(app: &App) -> axum::Router {
-    let kit = Kit::new(KitConfig::production(true), Arc::new(RailsCrypto::new(app.secrets.clone())), app.clock.clone(), app.clone());
-    campfire_kit::app(axum::Router::new().route("/whoami", campfire_kit::get(whoami).post(campfire_kit::action(whoami))), kit)
+    let kit = Kit::new(
+        KitConfig::production(true),
+        Arc::new(RailsCrypto::new(app.secrets.clone())),
+        app.clock.clone(),
+        app.clone(),
+    );
+    campfire_kit::app(
+        axum::Router::new().route("/whoami", campfire_kit::get(whoami).post(campfire_kit::action(whoami))),
+        kit,
+    )
 }
 
 #[tokio::test]
@@ -187,8 +213,18 @@ async fn a_rails_issued_session_cookie_authenticates() {
     assert_eq!(signed_in.text(), session.user_name);
     assert_eq!(signed_in.header("x-version"), Some("parity"));
     assert_eq!(signed_in.header("x-rev"), Some("parity"));
-    let cookies: Vec<&str> = signed_in.headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap()).collect();
-    assert!(cookies.iter().any(|c| c.starts_with("session_token=") && c.contains("httponly") && c.contains("samesite=lax")), "{cookies:?}");
+    let cookies: Vec<&str> = signed_in
+        .headers
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|v| v.to_str().unwrap())
+        .collect();
+    assert!(
+        cookies
+            .iter()
+            .any(|c| c.starts_with("session_token=") && c.contains("httponly") && c.contains("samesite=lax")),
+        "{cookies:?}"
+    );
 
     // That request refreshed the seed's stale session; for the next hour it isn't touched again,
     // so the cookie isn't re-sent (Rails re-signs it on every request).
@@ -196,7 +232,11 @@ async fn a_rails_issued_session_cookie_authenticates() {
     assert_eq!(again.text(), session.user_name);
     assert!(again.headers.get(header::SET_COOKIE).is_none(), "{:?}", again.headers);
 
-    for cookie in [None, Some(vectors.forged.cookie_header.as_str()), Some("session_token=tampered--0000")] {
+    for cookie in [
+        None,
+        Some(vectors.forged.cookie_header.as_str()),
+        Some("session_token=tampered--0000"),
+    ] {
         let request = match cookie {
             Some(cookie) => get_with_cookie("/whoami", cookie),
             None => get("/whoami"),
@@ -232,21 +272,40 @@ async fn the_application_chain_blocks_banned_ips_forgeries_and_old_browsers() {
     assert_eq!(forged.status, StatusCode::UNPROCESSABLE_ENTITY);
 
     let outdated = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36";
-    let request = Request::get("/whoami").header(header::HOST, "campfire.test").header(header::COOKIE, cookie).header(header::USER_AGENT, outdated);
+    let request = Request::get("/whoami")
+        .header(header::HOST, "campfire.test")
+        .header(header::COOKIE, cookie)
+        .header(header::USER_AGENT, outdated);
     let old_browser = send(&router, request.body(Body::empty()).unwrap()).await;
     assert_eq!(old_browser.status, StatusCode::OK);
     assert_ne!(old_browser.text(), vectors.sessions[0].user_name);
 
     // The incompatible-browser page is an explicit `render template:`: HTML whatever the format.
-    for (path, accept) in [("/webmanifest.json", "*/*"), ("/service-worker.js", "*/*"), ("/session/new", "application/json")] {
-        let request = Request::get(path).header(header::HOST, "campfire.test").header(header::USER_AGENT, outdated).header(header::ACCEPT, accept);
+    for (path, accept) in [
+        ("/webmanifest.json", "*/*"),
+        ("/service-worker.js", "*/*"),
+        ("/session/new", "application/json"),
+    ] {
+        let request = Request::get(path)
+            .header(header::HOST, "campfire.test")
+            .header(header::USER_AGENT, outdated)
+            .header(header::ACCEPT, accept);
         let blocked = send(&test.booted.router, request.body(Body::empty()).unwrap()).await;
-        assert_eq!((blocked.status, blocked.header("content-type")), (StatusCode::OK, Some("text/html; charset=utf-8")), "{path} {accept}");
+        assert_eq!(
+            (blocked.status, blocked.header("content-type")),
+            (StatusCode::OK, Some("text/html; charset=utf-8")),
+            "{path} {accept}"
+        );
     }
     // In a Live controller (`include ActiveStorage::Streaming`) Rack::ETag can't digest the body.
-    let request = Request::get("/account/logo").header(header::HOST, "campfire.test").header(header::USER_AGENT, outdated);
+    let request = Request::get("/account/logo")
+        .header(header::HOST, "campfire.test")
+        .header(header::USER_AGENT, outdated);
     let blocked = send(&test.booted.router, request.body(Body::empty()).unwrap()).await;
-    assert_eq!((blocked.status, blocked.header("cache-control"), blocked.header("etag")), (StatusCode::OK, Some("no-cache"), None));
+    assert_eq!(
+        (blocked.status, blocked.header("cache-control"), blocked.header("etag")),
+        (StatusCode::OK, Some("no-cache"), None)
+    );
 }
 
 #[tokio::test]
@@ -261,7 +320,10 @@ async fn blob_redirects_to_a_signed_disk_url() {
     assert_eq!(redirect.status, StatusCode::FOUND);
     assert_eq!(redirect.header("cache-control"), Some("max-age=300, private"));
     let location = redirect.header("location").unwrap().to_string();
-    assert!(location.starts_with("http://campfire.test/rails/active_storage/disk/"), "{location}");
+    assert!(
+        location.starts_with("http://campfire.test/rails/active_storage/disk/"),
+        "{location}"
+    );
     assert!(location.ends_with(&format!("/{filename}")), "{location}");
 
     let disk_path = location.strip_prefix("http://campfire.test").unwrap();
@@ -283,7 +345,10 @@ async fn blob_redirects_to_a_signed_disk_url() {
 #[tokio::test]
 async fn disk_uploads_require_a_session() {
     let Some(test) = boot_seeded().await else { return };
-    let put = Request::put("/rails/active_storage/disk/anything").header(header::HOST, "campfire.test").body(Body::from("x")).unwrap();
+    let put = Request::put("/rails/active_storage/disk/anything")
+        .header(header::HOST, "campfire.test")
+        .body(Body::from("x"))
+        .unwrap();
     let reply = send(&test.booted.router, put).await;
     assert_eq!(reply.status, StatusCode::UNAUTHORIZED);
 }
@@ -300,12 +365,20 @@ async fn cable_handshake_with_a_rails_session_cookie() {
     let router = test.booted.router.clone();
     let service = campfire_kit::front::app_service(router);
     let shutdown = campfire_kit::front::Shutdown::when(std::future::pending());
-    tokio::spawn(campfire_kit::front::serve_plain(listener, service, campfire_kit::front::Protocol::Http1, Default::default(), shutdown));
+    tokio::spawn(campfire_kit::front::serve_plain(
+        listener,
+        service,
+        campfire_kit::front::Protocol::Http1,
+        Default::default(),
+        shutdown,
+    ));
 
     let connect = |cookie: Option<String>| async move {
         let mut request = format!("ws://{address}/cable").into_client_request().unwrap();
         request.headers_mut().insert("origin", format!("http://{address}").parse().unwrap());
-        request.headers_mut().insert("sec-websocket-protocol", "actioncable-v1-json".parse().unwrap());
+        request
+            .headers_mut()
+            .insert("sec-websocket-protocol", "actioncable-v1-json".parse().unwrap());
         if let Some(cookie) = cookie {
             request.headers_mut().insert("cookie", cookie.parse().unwrap());
         }
@@ -314,8 +387,14 @@ async fn cable_handshake_with_a_rails_session_cookie() {
         first.into_text().unwrap().to_string()
     };
 
-    assert_eq!(connect(Some(vectors.sessions[0].cookie_header.clone())).await, r#"{"type":"welcome"}"#);
-    assert_eq!(connect(None).await, r#"{"type":"disconnect","reason":"unauthorized","reconnect":false}"#);
+    assert_eq!(
+        connect(Some(vectors.sessions[0].cookie_header.clone())).await,
+        r#"{"type":"welcome"}"#
+    );
+    assert_eq!(
+        connect(None).await,
+        r#"{"type":"disconnect","reason":"unauthorized","reconnect":false}"#
+    );
 }
 
 #[tokio::test]
@@ -326,7 +405,11 @@ async fn backup_snapshots_the_live_database() {
     let snapshot = rusqlite::Connection::open(config.storage.backup_file()).unwrap();
     let users: i64 = snapshot.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0)).unwrap();
     assert!(users > 0);
-    let leftovers: Vec<_> = std::fs::read_dir(&config.storage.backups).unwrap().flatten().filter(|entry| entry.file_name().to_string_lossy().starts_with(".backup-")).collect();
+    let leftovers: Vec<_> = std::fs::read_dir(&config.storage.backups)
+        .unwrap()
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with(".backup-"))
+        .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
 }
 
@@ -342,7 +425,10 @@ async fn jobs_run_ad_hoc_work_and_purge_unattached_blobs() {
         let _ = done.send(());
         Ok(())
     });
-    tokio::time::timeout(std::time::Duration::from_secs(5), finished).await.unwrap().unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), finished)
+        .await
+        .unwrap()
+        .unwrap();
 
     let storage = app.storage.clone();
     let now = app.clock.now();
@@ -363,14 +449,22 @@ async fn jobs_run_ad_hoc_work_and_purge_unattached_blobs() {
     app.jobs.emit(campfire_db::Event::PurgeBlob { blob_id: blob.id });
     let blob_id = blob.id;
     for _ in 0..50 {
-        let gone = app.db.read(move |conn| Ok(campfire_storage::Blob::find(conn, blob_id).unwrap().is_none())).await.unwrap();
+        let gone = app
+            .db
+            .read(move |conn| Ok(campfire_storage::Blob::find(conn, blob_id).unwrap().is_none()))
+            .await
+            .unwrap();
         if gone && !path.exists() {
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
     assert!(!path.exists());
-    let attached = app.db.read(|conn| Ok(campfire_storage::Blob::find(conn, 5).unwrap().is_some())).await.unwrap();
+    let attached = app
+        .db
+        .read(|conn| Ok(campfire_storage::Blob::find(conn, 5).unwrap().is_some()))
+        .await
+        .unwrap();
     assert!(attached);
 
     let Booted { jobs, .. } = test.booted;
@@ -415,7 +509,9 @@ async fn concurrent_message_posts_all_complete() {
             .header("sec-fetch-site", "same-origin")
             .header(header::ACCEPT, "text/vnd.turbo-stream.html, text/html, application/xhtml+xml")
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(Body::from(format!("message%5Bbody%5D=%3Cp%3EHello+{n}%3C%2Fp%3E&message%5Bclient_message_id%5D=concurrent-{n}")))
+            .body(Body::from(format!(
+                "message%5Bbody%5D=%3Cp%3EHello+{n}%3C%2Fp%3E&message%5Bclient_message_id%5D=concurrent-{n}"
+            )))
             .unwrap();
         tokio::spawn(async move { send(&router, request).await.status })
     });
@@ -426,9 +522,12 @@ async fn concurrent_message_posts_all_complete() {
         assert_eq!(status.unwrap(), StatusCode::OK);
     }
 
-    let after = tokio::time::timeout(std::time::Duration::from_secs(10), send(&router, get_with_cookie(&format!("/rooms/{room_id}"), &session.cookie_header)))
-        .await
-        .expect("the server stopped answering");
+    let after = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        send(&router, get_with_cookie(&format!("/rooms/{room_id}"), &session.cookie_header)),
+    )
+    .await
+    .expect("the server stopped answering");
     assert_eq!(after.status, StatusCode::OK);
 }
 
@@ -458,13 +557,20 @@ async fn writes_proceed_while_a_variant_is_transformed() {
     transforming.await.unwrap();
 
     let write = app.db.write(|tx| Ok(tx.conn().execute("UPDATE accounts SET name = name", [])?));
-    tokio::time::timeout(std::time::Duration::from_secs(5), write).await.expect("the write waited on the transform").unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), write)
+        .await
+        .expect("the write waited on the transform")
+        .unwrap();
 
     release.send(()).unwrap();
     let image = processing.await.unwrap().unwrap();
     assert!(app.storage.path_for(&image).exists());
     let storage = app.storage.clone();
-    let recorded = app.db.read(move |conn| Ok(storage.existing_variant(conn, &blob, &variation).unwrap())).await.unwrap();
+    let recorded = app
+        .db
+        .read(move |conn| Ok(storage.existing_variant(conn, &blob, &variation).unwrap()))
+        .await
+        .unwrap();
     assert_eq!(recorded.map(|b| b.id), Some(image.id));
 }
 
@@ -473,21 +579,45 @@ async fn blob_byte_ranges_are_served_from_the_file() {
     let Some(test) = boot_seeded().await else { return };
     let router = &test.booted.router;
     let proxy_path = vectors().blobs[0].redirect_path.replacen("/redirect/", "/proxy/", 1);
-    let blob = test.booted.app.db.read(|conn| Ok(campfire_storage::Blob::find(conn, 5).unwrap().unwrap())).await.unwrap();
+    let blob = test
+        .booted
+        .app
+        .db
+        .read(|conn| Ok(campfire_storage::Blob::find(conn, 5).unwrap().unwrap()))
+        .await
+        .unwrap();
     let file = std::fs::read(test.booted.app.storage.path_for(&blob)).unwrap();
-    let ranged = |range: &str| Request::get(&proxy_path).header(header::HOST, "campfire.test").header("range", range).body(Body::empty()).unwrap();
+    let ranged = |range: &str| {
+        Request::get(&proxy_path)
+            .header(header::HOST, "campfire.test")
+            .header("range", range)
+            .body(Body::empty())
+            .unwrap()
+    };
 
     let single = send(router, ranged("bytes=100-")).await;
     assert_eq!(single.status, StatusCode::PARTIAL_CONTENT);
-    assert_eq!(single.header("content-range"), Some(format!("bytes 100-{}/{}", file.len() - 1, file.len()).as_str()));
+    assert_eq!(
+        single.header("content-range"),
+        Some(format!("bytes 100-{}/{}", file.len() - 1, file.len()).as_str())
+    );
     assert_eq!(single.header("content-length"), Some((file.len() - 100).to_string().as_str()));
     assert_eq!(single.body, &file[100..]);
 
     let multiple = send(router, ranged("bytes=0-9,20-29")).await;
     assert_eq!(multiple.status, StatusCode::PARTIAL_CONTENT);
-    let boundary = multiple.header("content-type").unwrap().strip_prefix("multipart/byteranges; boundary=").unwrap().to_string();
+    let boundary = multiple
+        .header("content-type")
+        .unwrap()
+        .strip_prefix("multipart/byteranges; boundary=")
+        .unwrap()
+        .to_string();
     let part = |start: usize, end: usize| {
-        let mut part = format!("\r\n--{boundary}\r\nContent-Type: image/jpeg\r\nContent-Range: bytes {start}-{end}/{}\r\n\r\n", file.len()).into_bytes();
+        let mut part = format!(
+            "\r\n--{boundary}\r\nContent-Type: image/jpeg\r\nContent-Range: bytes {start}-{end}/{}\r\n\r\n",
+            file.len()
+        )
+        .into_bytes();
         part.extend_from_slice(&file[start..=end]);
         part
     };

@@ -75,7 +75,9 @@ pub fn years_from(now: Timestamp, years: i64) -> Timestamp {
 
 /// An HTTP date (`Time#httpdate`): `Thu, 01 Jan 1970 00:00:00 GMT`.
 pub fn httpdate(at: Timestamp) -> String {
-    jiff::fmt::rfc2822::DateTimePrinter::new().timestamp_to_rfc9110_string(&at).expect("valid http date")
+    jiff::fmt::rfc2822::DateTimePrinter::new()
+        .timestamp_to_rfc9110_string(&at)
+        .expect("valid http date")
 }
 
 /// Parse an HTTP date (`Time.httpdate` / `Time.rfc2822`), `None` when malformed.

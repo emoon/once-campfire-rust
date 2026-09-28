@@ -118,7 +118,11 @@ pub struct DeleteOptions {
 
 impl Default for DeleteOptions {
     fn default() -> Self {
-        Self { path: "/".into(), domain: None, same_site: Some(SameSite::Lax) }
+        Self {
+            path: "/".into(),
+            domain: None,
+            same_site: Some(SameSite::Lax),
+        }
     }
 }
 
@@ -143,11 +147,7 @@ impl std::fmt::Debug for CookieJar {
 
 impl CookieJar {
     /// Build the jar from the request's `Cookie` header(s).
-    pub fn from_headers<'a>(
-        headers: impl IntoIterator<Item = &'a str>,
-        crypto: SharedCrypto,
-        clock: SharedClock,
-    ) -> Self {
+    pub fn from_headers<'a>(headers: impl IntoIterator<Item = &'a str>, crypto: SharedCrypto, clock: SharedClock) -> Self {
         let mut cookies: Vec<(String, String)> = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for header in headers {
@@ -157,7 +157,13 @@ impl CookieJar {
                 }
             }
         }
-        Self { cookies, set_cookies: vec![], delete_cookies: vec![], crypto, clock }
+        Self {
+            cookies,
+            set_cookies: vec![],
+            delete_cookies: vec![],
+            crypto,
+            clock,
+        }
     }
 
     /// `cookies[name]`.
@@ -211,7 +217,9 @@ impl CookieJar {
     }
 
     pub fn delete_with(&mut self, name: &str, options: DeleteOptions) {
-        let Some(index) = self.cookies.iter().position(|(n, _)| n == name) else { return };
+        let Some(index) = self.cookies.iter().position(|(n, _)| n == name) else {
+            return;
+        };
         self.cookies.remove(index);
         upsert(&mut self.delete_cookies, name, options);
     }
@@ -328,7 +336,11 @@ pub fn delete_cookie_header(name: &str, options: &DeleteOptions) -> String {
     if let Some(domain) = &options.domain {
         header.push_str(&format!("; domain={domain}"));
     }
-    header.push_str(&format!("; path={}; max-age=0; expires={}", options.path, clock::httpdate(Timestamp::UNIX_EPOCH)));
+    header.push_str(&format!(
+        "; path={}; max-age=0; expires={}",
+        options.path,
+        clock::httpdate(Timestamp::UNIX_EPOCH)
+    ));
     header.push_str(same_site_attribute(options.same_site));
     header
 }
@@ -356,7 +368,10 @@ mod tests {
     fn sets_plain_cookies_with_rails_defaults() {
         let mut jar = jar("");
         jar.set("last_room", "42");
-        assert_eq!(jar.set_cookie_headers(false, "example.com"), vec!["last_room=42; path=/; samesite=lax"]);
+        assert_eq!(
+            jar.set_cookie_headers(false, "example.com"),
+            vec!["last_room=42; path=/; samesite=lax"]
+        );
     }
 
     #[test]
@@ -437,7 +452,10 @@ mod tests {
         jar.set("s", Cookie::new("1").secure());
         assert!(jar.set_cookie_headers(false, "example.com").is_empty());
         assert_eq!(jar.set_cookie_headers(false, "x.onion").len(), 1);
-        assert_eq!(jar.set_cookie_headers(true, "example.com"), vec!["s=1; path=/; secure; samesite=lax"]);
+        assert_eq!(
+            jar.set_cookie_headers(true, "example.com"),
+            vec!["s=1; path=/; secure; samesite=lax"]
+        );
     }
 
     #[test]

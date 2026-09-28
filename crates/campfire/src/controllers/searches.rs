@@ -19,12 +19,23 @@ pub async fn index(c: &mut Ctx) -> Result {
     let recent_searches: Vec<String> = c
         .app()
         .db
-        .read(move |conn| Ok(Search::ordered_for_user(conn, user_id)?.into_iter().map(|search| search.query).collect()))
+        .read(move |conn| {
+            Ok(Search::ordered_for_user(conn, user_id)?
+                .into_iter()
+                .map(|search| search.query)
+                .collect())
+        })
         .await
         .map_err(db_error)?;
     let return_to_room_id = concerns::last_room_visited(c).await?.map(|room| room.id).unwrap_or_default();
     let messages = present(c, move |presenter| presenter.messages(&messages)).await?;
-    let index = IndexView { query, q, messages, recent_searches, return_to_room_id };
+    let index = IndexView {
+        query,
+        q,
+        messages,
+        recent_searches,
+        return_to_room_id,
+    };
     let response = page::framed_page!(c, StatusCode::OK, |ctx| Index { ctx, index: &index }).await?;
     let fragments = campfire_views::messages::MessageItem::cached_fragments(&c.app().fragment_cache, &index.messages);
     Ok(response.with_cached_fragments(fragments))
@@ -37,8 +48,14 @@ pub async fn create(c: &mut Ctx) -> Result {
     let user_id = require_current_user(c)?.id;
     let query = query(q.as_deref());
     // Current.user.searches.record(query): a nil query violates `query`'s NOT NULL.
-    let recorded = query.clone().ok_or_else(|| Error::internal(anyhow::anyhow!("NOT NULL constraint failed: searches.query")))?;
-    c.app().db.write(move |tx| Search::record(tx, user_id, &recorded).map(|_| ())).await.map_err(db_error)?;
+    let recorded = query
+        .clone()
+        .ok_or_else(|| Error::internal(anyhow::anyhow!("NOT NULL constraint failed: searches.query")))?;
+    c.app()
+        .db
+        .write(move |tx| Search::record(tx, user_id, &recorded).map(|_| ()))
+        .await
+        .map_err(db_error)?;
     let path = match &query {
         Some(query) => search_path(query),
         None => campfire_routes::searches(),
@@ -52,7 +69,11 @@ pub async fn clear(c: &mut Ctx) -> Result {
     let q = query_param(c)?;
     set_messages(c, q.as_deref()).await?;
     let user_id = require_current_user(c)?.id;
-    c.app().db.write(move |tx| Search::destroy_all_for_user(tx, user_id)).await.map_err(db_error)?;
+    c.app()
+        .db
+        .write(move |tx| Search::destroy_all_for_user(tx, user_id))
+        .await
+        .map_err(db_error)?;
     let url = c.url_for(&campfire_routes::searches());
     c.redirect_to(&url)
 }
@@ -80,9 +101,15 @@ fn is_present(value: &str) -> bool {
 
 /// `set_messages`: `Current.user.reachable_messages.search(query).last(100)` when there's a query.
 async fn set_messages(c: &Ctx, q: Option<&str>) -> Result<Vec<Message>> {
-    let Some(query) = query(q).filter(|query| is_present(query)) else { return Ok(Vec::new()) };
+    let Some(query) = query(q).filter(|query| is_present(query)) else {
+        return Ok(Vec::new());
+    };
     let user_id = require_current_user(c)?.id;
-    c.app().db.read(move |conn| Message::search_reachable(conn, user_id, &query)).await.map_err(db_error)
+    c.app()
+        .db
+        .read(move |conn| Message::search_reachable(conn, user_id, &query))
+        .await
+        .map_err(db_error)
 }
 
 #[cfg(test)]
@@ -100,7 +127,9 @@ mod tests {
         assert_eq!(empty.status, StatusCode::OK);
         assert!(empty.text().contains("<title>Search</title>"));
 
-        let recorded = david.write(Req::new(Method::POST, "/searches").form(&[("q", "hello, world")])).await;
+        let recorded = david
+            .write(Req::new(Method::POST, "/searches").form(&[("q", "hello, world")]))
+            .await;
         assert_eq!(recorded.location(), Some("http://campfire.test/searches?q=hello++world"));
         let results = david.get("/searches?q=hello++world").await;
         assert_eq!(results.status, StatusCode::OK);
@@ -108,7 +137,11 @@ mod tests {
 
         let cleared = david.write(Req::new(Method::DELETE, "/searches/clear")).await;
         assert_eq!(cleared.location(), Some("http://campfire.test/searches"));
-        let count = app.db().read(|conn| campfire_db::Search::count_for_user(conn, DAVID)).await.unwrap();
+        let count = app
+            .db()
+            .read(|conn| campfire_db::Search::count_for_user(conn, DAVID))
+            .await
+            .unwrap();
         assert_eq!(count, 0);
 
         let missing = david.write(Req::new(Method::POST, "/searches")).await;

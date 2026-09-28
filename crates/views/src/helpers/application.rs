@@ -155,7 +155,11 @@ mod base64_url {
             let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
             out.push(ALPHABET[(n >> 18) as usize & 63] as char);
             out.push(ALPHABET[(n >> 12) as usize & 63] as char);
-            out.push(if chunk.len() > 1 { ALPHABET[(n >> 6) as usize & 63] as char } else { '=' });
+            out.push(if chunk.len() > 1 {
+                ALPHABET[(n >> 6) as usize & 63] as char
+            } else {
+                '='
+            });
             out.push(if chunk.len() > 2 { ALPHABET[n as usize & 63] as char } else { '=' });
         }
         out

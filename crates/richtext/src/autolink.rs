@@ -8,7 +8,6 @@
 //! closed the attribute and turned the rest of its value into markup. With them escaped, every `<`
 //! and `>` in the text is a tag's, so auto_link only ever inserts links between tags.
 
-
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -25,9 +24,8 @@ static AUTO_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// `AUTO_EMAIL_RE` without its lookbehind, which is checked separately.
-static AUTO_EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\A[a-zA-Z0-9_.!#$%+-]\.?[a-zA-Z0-9_.!#$%&'*/=?^`{|}~+-]*@[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)+").unwrap()
-});
+static AUTO_EMAIL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\A[a-zA-Z0-9_.!#$%+-]\.?[a-zA-Z0-9_.!#$%&'*/=?^`{|}~+-]*@[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)+").unwrap());
 
 fn is_email_local_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || "_.!#$%&'*/=?^`{|}~+-".contains(c)
@@ -57,8 +55,13 @@ struct TagIndex {
 impl TagIndex {
     fn new(text: &str) -> Self {
         let bytes = text.as_bytes();
-        let mut index =
-            TagIndex { lts: Vec::new(), gts: Vec::new(), first_dangling_newline: None, open_anchors: Vec::new(), close_anchors: Vec::new() };
+        let mut index = TagIndex {
+            lts: Vec::new(),
+            gts: Vec::new(),
+            first_dangling_newline: None,
+            open_anchors: Vec::new(),
+            close_anchors: Vec::new(),
+        };
         // The first `<` since the last `>`
         let mut unclosed_lt: Option<usize> = None;
         for (i, &b) in bytes.iter().enumerate() {
@@ -112,7 +115,9 @@ impl TagIndex {
     /// `left` isn't closed before `left` ends.
     fn inside_anchor(&self, start: usize) -> bool {
         let before = self.open_anchors.partition_point(|&(_, end)| end <= start);
-        let Some(&(_, anchor_end)) = before.checked_sub(1).map(|i| &self.open_anchors[i]) else { return false };
+        let Some(&(_, anchor_end)) = before.checked_sub(1).map(|i| &self.open_anchors[i]) else {
+            return false;
+        };
         let close = self.close_anchors.get(self.close_anchors.partition_point(|&p| p < anchor_end));
         !close.is_some_and(|&p| p + 4 <= start)
     }
@@ -190,15 +195,20 @@ fn auto_link_urls(text: &str) -> Result<String, ParseError> {
         }
         let mut punctuation: Vec<char> = Vec::new();
         let mut brackets = BracketCounts::of(&href);
-        while let Some(c) = href.chars().last().filter(|&c| !(is_word_char(c) || matches!(c, '/' | '-' | '=' | ';'))) {
+        while let Some(c) = href
+            .chars()
+            .last()
+            .filter(|&c| !(is_word_char(c) || matches!(c, '/' | '-' | '=' | ';')))
+        {
             href.pop();
             punctuation.push(c);
             brackets.remove(c);
             if let Some(opening) = opening_bracket(c)
-                && brackets.count(opening) > brackets.count(c) {
-                    href.push(punctuation.pop().unwrap());
-                    break;
-                }
+                && brackets.count(opening) > brackets.count(c)
+            {
+                href.push(punctuation.pop().unwrap());
+                break;
+            }
         }
         let mut trailing_gt = "";
         if let Some(stripped) = href.strip_suffix("&gt;") {
@@ -212,7 +222,11 @@ fn auto_link_urls(text: &str) -> Result<String, ParseError> {
         let link_text = sanitize(&link_text, &SafeList::defaults())?;
         let href = sanitize(&href, &SafeList::defaults())?;
         // content_tag(:a, link_text, attrs, false): nothing escaped but double quotes in attributes
-        out.push_str(&format!("<a target=\"_blank\" href=\"{}\">{}</a>", href.replace('"', "&quot;"), link_text));
+        out.push_str(&format!(
+            "<a target=\"_blank\" href=\"{}\">{}</a>",
+            href.replace('"', "&quot;"),
+            link_text
+        ));
         // SafeBuffer#+ escapes the (unsafe) punctuation string
         let trailing: String = punctuation.iter().rev().collect();
         out.push_str(&html_escape(&trailing));
@@ -229,7 +243,11 @@ fn auto_link_email_addresses(text: &str) -> Result<String, ParseError> {
     let tags = TagIndex::new(text);
     while position < text.len() {
         let preceded_by_local_char = text[..position].chars().last().is_some_and(is_email_local_char);
-        let found = if preceded_by_local_char { None } else { AUTO_EMAIL_RE.find(&text[position..]) };
+        let found = if preceded_by_local_char {
+            None
+        } else {
+            AUTO_EMAIL_RE.find(&text[position..])
+        };
         let Some(m) = found else {
             position += text[position..].chars().next().map_or(1, char::len_utf8);
             continue;
@@ -242,7 +260,11 @@ fn auto_link_email_addresses(text: &str) -> Result<String, ParseError> {
         } else {
             let sanitized = sanitize(email, &SafeList::defaults())?;
             // display_text is only sanitized (and so marked safe) when sanitizing changed the address
-            let display = if sanitized == email { html_escape(email) } else { sanitize(email, &SafeList::defaults())? };
+            let display = if sanitized == email {
+                html_escape(email)
+            } else {
+                sanitize(email, &SafeList::defaults())?
+            };
             let href = format!("mailto:{}", url_encode(&sanitized).replace("%40", "@"));
             out.push_str(&format!("<a target=\"_blank\" href=\"{}\">{}</a>", html_escape(&href), display));
         }
@@ -266,7 +288,10 @@ mod tests {
         if OPEN_TAG_AT_LINE_END.is_match(left) && CLOSES_TAG.is_match(right) {
             return true;
         }
-        let last = left.char_indices().rev().find_map(|(i, _)| OPEN_ANCHOR.find_at(left, i).filter(|m| m.start() == i));
+        let last = left
+            .char_indices()
+            .rev()
+            .find_map(|(i, _)| OPEN_ANCHOR.find_at(left, i).filter(|m| m.start() == i));
         last.is_some_and(|m| !CLOSE_ANCHOR.is_match(&left[m.end()..]))
     }
 

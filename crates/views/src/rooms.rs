@@ -5,11 +5,11 @@ use askama::Template;
 use jiff::Timestamp;
 use serde::Deserialize;
 
+use crate::ViewContext;
 use crate::helpers as h;
 use crate::layouts::Page;
 use crate::messages::support::epoch_ms;
-use crate::messages::{room_dom_id, MessageItem, RoomKind, UserView};
-use crate::ViewContext;
+use crate::messages::{MessageItem, RoomKind, UserView, room_dom_id};
 
 /// `room_display_name(room, for_user:)`: a direct room is named after its other members
 /// (`room.users.without(for_user).pluck(:name).to_sentence`), falling back to the user's own
@@ -17,7 +17,11 @@ use crate::ViewContext;
 pub fn room_display_name(name: Option<&str>, direct: bool, other_member_names: &[String], for_user_name: Option<&str>) -> String {
     if direct {
         let sentence = h::to_sentence(other_member_names, " and ");
-        if sentence.trim().is_empty() { for_user_name.unwrap_or_default().to_string() } else { sentence }
+        if sentence.trim().is_empty() {
+            for_user_name.unwrap_or_default().to_string()
+        } else {
+            sentence
+        }
     } else {
         name.unwrap_or_default().to_string()
     }
@@ -307,7 +311,10 @@ pub fn button_to_delete_room(ctx: &ViewContext, room_id: i64, display_name: &str
         .method("delete")
         .class("btn btn--negative max-width")
         .aria("label", format!("Delete {display_name}"))
-        .data("turbo_confirm", "Are you sure you want to delete this room and all messages in it? This can’t be undone.");
+        .data(
+            "turbo_confirm",
+            "Are you sure you want to delete this room and all messages in it? This can’t be undone.",
+        );
     h::button_to(&url, options, &content)
 }
 
@@ -331,8 +338,8 @@ mod filters {
     use askama::{Template, Values};
 
     use super::{FormLayout, FormRoom, RoomKind};
-    use crate::helpers::Html;
     use crate::ViewContext;
+    use crate::helpers::Html;
 
     /// `render layout: "rooms/layouts/form", locals: { room: } do ... end`.
     pub fn room_form(
@@ -343,7 +350,13 @@ mod filters {
         can_administer: &bool,
         kind: RoomKind,
     ) -> askama::Result<Html> {
-        let layout = FormLayout { ctx, room, can_administer: *can_administer, kind, content: content.to_string() };
+        let layout = FormLayout {
+            ctx,
+            room,
+            can_administer: *can_administer,
+            kind,
+            content: content.to_string(),
+        };
         Ok(Html::from(askama::filters::Safe(layout.render()?)))
     }
 }

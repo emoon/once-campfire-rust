@@ -86,18 +86,8 @@ macro_rules! integer_enum_sql {
     };
 }
 
-integer_enum_sql!(
-    Role,
-    Role::Member = 0,
-    Role::Administrator = 1,
-    Role::Bot = 2
-);
-integer_enum_sql!(
-    Status,
-    Status::Active = 0,
-    Status::Deactivated = 1,
-    Status::Banned = 2
-);
+integer_enum_sql!(Role, Role::Member = 0, Role::Administrator = 1, Role::Bot = 2);
+integer_enum_sql!(Status, Status::Active = 0, Status::Deactivated = 1, Status::Banned = 2);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct User {
@@ -201,10 +191,7 @@ impl User {
 
     /// `User.where(id: ids)`
     pub fn where_ids(conn: &Connection, ids: &[i64]) -> Result<Vec<Self>> {
-        let sql = format!(
-            r#"SELECT * FROM "users" WHERE "users"."id" IN ({})"#,
-            placeholders(ids.len())
-        );
+        let sql = format!(r#"SELECT * FROM "users" WHERE "users"."id" IN ({})"#, placeholders(ids.len()));
         query_all(conn, &sql, rusqlite::params_from_iter(ids), Self::from_row)
     }
 
@@ -220,12 +207,7 @@ impl User {
 
     /// `User.active`
     pub fn active(conn: &Connection) -> Result<Vec<Self>> {
-        query_all(
-            conn,
-            r#"SELECT * FROM "users" WHERE "users"."status" = 0"#,
-            [],
-            Self::from_row,
-        )
+        query_all(conn, r#"SELECT * FROM "users" WHERE "users"."status" = 0"#, [], Self::from_row)
     }
 
     /// `User.active.filtered_by(query).ordered`
@@ -260,8 +242,13 @@ impl User {
 
     /// `User.active_bots.find(id)`
     pub fn find_active_bot(conn: &Connection, id: i64) -> Result<Self> {
-        query_one(conn, r#"SELECT * FROM "users" WHERE "users"."status" = 0 AND "users"."role" = 2 AND "users"."id" = ? LIMIT 1"#, [id], Self::from_row)?
-            .or_not_found("User")
+        query_one(
+            conn,
+            r#"SELECT * FROM "users" WHERE "users"."status" = 0 AND "users"."role" = 2 AND "users"."id" = ? LIMIT 1"#,
+            [id],
+            Self::from_row,
+        )?
+        .or_not_found("User")
     }
 
     /// `User.active.find_by(email_address:)`: the lookup half of `authenticate_by`.
@@ -390,10 +377,7 @@ impl User {
         self.updated_at = now;
         sets.push(("updated_at", Box::new(now)));
         let assignments: Vec<String> = sets.iter().map(|(c, _)| format!(r#""{c}" = ?"#)).collect();
-        let sql = format!(
-            r#"UPDATE "users" SET {} WHERE "users"."id" = ?"#,
-            assignments.join(", ")
-        );
+        let sql = format!(r#"UPDATE "users" SET {} WHERE "users"."id" = ?"#, assignments.join(", "));
         let mut values: Vec<&dyn rusqlite::ToSql> = sets.iter().map(|(_, v)| v.as_ref()).collect();
         values.push(&self.id);
         tx.conn().execute_cached(&sql, values.as_slice())?;
@@ -401,12 +385,7 @@ impl User {
     }
 
     /// `update_bot!`: the webhook first, then the user, in one transaction.
-    pub fn update_bot(
-        &mut self,
-        tx: &mut Tx<'_>,
-        changes: UserChanges,
-        webhook_url: Option<&str>,
-    ) -> Result<()> {
+    pub fn update_bot(&mut self, tx: &mut Tx<'_>, changes: UserChanges, webhook_url: Option<&str>) -> Result<()> {
         let webhook = Webhook::find_by_user(tx.conn(), self.id)?;
         match (webhook_url.filter(|u| !u.trim().is_empty()), webhook) {
             (Some(url), Some(mut webhook)) => webhook.update_url(tx, url)?,
@@ -443,14 +422,8 @@ impl User {
             r#"DELETE FROM "push_subscriptions" WHERE "push_subscriptions"."user_id" = ?"#,
             [self.id],
         )?;
-        conn.execute_cached(
-            r#"DELETE FROM "searches" WHERE "searches"."user_id" = ?"#,
-            [self.id],
-        )?;
-        conn.execute_cached(
-            r#"DELETE FROM "sessions" WHERE "sessions"."user_id" = ?"#,
-            [self.id],
-        )?;
+        conn.execute_cached(r#"DELETE FROM "searches" WHERE "searches"."user_id" = ?"#, [self.id])?;
+        conn.execute_cached(r#"DELETE FROM "sessions" WHERE "sessions"."user_id" = ?"#, [self.id])?;
         let email = self.deactivated_email_address();
         self.update(
             tx,
@@ -487,10 +460,8 @@ impl User {
         }
         // apply_ban
         self.close_remote_connections(tx, false);
-        tx.conn().execute_cached(
-            r#"DELETE FROM "sessions" WHERE "sessions"."user_id" = ?"#,
-            [self.id],
-        )?;
+        tx.conn()
+            .execute_cached(r#"DELETE FROM "sessions" WHERE "sessions"."user_id" = ?"#, [self.id])?;
         tx.emit_after_commit(Event::RemoveBannedContent { user_id: self.id });
         self.update(
             tx,
@@ -502,10 +473,8 @@ impl User {
     }
 
     pub fn unban(&mut self, tx: &mut Tx<'_>) -> Result<()> {
-        tx.conn().execute_cached(
-            r#"DELETE FROM "bans" WHERE "bans"."user_id" = ?"#,
-            [self.id],
-        )?;
+        tx.conn()
+            .execute_cached(r#"DELETE FROM "bans" WHERE "bans"."user_id" = ?"#, [self.id])?;
         self.update(
             tx,
             UserChanges {
@@ -697,10 +666,7 @@ fn grant_membership_to_open_rooms(tx: &mut Tx<'_>, user_id: i64) -> Result<()> {
         |r| r.get(0),
     )?;
     for room_ids in room_ids.chunks(crate::models::room::MEMBERSHIP_INSERT_BATCH) {
-        let rows: Vec<String> = room_ids
-            .iter()
-            .map(|_| format!("({SQLITE_NOW}, ?, {SQLITE_NOW}, ?)"))
-            .collect();
+        let rows: Vec<String> = room_ids.iter().map(|_| format!("({SQLITE_NOW}, ?, {SQLITE_NOW}, ?)")).collect();
         let sql = format!(
             r#"INSERT INTO "memberships" ("created_at","room_id","updated_at","user_id") VALUES {} ON CONFLICT  DO NOTHING RETURNING "id""#,
             rows.join(", ")

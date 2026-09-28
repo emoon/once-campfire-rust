@@ -62,7 +62,10 @@ pub struct Shutdown {
 
 impl Shutdown {
     pub fn new(closing: watch::Receiver<bool>) -> Self {
-        Self { closing, active: Arc::new((AtomicUsize::new(0), Notify::new())) }
+        Self {
+            closing,
+            active: Arc::new((AtomicUsize::new(0), Notify::new())),
+        }
     }
 
     /// Closes when `signal` resolves.
@@ -167,7 +170,9 @@ where
             async move {
                 let response = service(request, info);
                 let response = match write_deadline {
-                    Some(deadline) => tokio::time::timeout_at(deadline, response).await.map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "write timeout"))?,
+                    Some(deadline) => tokio::time::timeout_at(deadline, response)
+                        .await
+                        .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "write timeout"))?,
                     None => response.await,
                 };
                 let mut response = response;
@@ -177,7 +182,12 @@ where
                 if response.status() == StatusCode::SWITCHING_PROTOCOLS {
                     return Ok::<_, std::io::Error>(response);
                 }
-                Ok(response.map(|body| Body::new(InFlight { inner: Deadline::new(body, write_deadline, "write"), _in_flight: in_flight })))
+                Ok(response.map(|body| {
+                    Body::new(InFlight {
+                        inner: Deadline::new(body, write_deadline, "write"),
+                        _in_flight: in_flight,
+                    })
+                }))
             }
         })
     };
@@ -209,7 +219,10 @@ where
     match protocol {
         Protocol::Http1 => {
             let mut builder = hyper::server::conn::http1::Builder::new();
-            builder.timer(TokioTimer::new()).header_read_timeout(options.read_timeout).auto_date_header(false);
+            builder
+                .timer(TokioTimer::new())
+                .header_read_timeout(options.read_timeout)
+                .auto_date_header(false);
             drive!(builder.serve_connection(io, hyper_service).with_upgrades())
         }
         Protocol::Http2 => {
@@ -219,7 +232,11 @@ where
         }
         Protocol::Auto => {
             let mut builder = Builder::new(TokioExecutor::new());
-            builder.http1().timer(TokioTimer::new()).header_read_timeout(options.read_timeout).auto_date_header(false);
+            builder
+                .http1()
+                .timer(TokioTimer::new())
+                .header_read_timeout(options.read_timeout)
+                .auto_date_header(false);
             builder.http2().timer(TokioTimer::new()).auto_date_header(false);
             drive!(builder.serve_connection_with_upgrades(io, hyper_service))
         }
@@ -264,7 +281,11 @@ struct Activity {
 
 impl Default for Activity {
     fn default() -> Self {
-        Self { in_flight: AtomicUsize::new(0), last_active: Mutex::new(Instant::now()), ended: Notify::new() }
+        Self {
+            in_flight: AtomicUsize::new(0),
+            last_active: Mutex::new(Instant::now()),
+            ended: Notify::new(),
+        }
     }
 }
 
@@ -338,7 +359,11 @@ struct Deadline<B> {
 
 impl<B> Deadline<B> {
     fn new(inner: B, deadline: Option<Instant>, what: &'static str) -> Self {
-        Self { inner, sleep: deadline.map(|d| Box::pin(tokio::time::sleep_until(d))), what }
+        Self {
+            inner,
+            sleep: deadline.map(|d| Box::pin(tokio::time::sleep_until(d))),
+            what,
+        }
     }
 }
 

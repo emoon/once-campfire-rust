@@ -140,11 +140,7 @@ impl<'c> Tx<'c> {
 /// Runs `f` in `BEGIN IMMEDIATE`, commits, then runs the after-commit queue. An error from
 /// `f` rolls back and discards the queue. An error from an after-commit hook is returned
 /// after the rest of the queue has run (Rails raises it from the save that committed).
-pub fn run_write<T>(
-    conn: &Connection,
-    env: &Env,
-    f: impl FnOnce(&mut Tx<'_>) -> Result<T>,
-) -> Result<T> {
+pub fn run_write<T>(conn: &Connection, env: &Env, f: impl FnOnce(&mut Tx<'_>) -> Result<T>) -> Result<T> {
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION")?;
     let mut tx = Tx {
         conn,
@@ -241,9 +237,7 @@ impl Database {
             .spawn(move || {
                 while let Some(job) = receiver.blocking_recv() {
                     // A panicking write must not take the writer down with it.
-                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        job(&conn, &writer_env)
-                    }));
+                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job(&conn, &writer_env)));
                     if outcome.is_err() && !conn.is_autocommit() {
                         let _ = conn.execute_batch("ROLLBACK TRANSACTION");
                     }
@@ -394,10 +388,8 @@ fn checkpoint(conn: &Connection, mode: &str) {
 }
 
 fn open_connection(path: &Path, reader: bool) -> Result<Connection> {
-    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
-        | OpenFlags::SQLITE_OPEN_CREATE
-        | OpenFlags::SQLITE_OPEN_NO_MUTEX
-        | OpenFlags::SQLITE_OPEN_URI;
+    let flags =
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE | OpenFlags::SQLITE_OPEN_NO_MUTEX | OpenFlags::SQLITE_OPEN_URI;
     let conn = Connection::open_with_flags(path, flags)?;
     // rusqlite's default of 16 is fewer statements than a page like the room show runs.
     conn.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
@@ -431,7 +423,10 @@ impl ReaderPool {
                 idle = self.available.wait(idle).unwrap_or_else(|poisoned| poisoned.into_inner());
             }
         };
-        let checkout = Checkout { pool: self, conn: Some(conn) };
+        let checkout = Checkout {
+            pool: self,
+            conn: Some(conn),
+        };
         f(checkout.conn.as_ref().expect("checked out"))
     }
 }
@@ -474,7 +469,11 @@ mod tests {
             assert!(panicked.is_err());
         }
         // With one reader, a lost connection would make this wait forever.
-        assert_eq!(db.read_blocking(|conn| Ok(conn.query_row("SELECT 1", [], |r| r.get::<_, i64>(0))?)).unwrap(), 1);
+        assert_eq!(
+            db.read_blocking(|conn| Ok(conn.query_row("SELECT 1", [], |r| r.get::<_, i64>(0))?))
+                .unwrap(),
+            1
+        );
     }
 
     /// Commits never checkpoint on the writer: the WAL reaching the auto-checkpoint threshold
@@ -486,7 +485,8 @@ mod tests {
         let mut config = Config::new(&path);
         config.readers = 1;
         let db = Database::open(config, Env::default()).unwrap();
-        db.write_blocking(|tx| Ok(tx.conn().execute_batch("CREATE TABLE filler (data BLOB)")?)).unwrap();
+        db.write_blocking(|tx| Ok(tx.conn().execute_batch("CREATE TABLE filler (data BLOB)")?))
+            .unwrap();
         let before = main_file_len(&path);
 
         // ~1,200 pages of 4 KiB, over a few commits.
@@ -512,7 +512,8 @@ mod tests {
         let mut config = Config::new(&path);
         config.readers = 1;
         let db = Database::open(config, Env::default()).unwrap();
-        db.write_blocking(|tx| Ok(tx.conn().execute_batch("CREATE TABLE filler (data BLOB)")?)).unwrap();
+        db.write_blocking(|tx| Ok(tx.conn().execute_batch("CREATE TABLE filler (data BLOB)")?))
+            .unwrap();
 
         // ~25,000 pages, 500 per commit.
         for _ in 0..50 {

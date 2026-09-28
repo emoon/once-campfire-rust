@@ -24,7 +24,9 @@ pub struct Uri {
 impl Uri {
     /// `uri.is_a?(URI::HTTP)`, which includes `URI::HTTPS`.
     pub fn is_http(&self) -> bool {
-        self.scheme.as_deref().is_some_and(|s| s.eq_ignore_ascii_case("http") || s.eq_ignore_ascii_case("https"))
+        self.scheme
+            .as_deref()
+            .is_some_and(|s| s.eq_ignore_ascii_case("http") || s.eq_ignore_ascii_case("https"))
     }
 
     fn default_port(&self) -> Option<u64> {
@@ -59,10 +61,11 @@ impl Uri {
                 s.push_str(host);
             }
             if let Some(port) = self.port
-                && Some(port) != self.default_port() {
-                    s.push(':');
-                    s.push_str(&port.to_string());
-                }
+                && Some(port) != self.default_port()
+            {
+                s.push(':');
+                s.push_str(&port.to_string());
+            }
             s.push_str(self.path.as_deref().unwrap_or(""));
             if let Some(query) = &self.query {
                 s.push('?');
@@ -82,7 +85,9 @@ pub fn parse(value: &str) -> Result<Uri, UriError> {
     if !value.is_ascii() {
         return Err(UriError::InvalidUri);
     }
-    let mut uri = split_absolute(value).or_else(|| split_relative(value)).ok_or(UriError::InvalidUri)?;
+    let mut uri = split_absolute(value)
+        .or_else(|| split_relative(value))
+        .ok_or(UriError::InvalidUri)?;
     // URI::Generic#initialize assigns the query through `query=`, which rejects bad escapes
     if let Some(query) = &uri.query {
         uri.query = Some(escape_query(query)?);
@@ -97,15 +102,29 @@ fn check_scheme_class(uri: &Uri) -> Result<(), UriError> {
     match uri.scheme.as_deref().map(|s| s.to_ascii_uppercase()).as_deref() {
         Some("MAILTO") => {
             let opaque = uri.opaque.clone().or_else(|| uri.query.as_ref().map(|q| format!("?{q}")));
-            let Some(opaque) = opaque else { return Err(UriError::InvalidComponent) };
+            let Some(opaque) = opaque else {
+                return Err(UriError::InvalidComponent);
+            };
             let to = opaque.split_once('?').map(|(to, _)| to).unwrap_or(&opaque);
-            if mailto_to_valid(to) { Ok(()) } else { Err(UriError::InvalidComponent) }
+            if mailto_to_valid(to) {
+                Ok(())
+            } else {
+                Err(UriError::InvalidComponent)
+            }
         }
         Some("LDAP") | Some("LDAPS") => {
-            if uri.fragment.is_some() || uri.path.is_none() { Err(UriError::InvalidUri) } else { Ok(()) }
+            if uri.fragment.is_some() || uri.path.is_none() {
+                Err(UriError::InvalidUri)
+            } else {
+                Ok(())
+            }
         }
         Some("FTP") => {
-            if uri.path.is_none() { Err(UriError::InvalidUri) } else { Ok(()) }
+            if uri.path.is_none() {
+                Err(UriError::InvalidUri)
+            } else {
+                Ok(())
+            }
         }
         _ => Ok(()),
     }
@@ -336,7 +355,11 @@ fn parse_authority(value: &str, start: usize, limit: usize) -> Option<Authority>
     if s.get(end) == Some(&b':') {
         let digits_end = (end + 1..s.len()).find(|&j| !s[j].is_ascii_digit()).unwrap_or(s.len());
         let digits = &value[end + 1..digits_end];
-        port = if digits.is_empty() { None } else { Some(digits.parse::<u64>().unwrap_or(u64::MAX)) };
+        port = if digits.is_empty() {
+            None
+        } else {
+            Some(digits.parse::<u64>().unwrap_or(u64::MAX))
+        };
         end = digits_end;
     }
     if end < s.len() && s[end] != b'/' {

@@ -44,8 +44,7 @@ fn underscore(word: &str) -> String {
             let next = chars.get(i + 1).copied();
             // ([a-z\d])([A-Z]) and ([A-Z\d]+)([A-Z][a-z])
             let lower_before = prev.is_ascii_lowercase() || prev.is_ascii_digit();
-            let acronym_end = (prev.is_ascii_uppercase() || prev.is_ascii_digit())
-                && next.is_some_and(|n| n.is_ascii_lowercase());
+            let acronym_end = (prev.is_ascii_uppercase() || prev.is_ascii_digit()) && next.is_some_and(|n| n.is_ascii_lowercase());
             if lower_before || acronym_end {
                 out.push('_');
             }
@@ -70,7 +69,11 @@ mod tests {
 
     #[test]
     fn broadcastings() {
-        let room = gid_param(&GlobalId { app: "campfire".into(), model_name: "Rooms::Open".into(), id: "1".into() });
+        let room = gid_param(&GlobalId {
+            app: "campfire".into(),
+            model_name: "Rooms::Open".into(),
+            id: "1".into(),
+        });
         assert_eq!(room, "Z2lkOi8vY2FtcGZpcmUvUm9vbXM6Ok9wZW4vMQ");
         assert_eq!(broadcasting_for("PresenceChannel", &[&room]), format!("presence:{room}"));
         assert_eq!(stream_name_from(&[&room, "messages"]), format!("{room}:messages"));

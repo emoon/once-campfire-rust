@@ -57,8 +57,11 @@ pub async fn edit(c: &mut Ctx) -> Result {
             let presenter = Presenter::new(conn, &app, None);
             // `@room.users.many? ? @room.users.without(Current.user) : @room.users`
             let users = room.users(conn)?;
-            let users: Vec<User> =
-                if users.len() > 1 { users.into_iter().filter(|user| user.id != current_user.id).collect() } else { users };
+            let users: Vec<User> = if users.len() > 1 {
+                users.into_iter().filter(|user| user.id != current_user.id).collect()
+            } else {
+                users
+            };
             Ok(DirectEditView {
                 room_id: room.id,
                 display_name: presenter.room_display_name(&room, Some(&current_user))?,

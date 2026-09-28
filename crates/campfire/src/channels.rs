@@ -62,7 +62,12 @@ pub struct Deps {
 /// with `cable.router("/cable")`.
 pub fn server(deps: Deps, config: Config) -> Cable {
     let authenticator = SessionAuthenticator::new(deps.db.clone(), deps.crypto.clone(), deps.clock.clone());
-    register(Server::builder(config, authenticator), &deps.db, StreamsChannel::new(deps.secrets.clone())).build()
+    register(
+        Server::builder(config, authenticator),
+        &deps.db,
+        StreamsChannel::new(deps.secrets.clone()),
+    )
+    .build()
 }
 
 /// Registers the channels under their Ruby class names. `streams` verifies signed stream names
@@ -77,8 +82,12 @@ pub fn register(builder: ServerBuilder<CableUser>, db: &Database, streams: Strea
         .channel("PresenceChannel", move || presence::PresenceChannel::new(presence_db.clone()))
         .channel("ReadRoomsChannel", || read_rooms::ReadRoomsChannel)
         .channel("RoomChannel", move || room::RoomChannel::new(room_db.clone()))
-        .channel("RoomMessagesChannel", move || room_messages::RoomMessagesChannel::new(messages_db.clone(), streams.clone()))
-        .channel("TypingNotificationsChannel", move || typing_notifications::TypingNotificationsChannel::new(typing_db.clone()))
+        .channel("RoomMessagesChannel", move || {
+            room_messages::RoomMessagesChannel::new(messages_db.clone(), streams.clone())
+        })
+        .channel("TypingNotificationsChannel", move || {
+            typing_notifications::TypingNotificationsChannel::new(typing_db.clone())
+        })
         .channel("UnreadRoomsChannel", || unread_rooms::UnreadRoomsChannel)
         .channel(STREAMS_CHANNEL, move || stock.clone())
 }

@@ -21,16 +21,29 @@ pub struct ProxyConfig {
 
 impl Default for ProxyConfig {
     fn default() -> Self {
-        Self { trusted_proxies: default_trusted_proxies(), ip_spoofing_check: true, assume_ssl: false }
+        Self {
+            trusted_proxies: default_trusted_proxies(),
+            ip_spoofing_check: true,
+            assume_ssl: false,
+        }
     }
 }
 
 /// `ActionDispatch::RemoteIp::TRUSTED_PROXIES`.
 pub fn default_trusted_proxies() -> Vec<IpNet> {
-    ["127.0.0.0/8", "::1/128", "fc00::/7", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "fe80::/10"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect()
+    [
+        "127.0.0.0/8",
+        "::1/128",
+        "fc00::/7",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "fe80::/10",
+    ]
+    .iter()
+    .map(|s| s.parse().unwrap())
+    .collect()
 }
 
 /// An IP network (`IPAddr.new("10.0.0.0/8")`).
@@ -73,7 +86,11 @@ impl std::str::FromStr for IpNet {
         let addr: IpAddr = addr.parse().map_err(|_| format!("invalid IP {s:?}"))?;
         let max = if addr.is_ipv4() { 32 } else { 128 };
         let prefix = match prefix {
-            Some(p) => p.parse::<u8>().ok().filter(|p| *p <= max).ok_or_else(|| format!("invalid prefix {s:?}"))?,
+            Some(p) => p
+                .parse::<u8>()
+                .ok()
+                .filter(|p| *p <= max)
+                .ok_or_else(|| format!("invalid prefix {s:?}"))?,
             None => max,
         };
         Ok(Self { addr, prefix })
@@ -107,7 +124,16 @@ impl Request {
     ) -> Self {
         let ssl = proxy.assume_ssl || scheme_is_https(&headers, &uri);
         let remote_ip = calculate_remote_ip(&headers, peer, proxy);
-        Self { method, original_method, uri, headers, peer, body, ssl, remote_ip }
+        Self {
+            method,
+            original_method,
+            uri,
+            headers,
+            peer,
+            body,
+            ssl,
+            remote_ip,
+        }
     }
 
     pub fn header(&self, name: &str) -> Option<&str> {
@@ -128,7 +154,8 @@ impl Request {
 
     /// `request.xhr?`
     pub fn is_xhr(&self) -> bool {
-        self.header("x-requested-with").is_some_and(|v| v.to_ascii_lowercase().contains("xmlhttprequest"))
+        self.header("x-requested-with")
+            .is_some_and(|v| v.to_ascii_lowercase().contains("xmlhttprequest"))
     }
 
     pub fn path(&self) -> &str {
@@ -178,9 +205,7 @@ impl Request {
     pub fn port(&self) -> u16 {
         let raw = self.raw_host_with_port();
         match raw.rsplit_once(':') {
-            Some((_, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => {
-                port.parse().unwrap_or(self.standard_port())
-            }
+            Some((_, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => port.parse().unwrap_or(self.standard_port()),
             _ => self.standard_port(),
         }
     }
@@ -192,7 +217,11 @@ impl Request {
     /// `request.host_with_port`: the port only when it isn't the scheme's default.
     pub fn host_with_port(&self) -> String {
         let port = self.port();
-        if port == self.standard_port() { self.host() } else { format!("{}:{port}", self.host()) }
+        if port == self.standard_port() {
+            self.host()
+        } else {
+            format!("{}:{port}", self.host())
+        }
     }
 
     /// `request.base_url`, e.g. `https://campfire.example.com`.
@@ -252,14 +281,16 @@ pub fn scheme_is_https(headers: &HeaderMap, uri: &Uri) -> bool {
     }
     if let Some(forwarded) = header("forwarded")
         && let Some(proto) = forwarded_values(forwarded, "proto").last()
-            && ["https", "http", "wss", "ws"].contains(&proto.as_str()) {
-                return proto == "https" || proto == "wss";
-            }
+        && ["https", "http", "wss", "ws"].contains(&proto.as_str())
+    {
+        return proto == "https" || proto == "wss";
+    }
     for name in ["x-forwarded-proto", "x-forwarded-scheme"] {
         if let Some(value) = header(name)
-            && let Some(scheme) = split_header(value).rev().find(|s| ["https", "http", "wss", "ws"].contains(s)) {
-                return scheme == "https" || scheme == "wss";
-            }
+            && let Some(scheme) = split_header(value).rev().find(|s| ["https", "http", "wss", "ws"].contains(s))
+        {
+            return scheme == "https" || scheme == "wss";
+        }
     }
     uri.scheme_str() == Some("https")
 }
@@ -273,9 +304,10 @@ fn forwarded_values(header: &str, param: &str) -> Vec<String> {
     let mut values = Vec::new();
     for element in header.split([',', ';']) {
         if let Some((name, value)) = element.split_once('=')
-            && name.trim().eq_ignore_ascii_case(param) {
-                values.push(value.trim().trim_matches('"').to_string());
-            }
+            && name.trim().eq_ignore_ascii_case(param)
+        {
+            values.push(value.trim().trim_matches('"').to_string());
+        }
     }
     values
 }
@@ -311,11 +343,7 @@ fn forwarded_for(headers: &HeaderMap) -> Option<Vec<String>> {
 }
 
 /// `ActionDispatch::RemoteIp::GetIp#calculate_ip`.
-fn calculate_remote_ip(
-    headers: &HeaderMap,
-    peer: Option<IpAddr>,
-    proxy: &ProxyConfig,
-) -> std::result::Result<String, ()> {
+fn calculate_remote_ip(headers: &HeaderMap, peer: Option<IpAddr>, proxy: &ProxyConfig) -> std::result::Result<String, ()> {
     let remote_addr = peer;
     let client_ip_header = headers.get("client-ip").and_then(|v| v.to_str().ok());
     let mut client_ips = sanitize_ips(client_ip_header.map(|h| h.trim().split([',', ' ', '\t'])).into_iter().flatten());
@@ -326,9 +354,10 @@ fn calculate_remote_ip(
 
     if proxy.ip_spoofing_check
         && let (Some(client), Some(_)) = (client_ips.last(), forwarded_ips.last())
-            && !forwarded_ips.contains(client) {
-                return Err(());
-            }
+        && !forwarded_ips.contains(client)
+    {
+        return Err(());
+    }
 
     let ips: Vec<IpAddr> = forwarded_ips.into_iter().chain(client_ips).collect();
     let trusted = |ip: &IpAddr| proxy.trusted_proxies.iter().any(|net| net.contains(ip));
@@ -397,7 +426,11 @@ mod tests {
         assert_eq!(r.url(), "http://chat.example.com:3000/rooms/1?x=1");
 
         let r = request(
-            &[("host", "internal:80"), ("x-forwarded-host", "a.example, chat.example.com"), ("x-forwarded-proto", "https")],
+            &[
+                ("host", "internal:80"),
+                ("x-forwarded-host", "a.example, chat.example.com"),
+                ("x-forwarded-proto", "https"),
+            ],
             "127.0.0.1",
             &proxy,
         );
@@ -405,7 +438,10 @@ mod tests {
         assert!(r.is_ssl());
         assert_eq!(r.base_url(), "https://chat.example.com");
 
-        let assume = ProxyConfig { assume_ssl: true, ..ProxyConfig::default() };
+        let assume = ProxyConfig {
+            assume_ssl: true,
+            ..ProxyConfig::default()
+        };
         let r = request(&[("host", "chat.example.com")], "127.0.0.1", &assume);
         assert_eq!(r.base_url(), "https://chat.example.com");
     }

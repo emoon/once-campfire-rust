@@ -81,11 +81,19 @@ impl Drop for Image {
 
 impl Image {
     fn wrap(ptr: *mut VipsImage) -> Result<Image> {
-        if ptr.is_null() { Err(Error::Vips(take_error())) } else { Ok(Image(ptr)) }
+        if ptr.is_null() {
+            Err(Error::Vips(take_error()))
+        } else {
+            Ok(Image(ptr))
+        }
     }
 
     fn wrap_out(status: c_int, out: *mut VipsImage) -> Result<Image> {
-        if status != 0 { Err(Error::Vips(take_error())) } else { Image::wrap(out) }
+        if status != 0 {
+            Err(Error::Vips(take_error()))
+        } else {
+            Image::wrap(out)
+        }
     }
 
     /// `Vips::Image.new_from_file(path, access: :sequential)`, as the image analyzer opens files.
@@ -93,7 +101,12 @@ impl Image {
         init();
         let path = cstring(path)?;
         Image::wrap(unsafe {
-            vips_image_new_from_file(path.as_ptr(), c"access".as_ptr(), VIPS_ACCESS_SEQUENTIAL, std::ptr::null::<c_char>())
+            vips_image_new_from_file(
+                path.as_ptr(),
+                c"access".as_ptr(),
+                VIPS_ACCESS_SEQUENTIAL,
+                std::ptr::null::<c_char>(),
+            )
         })
     }
 
@@ -166,7 +179,14 @@ impl Image {
         let mask = sharpen_mask()?;
         let mut sharpened = std::ptr::null_mut();
         let status = unsafe {
-            vips_conv(thumbnail.0, &mut sharpened, mask.0, c"precision".as_ptr(), VIPS_PRECISION_INTEGER, std::ptr::null::<c_char>())
+            vips_conv(
+                thumbnail.0,
+                &mut sharpened,
+                mask.0,
+                c"precision".as_ptr(),
+                VIPS_PRECISION_INTEGER,
+                std::ptr::null::<c_char>(),
+            )
         };
         Image::wrap_out(status, sharpened)
     }

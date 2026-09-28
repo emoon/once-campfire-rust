@@ -32,7 +32,9 @@ pub struct TestCrypto {
 
 impl Default for TestCrypto {
     fn default() -> Self {
-        Self { secret: "test-secret".into() }
+        Self {
+            secret: "test-secret".into(),
+        }
     }
 }
 
@@ -64,9 +66,10 @@ impl TestCrypto {
             return None;
         }
         if let Some(exp) = payload["exp"].as_str()
-            && exp.parse::<Timestamp>().ok()? <= now {
-                return None;
-            }
+            && exp.parse::<Timestamp>().ok()? <= now
+        {
+            return None;
+        }
         Some(payload["v"].clone())
     }
 }

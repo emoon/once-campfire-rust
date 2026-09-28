@@ -32,8 +32,15 @@ async fn whoami(c: &mut Ctx) -> Result {
 fn app(vectors: &Value) -> (Router, Arc<rails_compat::Secrets>) {
     let secrets = Arc::new(rails_compat::Secrets::new(vectors["secret_key_base"].as_str().unwrap()));
     let now = vectors["now"].as_str().unwrap().parse().unwrap();
-    let kit = Kit::new(KitConfig::default(), Arc::new(RailsCrypto::new(secrets.clone())), Arc::new(FrozenClock::new(now)), ());
-    let router = Router::new().route("/session", action_post()).route("/whoami", campfire_kit::get(whoami));
+    let kit = Kit::new(
+        KitConfig::default(),
+        Arc::new(RailsCrypto::new(secrets.clone())),
+        Arc::new(FrozenClock::new(now)),
+        (),
+    );
+    let router = Router::new()
+        .route("/session", action_post())
+        .route("/whoami", campfire_kit::get(whoami));
     (campfire_kit::app(router, kit), secrets)
 }
 
@@ -42,8 +49,10 @@ fn action_post() -> axum::routing::MethodRouter<Kit> {
 }
 
 async fn post_session(app: &Router, cookie: &str, site: &str, token: Option<&str>, origin: Option<&str>) -> axum::response::Response {
-    let mut request =
-        Request::post("/session").header(header::HOST, "localhost:3000").header(header::COOKIE, cookie).header("sec-fetch-site", site);
+    let mut request = Request::post("/session")
+        .header(header::HOST, "localhost:3000")
+        .header(header::COOKIE, cookie)
+        .header("sec-fetch-site", site);
     if let Some(origin) = origin {
         request = request.header(header::ORIGIN, origin);
     }
@@ -62,17 +71,29 @@ async fn rails_sessions_carry_over() {
     let vectors = vectors();
     let session = &vectors["session"];
     let (app, secrets) = app(&vectors);
-    let cookie = format!("_campfire_session={}", campfire_kit::cookies::escape(session["session_cookie_raw"].as_str().unwrap()));
+    let cookie = format!(
+        "_campfire_session={}",
+        campfire_kit::cookies::escape(session["session_cookie_raw"].as_str().unwrap())
+    );
     let form_token = session["session_form_token"].as_str().unwrap();
 
     // A form from a page Rails rendered still posts its token; it's ignored, not required.
     let from_old_tab = post_session(&app, &cookie, "same-origin", Some(form_token), None).await;
     assert_eq!(from_old_tab.status(), StatusCode::OK);
-    let set_cookie = from_old_tab.headers().get(header::SET_COOKIE).unwrap().to_str().unwrap().to_string();
+    let set_cookie = from_old_tab
+        .headers()
+        .get(header::SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
     let body = axum::body::to_bytes(from_old_tab.into_body(), usize::MAX).await.unwrap();
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(body["id"], session["session"]["session_id"]);
-    assert_eq!(body["csrf"], session["session"]["_csrf_token"], "Rails' token stays in the session, unused");
+    assert_eq!(
+        body["csrf"], session["session"]["_csrf_token"],
+        "Rails' token stays in the session, unused"
+    );
 
     // What we write back after a change is the same session plus the change, in Rails' format.
     let raw = set_cookie.strip_prefix("_campfire_session=").unwrap().split(';').next().unwrap();
@@ -84,14 +105,20 @@ async fn rails_sessions_carry_over() {
     assert_eq!(decoded, expected);
     assert!(set_cookie.ends_with("; path=/; expires=Mon, 01 Jan 2046 12:00:00 GMT; httponly; samesite=lax"));
 
-    assert_eq!(post_session(&app, &cookie, "same-origin", None, None).await.status(), StatusCode::OK);
+    assert_eq!(
+        post_session(&app, &cookie, "same-origin", None, None).await.status(),
+        StatusCode::OK
+    );
 
     // A valid Rails token doesn't make a cross-site request acceptable.
     let cross_site = post_session(&app, &cookie, "cross-site", Some(form_token), None).await;
     assert_eq!(cross_site.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     let cross_origin = post_session(&app, &cookie, "same-origin", None, Some("https://evil.example")).await;
-    assert_eq!(cross_origin.status().as_u16(), session["post_with_cross_origin_status"].as_u64().unwrap() as u16);
+    assert_eq!(
+        cross_origin.status().as_u16(),
+        session["post_with_cross_origin_status"].as_u64().unwrap() as u16
+    );
 }
 
 #[tokio::test]
@@ -99,7 +126,10 @@ async fn rails_signed_session_token_cookie_is_read() {
     let vectors = vectors();
     let session = &vectors["session"];
     let (app, _) = app(&vectors);
-    let cookie = format!("session_token={}", campfire_kit::cookies::escape(session["session_token_raw"].as_str().unwrap()));
+    let cookie = format!(
+        "session_token={}",
+        campfire_kit::cookies::escape(session["session_token_raw"].as_str().unwrap())
+    );
     let request = Request::get("/whoami").header(header::COOKIE, cookie).body(Body::empty()).unwrap();
     let response = app.oneshot(request).await.unwrap();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();

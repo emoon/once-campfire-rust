@@ -26,7 +26,11 @@ impl AppRichText {
     }
 
     fn with_context<T>(&self, conn: &Connection, f: impl FnOnce(&RenderContext) -> T) -> T {
-        let resolver = DbResolver { conn, secrets: &self.secrets, now: self.clock.now() };
+        let resolver = DbResolver {
+            conn,
+            secrets: &self.secrets,
+            now: self.clock.now(),
+        };
         f(&resolver.render_context(None))
     }
 }

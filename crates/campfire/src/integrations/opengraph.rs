@@ -56,7 +56,11 @@ async fn unfurl_within(net: &Network, url: &str, deadline: Duration) -> Result<U
     let unfurling = async {
         let _slot = SLOTS.acquire().await.expect("never closed");
         let mut opengraph = Metadata::from_url(net, url).await?;
-        Ok(if opengraph.validate(net).await? { Unfurl::Json(opengraph.to_json()) } else { Unfurl::NoContent })
+        Ok(if opengraph.validate(net).await? {
+            Unfurl::Json(opengraph.to_json())
+        } else {
+            Unfurl::NoContent
+        })
     };
     tokio::time::timeout(deadline, unfurling).await.unwrap_or_else(|_| {
         tracing::warn!("Gave up unfurling {url} after {deadline:?}");

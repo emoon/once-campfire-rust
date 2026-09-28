@@ -38,7 +38,9 @@ impl Variation {
 
     /// `preview(format: :webp)` and friends.
     pub fn format_only(format: &str) -> Self {
-        Self { transformations: vec![("format".to_string(), Value::Symbol(format.to_string()))] }
+        Self {
+            transformations: vec![("format".to_string(), Value::Symbol(format.to_string()))],
+        }
     }
 
     pub fn transformations(&self) -> &[(String, Value)] {
@@ -136,8 +138,6 @@ fn from_json(json: &Json) -> Result<Value> {
         Json::Float(_) => return Err(Error::InvalidVariation("float transformation arguments are unsupported".into())),
         Json::String(s) => Value::Str(s.clone()),
         Json::Array(items) => Value::Array(items.iter().map(from_json).collect::<Result<_>>()?),
-        Json::Object(entries) => {
-            Value::Hash(entries.iter().map(|(k, v)| Ok((k.clone(), from_json(v)?))).collect::<Result<_>>()?)
-        }
+        Json::Object(entries) => Value::Hash(entries.iter().map(|(k, v)| Ok((k.clone(), from_json(v)?))).collect::<Result<_>>()?),
     })
 }

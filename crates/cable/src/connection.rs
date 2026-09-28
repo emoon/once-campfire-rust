@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use futures_util::stream::{AbortRegistration, Abortable, SelectAll};
 use futures_util::{FutureExt, StreamExt};
-use tokio::io::{ReadHalf, WriteHalf};
 use serde_json::Value;
+use tokio::io::{ReadHalf, WriteHalf};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -38,7 +38,10 @@ struct Close {
 impl Close {
     /// A stream fell behind (`reason: nil`, as `Connection::Base#close` without one).
     fn lagged() -> Self {
-        Close { reason: None, reconnect: Value::Bool(true) }
+        Close {
+            reason: None,
+            reconnect: Value::Bool(true),
+        }
     }
 }
 
@@ -97,8 +100,13 @@ pub(crate) async fn run<U: Identified + Send + Sync + 'static>(server: Server<U>
     heartbeat.mark_unchanged();
     let mut restarts = server.restarts();
 
-    let mut connection =
-        Connection { server, user: Arc::new(user), subscriptions: Vec::new(), pending: Vec::new(), started: Vec::new() };
+    let mut connection = Connection {
+        server,
+        user: Arc::new(user),
+        subscriptions: Vec::new(),
+        pending: Vec::new(),
+        started: Vec::new(),
+    };
 
     let mut close: Option<Close> = None;
     if sink.send(&[protocol::welcome().into()]).await.is_err() {
@@ -162,7 +170,12 @@ pub(crate) async fn run<U: Identified + Send + Sync + 'static>(server: Server<U>
             }
         }
 
-        deliveries.extend(connection.started.drain(..).map(|(subscriber, registration)| Abortable::new(subscriber.deliveries(), registration)));
+        deliveries.extend(
+            connection
+                .started
+                .drain(..)
+                .map(|(subscriber, registration)| Abortable::new(subscriber.deliveries(), registration)),
+        );
         if !connection.flush(&mut sink).await {
             break;
         }
@@ -271,7 +284,10 @@ impl<U: Send + Sync + 'static> Connection<U> {
         // Bounds on what one socket can make the server hold (Rails has none). A page subscribes
         // to six channels with identifiers of a few hundred bytes.
         if self.subscriptions.len() >= MAX_SUBSCRIPTIONS || identifier.len() > MAX_IDENTIFIER_BYTES {
-            return tracing::error!(subscriptions = self.subscriptions.len(), "Could not execute command: subscription limit reached");
+            return tracing::error!(
+                subscriptions = self.subscriptions.len(),
+                "Could not execute command: subscription limit reached"
+            );
         }
         let class_name = params.get("channel").and_then(Value::as_str).unwrap_or_default().to_string();
         let Some(factory) = self.server.channel_factory(&class_name) else {
@@ -369,7 +385,9 @@ impl<U: Send + Sync + 'static> Connection<U> {
     }
 
     fn find(&self, data: &Params) -> Option<usize> {
-        data.get("identifier").and_then(Value::as_str).and_then(|identifier| self.position(identifier))
+        data.get("identifier")
+            .and_then(Value::as_str)
+            .and_then(|identifier| self.position(identifier))
     }
 
     fn position(&self, identifier: &str) -> Option<usize> {

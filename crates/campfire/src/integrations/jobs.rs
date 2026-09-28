@@ -12,9 +12,9 @@ use super::web_push::{self, VapidConfig, VapidError};
 use super::webhook::{self, WebhookReply};
 use crate::app::App;
 use crate::config::Config;
-use crate::controllers::presenters::page::{self, Rendered};
 use crate::controllers::messages::{canonicalize_body, process_attachment, save_staged};
 use crate::controllers::presenters::Presenter;
+use crate::controllers::presenters::page::{self, Rendered};
 use crate::jobs::{JobKind, Registry};
 
 /// Registers the handlers for `Event::PushMessage` and `Event::DeliverWebhook`.
@@ -26,7 +26,9 @@ pub fn register_jobs(registry: &mut Registry) {
 /// `Room::PushMessageJob#perform(room, message)`: `Room::MessagePusher.new(room:, message:).push`,
 /// unless Web Push is off.
 async fn push_message(app: App, event: Event) -> anyhow::Result<()> {
-    let Event::PushMessage { message_id, .. } = event else { return Ok(()) };
+    let Event::PushMessage { message_id, .. } = event else {
+        return Ok(());
+    };
     let Some(pool) = app.web_push.clone() else { return Ok(()) };
     let db = app.db.clone();
     app.db
@@ -67,7 +69,9 @@ pub fn web_push_pool(config: &Config, db: &Database) -> Option<web_push::Pool> {
 /// `Bot::WebhookJob#perform(bot, message)`: `bot.deliver_webhook(message)`, i.e.
 /// `webhook.deliver(message)`, then the reply.
 async fn deliver_webhook(app: App, event: Event) -> anyhow::Result<()> {
-    let Event::DeliverWebhook { bot_id, message_id } = event else { return Ok(()) };
+    let Event::DeliverWebhook { bot_id, message_id } = event else {
+        return Ok(());
+    };
     let db = app.db.clone();
     let (bot, room, url, payload) = app
         .db
@@ -75,7 +79,9 @@ async fn deliver_webhook(app: App, event: Event) -> anyhow::Result<()> {
             let bot = User::find(conn, bot_id)?;
             let message = Message::find(conn, message_id)?;
             let room = Room::find(conn, message.room_id)?;
-            let Some(webhook) = Webhook::find_by_user(conn, bot_id)? else { return Ok(None) };
+            let Some(webhook) = Webhook::find_by_user(conn, bot_id)? else {
+                return Ok(None);
+            };
             let payload = webhook.payload(
                 conn,
                 &*db.env().rich_text,
@@ -105,7 +111,18 @@ async fn create_text_reply(app: &App, room: &Room, bot: &User, text: String) -> 
     let body = canonicalize_body(app, text, None).await.map_err(|e| anyhow!("{e:?}"))?;
     let message = app
         .db
-        .write(move |tx| Message::create(tx, NewMessage { room_id, creator_id, client_message_id: None, body: Some(body), attachment_blob_id: None }))
+        .write(move |tx| {
+            Message::create(
+                tx,
+                NewMessage {
+                    room_id,
+                    creator_id,
+                    client_message_id: None,
+                    body: Some(body),
+                    attachment_blob_id: None,
+                },
+            )
+        })
         .await?;
     Ok(message)
 }
@@ -121,7 +138,18 @@ async fn create_attachment_reply(app: &App, room: &Room, bot: &User, attachment:
     let (room_id, creator_id, blob_id) = (room.id, bot.id, blob.id);
     let message = app
         .db
-        .write(move |tx| Message::create(tx, NewMessage { room_id, creator_id, client_message_id: None, body: None, attachment_blob_id: Some(blob_id) }))
+        .write(move |tx| {
+            Message::create(
+                tx,
+                NewMessage {
+                    room_id,
+                    creator_id,
+                    client_message_id: None,
+                    body: None,
+                    attachment_blob_id: Some(blob_id),
+                },
+            )
+        })
         .await?;
     process_attachment(app, blob).await.map_err(|e| anyhow!("{e:?}"))?;
     let id = message.id;
@@ -137,7 +165,10 @@ async fn broadcast_create(app: &App, room: &Room, message: &Message) -> anyhow::
         let view = presenter.message(&message)?;
         let account = campfire_db::Account::first(conn)?;
         let html = page::render_detached(&app, account.as_ref(), |ctx| views::message(ctx, &view));
-        let partials = Rendered { message: Some(html), ..Rendered::default() };
+        let partials = Rendered {
+            message: Some(html),
+            ..Rendered::default()
+        };
         app.broadcasts.message_create(conn, &room, &message, &partials)
     })
     .await?;

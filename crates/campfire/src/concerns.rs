@@ -113,17 +113,27 @@ pub enum Authentication {
 
 impl Default for Before {
     fn default() -> Self {
-        Self { authentication: Authentication::Required, deny_bots: true, forgery_protection: true }
+        Self {
+            authentication: Authentication::Required,
+            deny_bots: true,
+            forgery_protection: true,
+        }
     }
 }
 
 impl Before {
     pub fn allow_unauthenticated_access(self) -> Self {
-        Self { authentication: Authentication::Skipped, ..self }
+        Self {
+            authentication: Authentication::Skipped,
+            ..self
+        }
     }
 
     pub fn require_unauthenticated_access(self) -> Self {
-        Self { authentication: Authentication::RequireUnauthenticated, ..self }
+        Self {
+            authentication: Authentication::RequireUnauthenticated,
+            ..self
+        }
     }
 
     pub fn allow_bot_access(self) -> Self {
@@ -131,7 +141,10 @@ impl Before {
     }
 
     pub fn skip_forgery_protection(self) -> Self {
-        Self { forgery_protection: false, ..self }
+        Self {
+            forgery_protection: false,
+            ..self
+        }
     }
 }
 
@@ -195,8 +208,14 @@ pub async fn reject_banned_ip(c: &mut Ctx) -> Result<()> {
 
 /// `Authentication::SessionLookup#find_session_by_cookie`
 pub async fn find_session_by_cookie(c: &Ctx) -> Result<Option<Session>> {
-    let Some(token) = c.cookies.signed("session_token") else { return Ok(None) };
-    c.app().db.read(move |conn| Session::find_by_token(conn, &token)).await.map_err(Error::internal)
+    let Some(token) = c.cookies.signed("session_token") else {
+        return Ok(None);
+    };
+    c.app()
+        .db
+        .read(move |conn| Session::find_by_token(conn, &token))
+        .await
+        .map_err(Error::internal)
 }
 
 /// `require_authentication`: `restore_authentication || bot_authentication || request_authentication`.
@@ -220,12 +239,19 @@ pub async fn restore_authentication(c: &mut Ctx) -> Result<bool> {
 
 /// `bot_authentication`: `params[:bot_key].present?` and a matching active bot.
 pub async fn bot_authentication(c: &mut Ctx) -> Result<bool> {
-    let Some(param) = c.params.get("bot_key").filter(|p| p.is_present()) else { return Ok(false) };
+    let Some(param) = c.params.get("bot_key").filter(|p| p.is_present()) else {
+        return Ok(false);
+    };
     // `params[:bot_key].strip` raises NoMethodError for a hash or array.
     let Some(bot_key) = param.as_str().map(|key| ruby_strip(key).to_string()) else {
         return Err(Error::internal(anyhow::anyhow!("undefined method 'strip' for bot_key")));
     };
-    let bot = c.app().db.read(move |conn| User::authenticate_bot(conn, &bot_key)).await.map_err(Error::internal)?;
+    let bot = c
+        .app()
+        .db
+        .read(move |conn| User::authenticate_bot(conn, &bot_key))
+        .await
+        .map_err(Error::internal)?;
     match bot {
         Some(bot) => {
             c.set_current(CurrentUser(bot));
@@ -257,7 +283,10 @@ pub fn redirect_signed_in_user_to_root(c: &mut Ctx) -> Result<()> {
 /// it, so bcrypt (about 250 ms) holds neither an async thread nor the database writer.
 pub async fn password_digest(c: &Ctx, password: Option<String>) -> Result<Option<PasswordDigest>> {
     let Some(password) = password else { return Ok(None) };
-    PasswordDigest::hash(password, c.app().db.env().bcrypt_cost).await.map(Some).map_err(Error::internal)
+    PasswordDigest::hash(password, c.app().db.env().bcrypt_cost)
+        .await
+        .map(Some)
+        .map_err(Error::internal)
 }
 
 /// `User.active.authenticate_by(email_address:, password:)`: the user is looked up on a reader,
@@ -267,8 +296,15 @@ pub async fn authenticate_by(c: &Ctx, email_address: String, password: String) -
     if password.is_empty() {
         return Ok(None);
     }
-    let candidate = c.app().db.read(move |conn| User::find_active_by_email_address(conn, &email_address)).await.map_err(Error::internal)?;
-    tokio::task::spawn_blocking(move || User::authenticated(candidate, &password)).await.map_err(Error::internal)
+    let candidate = c
+        .app()
+        .db
+        .read(move |conn| User::find_active_by_email_address(conn, &email_address))
+        .await
+        .map_err(Error::internal)?;
+    tokio::task::spawn_blocking(move || User::authenticated(candidate, &password))
+        .await
+        .map_err(Error::internal)
 }
 
 /// `start_new_session_for(user)`
@@ -317,7 +353,11 @@ async fn authenticated_as(c: &mut Ctx, session: Session, user: Option<User>, set
         Some(user) => Some(user),
         None => {
             let user_id = session.user_id;
-            c.app().db.read(move |conn| User::find_by_id(conn, user_id)).await.map_err(Error::internal)?
+            c.app()
+                .db
+                .read(move |conn| User::find_by_id(conn, user_id))
+                .await
+                .map_err(Error::internal)?
         }
     };
     if set_cookie {
@@ -333,7 +373,10 @@ async fn authenticated_as(c: &mut Ctx, session: Session, user: Option<User>, set
 
 /// `cookies.signed.permanent[:session_token] = { value: session.token, httponly: true, same_site: :lax }`
 fn set_authentication_cookie(c: &mut Ctx, session: &Session) -> Result<()> {
-    let cookie = Cookie::new(session.token.clone()).permanent().httponly().same_site(Some(SameSite::Lax));
+    let cookie = Cookie::new(session.token.clone())
+        .permanent()
+        .httponly()
+        .same_site(Some(SameSite::Lax));
     c.cookies.set_signed("session_token", cookie)
 }
 
@@ -346,10 +389,14 @@ pub async fn terminate_current_session(c: &mut Ctx) -> Result<()> {
     c.reset_session();
     c.cookies.delete("session_token");
     if let Some(user) = current_user(c).cloned()
-        && let Err(error) = c.app().db.write(move |tx| {
-            user.reset_remote_connections(tx);
-            Ok(())
-        }).await
+        && let Err(error) = c
+            .app()
+            .db
+            .write(move |tx| {
+                user.reset_remote_connections(tx);
+                Ok(())
+            })
+            .await
     {
         tracing::warn!("Could not disconnect remote connections on sign out: {error}");
     }
@@ -415,10 +462,15 @@ async fn render_incompatible_browser(c: &mut Ctx) -> Result {
     let response = if own_layout {
         page_in_any_format(c, StatusCode::OK, |ctx| IncompatibleBrowser { ctx }.render()).await?
     } else {
-        page_or_frame_in_any_format(c, StatusCode::OK, |ctx| IncompatibleBrowser { ctx }.render(), |ctx| {
-            let page = IncompatibleBrowser { ctx };
-            campfire_views::layouts::frame(ctx, page.as_head(), page.as_content())
-        })
+        page_or_frame_in_any_format(
+            c,
+            StatusCode::OK,
+            |ctx| IncompatibleBrowser { ctx }.render(),
+            |ctx| {
+                let page = IncompatibleBrowser { ctx };
+                campfire_views::layouts::frame(ctx, page.as_head(), page.as_content())
+            },
+        )
         .await?
     };
     Ok(response.content_type(campfire_kit::response::HTML_UTF8))
@@ -446,7 +498,9 @@ pub fn remember_last_room_visited(c: &mut Ctx, room_id: i64) {
 /// `last_room_visited`: the `last_room` cookie's room if the user is in it, else
 /// `Current.user.rooms.original`.
 pub async fn last_room_visited(c: &Ctx) -> Result<Option<Room>> {
-    let Some(user_id) = current_user(c).map(|user| user.id) else { return Ok(None) };
+    let Some(user_id) = current_user(c).map(|user| user.id) else {
+        return Ok(None);
+    };
     // `find_by(id: cookies[:last_room])` casts the cookie like an integer column would.
     let last_room = c.cookies.get("last_room").and_then(cast_integer);
     c.app()
@@ -469,11 +523,15 @@ pub async fn last_room_visited(c: &Ctx) -> Result<Option<Room>> {
 /// otherwise. Returns the membership and its room.
 pub async fn set_room(c: &mut Ctx) -> Result<(Membership, Room)> {
     let user_id = require_current_user(c)?.id;
-    let Some(room_id) = c.param_str("room_id").and_then(cast_integer) else { return Err(Error::NotFound) };
+    let Some(room_id) = c.param_str("room_id").and_then(cast_integer) else {
+        return Err(Error::NotFound);
+    };
     c.app()
         .db
         .read(move |conn| {
-            let Some(membership) = Membership::find_by_room_and_user(conn, room_id, user_id)? else { return Ok(None) };
+            let Some(membership) = Membership::find_by_room_and_user(conn, room_id, user_id)? else {
+                return Ok(None);
+            };
             let room = membership.room(conn)?;
             Ok(Some((membership, room)))
         })
@@ -491,7 +549,11 @@ pub async fn set_room(c: &mut Ctx) -> Result<(Membership, Room)> {
 /// the request format: that's `c.head`.)
 pub fn head(status: StatusCode) -> campfire_kit::Response {
     let response = campfire_kit::Response::new(status);
-    if matches!(status.as_u16(), 100..=199 | 204 | 205 | 304) { response } else { response.content_type("text/html") }
+    if matches!(status.as_u16(), 100..=199 | 204 | 205 | 304) {
+        response
+    } else {
+        response.content_type("text/html")
+    }
 }
 
 /// ActiveModel's integer cast of a string attribute value (`"12abc"` → 12, `"abc"` → nil).
@@ -573,6 +635,9 @@ mod tests {
         assert_eq!(before.authentication, Authentication::Required);
         assert!(!before.deny_bots);
         assert!(!before.forgery_protection);
-        assert_eq!(Before::default().require_unauthenticated_access().authentication, Authentication::RequireUnauthenticated);
+        assert_eq!(
+            Before::default().require_unauthenticated_access().authentication,
+            Authentication::RequireUnauthenticated
+        );
     }
 }

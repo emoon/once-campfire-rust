@@ -26,7 +26,10 @@ pub async fn index(c: &mut Ctx) -> Result {
     c.respond_to(&[&format::JSON])?;
     let base_url = c.url_for("");
     let body = present(c, move |presenter| {
-        let messages = messages.iter().map(|m| presenter.message_json(m, &base_url)).collect::<campfire_db::Result<Vec<_>>>()?;
+        let messages = messages
+            .iter()
+            .map(|m| presenter.message_json(m, &base_url))
+            .collect::<campfire_db::Result<Vec<_>>>()?;
         Ok(json::by_bots_index(&messages))
     })
     .await?;
@@ -78,7 +81,12 @@ pub async fn destroy(c: &mut Ctx) -> Result {
 async fn set_room(c: &mut Ctx) -> Result<Room> {
     let user_id = require_current_user(c)?.id;
     let room = match c.param_str("room_id").and_then(cast_integer) {
-        Some(id) => c.app().db.read(move |conn| Room::find_for_user(conn, user_id, id)).await.map_err(db_error)?,
+        Some(id) => c
+            .app()
+            .db
+            .read(move |conn| Room::find_for_user(conn, user_id, id))
+            .await
+            .map_err(db_error)?,
         None => None,
     };
     match room {
@@ -100,9 +108,15 @@ fn ensure_body_or_attachment_present(c: &mut Ctx) -> Result<()> {
 fn message_params(c: &Ctx) -> Result<MessageParams> {
     if c.params.get("attachment").is_some_and(|p| !p.is_null()) {
         let permitted = c.params.permit(&permit_keys(&["attachment"]));
-        Ok(MessageParams { attachment: attachment_assignment(&permitted)?, ..MessageParams::default() })
+        Ok(MessageParams {
+            attachment: attachment_assignment(&permitted)?,
+            ..MessageParams::default()
+        })
     } else {
-        Ok(MessageParams { body: Some(raw_request_body(c)), ..MessageParams::default() })
+        Ok(MessageParams {
+            body: Some(raw_request_body(c)),
+            ..MessageParams::default()
+        })
     }
 }
 
@@ -126,9 +140,7 @@ async fn set_pagination_headers(c: &mut Ctx, room: &Room, messages: &[Message]) 
         .read(move |conn| {
             let count = Message::count_in_room(conn, room_id)?;
             let next_page = match (first, last) {
-                (Some(_), Some(last)) if after => {
-                    Message::exists_after(conn, room_id, &last)?.then_some(("after", last.id))
-                }
+                (Some(_), Some(last)) if after => Message::exists_after(conn, room_id, &last)?.then_some(("after", last.id)),
                 (Some(first), Some(_)) => Message::exists_before(conn, room_id, &first)?.then_some(("before", first.id)),
                 _ => None,
             };
@@ -148,6 +160,9 @@ async fn set_pagination_headers(c: &mut Ctx, room: &Room, messages: &[Message]) 
 /// `render :show` (`messages/by_bots/show.json.jbuilder`).
 async fn render_show(c: &mut Ctx, message: Message) -> Result<Response> {
     let base_url = c.url_for("");
-    let body = present(c, move |presenter| Ok(json::by_bots_show(&presenter.message_json(&message, &base_url)?))).await?;
+    let body = present(c, move |presenter| {
+        Ok(json::by_bots_show(&presenter.message_json(&message, &base_url)?))
+    })
+    .await?;
     Ok(c.render(StatusCode::OK, &format::JSON, body))
 }

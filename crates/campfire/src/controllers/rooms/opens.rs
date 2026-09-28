@@ -6,7 +6,9 @@ use campfire_db::{Room, RoomType, User};
 use campfire_kit::{Ctx, Result, StatusCode};
 use campfire_views::rooms::{FormRoom, OpenFormView, OpensEdit, OpensNew};
 
-use super::{Scope, ensure_can_administer, ensure_permission_to_create_rooms, redirect_to_room, render_shared_room, room_name_param, set_room};
+use super::{
+    Scope, ensure_can_administer, ensure_permission_to_create_rooms, redirect_to_room, render_shared_room, room_name_param, set_room,
+};
 use crate::app::AppCtx;
 use crate::concerns::{self, Before, before_actions, require_current_user};
 use crate::controllers::presenters::page::{self, db_error};
@@ -26,7 +28,10 @@ pub async fn new(c: &mut Ctx) -> Result {
     before_actions(c, Before::default()).await?;
     ensure_permission_to_create_rooms(c).await?;
     let form = OpenFormView {
-        room: FormRoom { id: None, name: Some(DEFAULT_ROOM_NAME.into()) },
+        room: FormRoom {
+            id: None,
+            name: Some(DEFAULT_ROOM_NAME.into()),
+        },
         can_administer: true,
         users: active_users(c).await?,
     };
@@ -55,7 +60,10 @@ pub async fn edit(c: &mut Ctx) -> Result {
     let mut room = set_room(c, Scope::WithoutDirects).await?;
     room.room_type = RoomType::Open; // force_room_type
     let form = OpenFormView {
-        room: FormRoom { id: Some(room.id), name: room.name.clone() },
+        room: FormRoom {
+            id: Some(room.id),
+            name: room.name.clone(),
+        },
         can_administer: require_current_user(c)?.can_administer(Some(room.creator_id), false),
         users: active_users(c).await?,
     };

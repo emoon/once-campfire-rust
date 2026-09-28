@@ -9,9 +9,9 @@ use std::time::Duration;
 use campfire_richtext::uri::{self, Uri};
 use hyper::Method;
 
+use crate::integrations::net::Network;
 use crate::integrations::net::guard::{self, GuardError};
 use crate::integrations::net::http::{self, Body, Endpoint, HttpError, Timeouts};
-use crate::integrations::net::Network;
 
 pub const ALLOWED_DOCUMENT_CONTENT_TYPE: &str = "text/html";
 pub const MAX_BODY_SIZE: usize = 5 * 1024 * 1024;
@@ -19,7 +19,10 @@ pub const MAX_REDIRECTS: usize = 10;
 
 /// Each connect and each read; Rails leaves `Net::HTTP`'s 60 seconds. The unfurl as a whole has
 /// `UNFURL_DEADLINE`.
-const TIMEOUTS: Timeouts = Timeouts { open: Duration::from_secs(5), read: Duration::from_secs(5) };
+const TIMEOUTS: Timeouts = Timeouts {
+    open: Duration::from_secs(5),
+    read: Duration::from_secs(5),
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum FetchError {
@@ -84,7 +87,12 @@ async fn send(net: &Network, url: &Uri, ip: IpAddr, method: Method) -> Result<ht
     let host = url.host.clone().filter(|h| !h.is_empty()).ok_or(FetchError::InvalidUri)?;
     let https = url.scheme.as_deref().is_some_and(|s| s.eq_ignore_ascii_case("https"));
     let port = url.port.and_then(|p| u16::try_from(p).ok()).ok_or(FetchError::InvalidUri)?;
-    let endpoint = Endpoint { https, host: host.clone(), port, pinned_ip: Some(ip) };
+    let endpoint = Endpoint {
+        https,
+        host: host.clone(),
+        port,
+        pinned_ip: Some(ip),
+    };
     let request = http::Request::net_http(method, http::request_uri(url), Some(host_header(&host, port, https)), Vec::new())
         .transport(false, &endpoint);
     Ok(http::exchange(net, &endpoint, request, &TIMEOUTS).await?)
@@ -95,5 +103,9 @@ async fn send(net: &Network, url: &Uri, ip: IpAddr, method: Method) -> Result<ht
 fn host_header(host: &str, port: u16, https: bool) -> String {
     let hostname = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
     let default_port = if https { 443 } else { 80 };
-    if port == default_port { hostname.to_string() } else { format!("{hostname}:{port}") }
+    if port == default_port {
+        hostname.to_string()
+    } else {
+        format!("{hostname}:{port}")
+    }
 }

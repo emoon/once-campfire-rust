@@ -56,7 +56,11 @@ impl VapidConfig {
         if signing_key.verifying_key().to_encoded_point(false) != point.to_encoded_point(false) {
             return Err(VapidError::Mismatched);
         }
-        Ok(Self { subject: subject.to_string(), signing_key, public_key })
+        Ok(Self {
+            subject: subject.to_string(),
+            signing_key,
+            public_key,
+        })
     }
 
     /// The `Authorization` header for a push service at `audience` (`scheme://host`).
@@ -65,6 +69,10 @@ impl VapidConfig {
         let claims = serde_json::json!({ "aud": audience, "exp": now + EXPIRATION_SECONDS, "sub": self.subject }).to_string();
         let signing_input = format!("{}.{}", encode64_nopad(header.as_bytes()), encode64_nopad(claims.as_bytes()));
         let signature: Signature = self.signing_key.sign(signing_input.as_bytes());
-        format!("vapid t={signing_input}.{},k={}", encode64_nopad(&signature.to_bytes()), encode64_nopad(&self.public_key))
+        format!(
+            "vapid t={signing_input}.{},k={}",
+            encode64_nopad(&signature.to_bytes()),
+            encode64_nopad(&self.public_key)
+        )
     }
 }

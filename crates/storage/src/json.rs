@@ -185,7 +185,13 @@ pub fn encode_float(f: f64) -> String {
         format!("{sign}{body}")
     } else {
         let fraction = if digits.len() > 1 { &digits[1..] } else { "0" };
-        format!("{sign}{}.{}e{}{:02}", &digits[..1], fraction, if exponent < 0 { '-' } else { '+' }, exponent.abs())
+        format!(
+            "{sign}{}.{}e{}{:02}",
+            &digits[..1],
+            fraction,
+            if exponent < 0 { '-' } else { '+' },
+            exponent.abs()
+        )
     }
 }
 

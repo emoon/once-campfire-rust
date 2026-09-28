@@ -67,21 +67,12 @@ impl Session {
     }
 
     pub fn count_for_user(conn: &Connection, user_id: i64) -> Result<i64> {
-        sql::count(
-            conn,
-            r#"SELECT COUNT(*) FROM "sessions" WHERE "sessions"."user_id" = ?"#,
-            [user_id],
-        )
+        sql::count(conn, r#"SELECT COUNT(*) FROM "sessions" WHERE "sessions"."user_id" = ?"#, [user_id])
     }
 
     /// `user.sessions.start!(user_agent:, ip_address:)`: a new 24-character base58
     /// `has_secure_token`, and `last_active_at ||= Time.now` in `before_create`.
-    pub fn start(
-        tx: &mut Tx<'_>,
-        user_id: i64,
-        user_agent: Option<&str>,
-        ip_address: Option<&str>,
-    ) -> Result<Self> {
+    pub fn start(tx: &mut Tx<'_>, user_id: i64, user_agent: Option<&str>, ip_address: Option<&str>) -> Result<Self> {
         let now = tx.now();
         let last_active_at = tx.now();
         let token = sql::base58(24);
@@ -108,12 +99,7 @@ impl Session {
     }
 
     /// `resume`: refreshes activity, user agent and IP at most once an hour.
-    pub fn resume(
-        &mut self,
-        tx: &mut Tx<'_>,
-        user_agent: Option<&str>,
-        ip_address: Option<&str>,
-    ) -> Result<()> {
+    pub fn resume(&mut self, tx: &mut Tx<'_>, user_agent: Option<&str>, ip_address: Option<&str>) -> Result<()> {
         let now = tx.now();
         if !self.needs_resume(now) {
             return Ok(());
@@ -131,10 +117,8 @@ impl Session {
 
     /// `destroy!`
     pub fn destroy(&self, tx: &mut Tx<'_>) -> Result<()> {
-        tx.conn().execute_cached(
-            r#"DELETE FROM "sessions" WHERE "sessions"."id" = ?"#,
-            [self.id],
-        )?;
+        tx.conn()
+            .execute_cached(r#"DELETE FROM "sessions" WHERE "sessions"."id" = ?"#, [self.id])?;
         Ok(())
     }
 }

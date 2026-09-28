@@ -81,13 +81,21 @@ pub fn ruby_float(value: f64) -> String {
         // Rust: "1.5e16", Ruby: "1.5e+16"; Rust: "1e16", Ruby: "1.0e+16".
         let formatted = format!("{value:e}");
         let (mantissa, exponent) = formatted.split_once('e').unwrap();
-        let mantissa = if mantissa.contains('.') { mantissa.to_string() } else { format!("{mantissa}.0") };
+        let mantissa = if mantissa.contains('.') {
+            mantissa.to_string()
+        } else {
+            format!("{mantissa}.0")
+        };
         let exponent: i32 = exponent.parse().unwrap();
         let sign = if exponent < 0 { '-' } else { '+' };
         return format!("{mantissa}e{sign}{:02}", exponent.abs());
     }
     let formatted = format!("{value}");
-    if formatted.contains('.') { formatted } else { format!("{formatted}.0") }
+    if formatted.contains('.') {
+        formatted
+    } else {
+        format!("{formatted}.0")
+    }
 }
 
 #[cfg(test)]

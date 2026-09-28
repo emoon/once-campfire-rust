@@ -20,7 +20,11 @@ pub struct Served {
 pub enum BodyPart {
     Bytes(Vec<u8>),
     /// Inclusive byte range of `path`.
-    File { path: PathBuf, start: u64, end: u64 },
+    File {
+        path: PathBuf,
+        start: u64,
+        end: u64,
+    },
 }
 
 pub struct Request<'a> {
@@ -35,7 +39,11 @@ pub fn serve_file(request: &Request, path: &Path, content_type: Option<&str>, di
     if served.status == 416 {
         served.headers.retain(|(name, _)| !name.eq_ignore_ascii_case("x-cascade"));
     }
-    set_header(&mut served.headers, "content-type", content_type.unwrap_or("application/octet-stream"));
+    set_header(
+        &mut served.headers,
+        "content-type",
+        content_type.unwrap_or("application/octet-stream"),
+    );
     set_header(&mut served.headers, "content-disposition", disposition.unwrap_or("attachment"));
     Ok(served)
 }
@@ -51,16 +59,31 @@ fn serving(request: &Request, path: &Path) -> Result<Served> {
     let metadata = std::fs::metadata(path)?;
     let last_modified = httpdate(metadata.modified()?);
     if request.if_modified_since == Some(last_modified.as_str()) {
-        return Ok(Served { status: 304, headers: vec![], body: vec![] });
+        return Ok(Served {
+            status: 304,
+            headers: vec![],
+            body: vec![],
+        });
     }
 
     // Disk keys have no extension, so Rack's mime lookup falls back to its default.
     let mime_type = "text/plain";
-    let mut headers = vec![("last-modified".to_string(), last_modified), ("content-type".to_string(), mime_type.to_string())];
+    let mut headers = vec![
+        ("last-modified".to_string(), last_modified),
+        ("content-type".to_string(), mime_type.to_string()),
+    ];
     let size = metadata.len();
 
     let (status, body, length) = match byte_ranges(request.range, size) {
-        None => (200, vec![BodyPart::File { path: path.to_path_buf(), start: 0, end: size.saturating_sub(1) }], size),
+        None => (
+            200,
+            vec![BodyPart::File {
+                path: path.to_path_buf(),
+                start: 0,
+                end: size.saturating_sub(1),
+            }],
+            size,
+        ),
         Some(ranges) if ranges.is_empty() => {
             let body = "Byte range unsatisfiable\n";
             return Ok(Served {
@@ -79,15 +102,27 @@ fn serving(request: &Request, path: &Path) -> Result<Served> {
             if ranges.len() == 1 {
                 let (start, end) = ranges[0];
                 headers.push(("content-range".into(), format!("bytes {start}-{end}/{size}")));
-                parts.push(BodyPart::File { path: path.to_path_buf(), start, end });
+                parts.push(BodyPart::File {
+                    path: path.to_path_buf(),
+                    start,
+                    end,
+                });
             } else {
-                set_header(&mut headers, "content-type", &format!("multipart/byteranges; boundary={MULTIPART_BOUNDARY}"));
+                set_header(
+                    &mut headers,
+                    "content-type",
+                    &format!("multipart/byteranges; boundary={MULTIPART_BOUNDARY}"),
+                );
                 for &(start, end) in &ranges {
                     let heading = format!(
                         "\r\n--{MULTIPART_BOUNDARY}\r\ncontent-type: {mime_type}\r\ncontent-range: bytes {start}-{end}/{size}\r\n\r\n"
                     );
                     parts.push(BodyPart::Bytes(heading.into_bytes()));
-                    parts.push(BodyPart::File { path: path.to_path_buf(), start, end });
+                    parts.push(BodyPart::File {
+                        path: path.to_path_buf(),
+                        start,
+                        end,
+                    });
                 }
                 parts.push(BodyPart::Bytes(format!("\r\n--{MULTIPART_BOUNDARY}--\r\n").into_bytes()));
             }

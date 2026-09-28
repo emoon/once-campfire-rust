@@ -32,7 +32,10 @@ struct Receiver {
 
 impl Receiver {
     fn new() -> Self {
-        Self { key: SecretKey::random(&mut p256::elliptic_curve::rand_core::OsRng), auth: rand::random() }
+        Self {
+            key: SecretKey::random(&mut p256::elliptic_curve::rand_core::OsRng),
+            auth: rand::random(),
+        }
     }
 
     fn subscription(&self, id: i64, endpoint: &str) -> PushSubscription {
@@ -69,7 +72,10 @@ async fn push_service(status: u16, reason: &str) -> PushService {
     route.reason = reason.into();
     let routes = ["/fcm/send/abc", "/fcm/send/123", "/fcm/send/456", "/fcm/send/567", "/fcm/send/789"]
         .iter()
-        .map(|path| Route { path: path.to_string(), ..route.clone() })
+        .map(|path| Route {
+            path: path.to_string(),
+            ..route.clone()
+        })
         .collect();
     let server = FakeServer::start_tls(routes).await;
     let resolver = Arc::new(FakeResolver::new([("fcm.googleapis.com", vec![PUBLIC_IP])]));
@@ -79,11 +85,22 @@ async fn push_service(status: u16, reason: &str) -> PushService {
         dialed: Mutex::new(Vec::new()),
     });
     let net = network(resolver.clone(), dialer.clone());
-    PushService { server, resolver, dialer, net }
+    PushService {
+        server,
+        resolver,
+        dialer,
+        net,
+    }
 }
 
 fn notification(subscription: PushSubscription) -> Notification {
-    Notification { title: "t".into(), body: "b".into(), path: "/".into(), badge: 0, subscription }
+    Notification {
+        title: "t".into(),
+        body: "b".into(),
+        path: "/".into(),
+        badge: 0,
+        subscription,
+    }
 }
 
 #[test]
@@ -111,7 +128,11 @@ fn the_longest_payload_fits_a_push_message() {
         subscription: receiver.subscription(1, "https://fcm.googleapis.com/fcm/send/abc"),
     };
     let subscription = &notification.subscription;
-    let body = encryption::encrypt(notification.encoded_message().as_bytes(), subscription.p256dh_key.as_deref(), subscription.auth_key.as_deref());
+    let body = encryption::encrypt(
+        notification.encoded_message().as_bytes(),
+        subscription.p256dh_key.as_deref(),
+        subscription.auth_key.as_deref(),
+    );
     assert_eq!(receiver.open(&body.unwrap()), notification.encoded_message());
 }
 
@@ -128,7 +149,8 @@ fn signs_the_vapid_header_like_the_gem() {
 
     let key = VerifyingKey::from_sec1_bytes(&decode64(VAPID_PUBLIC_KEY).unwrap()).unwrap();
     let signature = Signature::from_slice(&decode64(segments[2]).unwrap()).unwrap();
-    key.verify(format!("{}.{}", segments[0], segments[1]).as_bytes(), &signature).unwrap();
+    key.verify(format!("{}.{}", segments[0], segments[1]).as_bytes(), &signature)
+        .unwrap();
 }
 
 #[test]
@@ -147,9 +169,15 @@ fn rejects_bad_vapid_keys_up_front() {
     assert_eq!(keys("", VAPID_PRIVATE_KEY), Err(VapidError::InvalidPublicKey));
     assert_eq!(keys("dGVzdF9rZXk", VAPID_PRIVATE_KEY), Err(VapidError::InvalidPublicKey));
     assert_eq!(keys(VAPID_PUBLIC_KEY, "not base64!"), Err(VapidError::InvalidPrivateKey));
-    assert_eq!(keys(VAPID_PUBLIC_KEY, &encode64_nopad(&[0xff; 32])), Err(VapidError::InvalidPrivateKey));
+    assert_eq!(
+        keys(VAPID_PUBLIC_KEY, &encode64_nopad(&[0xff; 32])),
+        Err(VapidError::InvalidPrivateKey)
+    );
     assert_eq!(keys(&other_public_key, VAPID_PRIVATE_KEY), Err(VapidError::Mismatched));
-    assert_eq!(keys(VAPID_PUBLIC_KEY.trim_end_matches('='), VAPID_PRIVATE_KEY.trim_end_matches('=')), Ok(()));
+    assert_eq!(
+        keys(VAPID_PUBLIC_KEY.trim_end_matches('='), VAPID_PRIVATE_KEY.trim_end_matches('=')),
+        Ok(())
+    );
 }
 
 fn config(public_key: Option<&str>, private_key: Option<&str>) -> crate::config::Config {
@@ -168,7 +196,10 @@ async fn web_push_is_off_without_a_valid_key_pair() {
     assert!(pool(None, Some(VAPID_PRIVATE_KEY)).is_none());
     assert!(pool(Some("dGVzdF9rZXk"), Some(VAPID_PRIVATE_KEY)).is_none());
     assert!(pool(Some(VAPID_PUBLIC_KEY), Some(VAPID_PRIVATE_KEY)).is_some());
-    assert_eq!(VapidConfig::from_config(&config(Some(VAPID_PUBLIC_KEY), None)).map(|_| ()), Err(VapidError::Missing));
+    assert_eq!(
+        VapidConfig::from_config(&config(Some(VAPID_PUBLIC_KEY), None)).map(|_| ()),
+        Err(VapidError::Missing)
+    );
 }
 
 #[tokio::test]
@@ -180,15 +211,17 @@ async fn delivers_to_the_pinned_address_with_the_gems_headers() {
     assert_eq!(notification.deliver(&service.net, &vapid()).await.unwrap(), Some(201));
 
     assert_eq!(service.resolver.lookups(), ["fcm.googleapis.com"]);
-    assert_eq!(*service.dialer.dialed.lock().unwrap(), [format!("{PUBLIC_IP}:443").parse().unwrap()]);
+    assert_eq!(
+        *service.dialer.dialed.lock().unwrap(),
+        [format!("{PUBLIC_IP}:443").parse().unwrap()]
+    );
     let received = service.server.received();
     assert_eq!(received.len(), 1);
     let request = &received[0];
     assert_eq!((request.method.as_str(), request.target.as_str()), ("POST", "/fcm/send/abc"));
 
     let expected = expected();
-    let mut expected_headers: Vec<(String, String)> =
-        serde_json::from_value(expected["headers"].clone()).unwrap();
+    let mut expected_headers: Vec<(String, String)> = serde_json::from_value(expected["headers"].clone()).unwrap();
     for (name, value) in expected_headers.iter_mut() {
         if name == "Content-Length" {
             *value = request.body.len().to_string();
@@ -197,35 +230,60 @@ async fn delivers_to_the_pinned_address_with_the_gems_headers() {
     let names: Vec<&str> = request.headers.iter().map(|(n, _)| n.as_str()).collect();
     assert_eq!(
         names,
-        ["Content-Type", "Ttl", "Urgency", "Content-Encoding", "Content-Length", "Authorization", "Accept-Encoding", "Accept", "User-Agent", "Connection", "Host"]
+        [
+            "Content-Type",
+            "Ttl",
+            "Urgency",
+            "Content-Encoding",
+            "Content-Length",
+            "Authorization",
+            "Accept-Encoding",
+            "Accept",
+            "User-Agent",
+            "Connection",
+            "Host"
+        ]
     );
     for (name, value) in &expected_headers {
         assert_eq!(request.header(name), Some(value.as_str()), "{name}");
     }
     assert_eq!(request.header("Host"), Some("fcm.googleapis.com"));
     assert_eq!(request.header("User-Agent"), Some("Ruby"));
-    assert!(request.header("Authorization").unwrap().starts_with(&format!("vapid t={}.", expected["jwt_header_segment"].as_str().unwrap())));
+    assert!(
+        request
+            .header("Authorization")
+            .unwrap()
+            .starts_with(&format!("vapid t={}.", expected["jwt_header_segment"].as_str().unwrap()))
+    );
     assert_eq!(receiver.open(&request.body), notification.encoded_message());
 }
 
 #[tokio::test]
 async fn skips_endpoints_it_may_not_deliver_to() {
     let service = push_service(201, "Created").await;
-    service.resolver.set("updates.push.services.mozilla.com", vec![vec!["10.0.0.5".parse().unwrap()]]);
+    service
+        .resolver
+        .set("updates.push.services.mozilla.com", vec![vec!["10.0.0.5".parse().unwrap()]]);
     let receiver = Receiver::new();
     for endpoint in [
         "https://updates.push.services.mozilla.com/wpush/v2/x", // resolves privately
-        "https://web.push.apple.com/QaBC123",                     // doesn't resolve
+        "https://web.push.apple.com/QaBC123",                   // doesn't resolve
         "https://attacker.example.com/collect",
         "https://fcm.googleapis.com:22/fcm/send/abc",
         "http://fcm.googleapis.com/fcm/send/abc",
         "https://evilfcm.googleapis.com.attacker.example/webhook",
     ] {
-        let delivered = notification(receiver.subscription(1, endpoint)).deliver(&service.net, &vapid()).await.unwrap();
+        let delivered = notification(receiver.subscription(1, endpoint))
+            .deliver(&service.net, &vapid())
+            .await
+            .unwrap();
         assert_eq!(delivered, None, "{endpoint}");
     }
     assert!(service.server.received().is_empty());
-    assert_eq!(service.resolver.lookups(), ["updates.push.services.mozilla.com", "web.push.apple.com"]);
+    assert_eq!(
+        service.resolver.lookups(),
+        ["updates.push.services.mozilla.com", "web.push.apple.com"]
+    );
 }
 
 #[tokio::test]
@@ -244,8 +302,15 @@ async fn raises_what_the_gem_raises() {
         (302, "Found", "WebPush::ResponseError", false),
     ] {
         let service = push_service(status, reason).await;
-        let error = notification(subscription.clone()).deliver(&service.net, &vapid()).await.unwrap_err();
-        assert_eq!((error.class_name(), error.invalidates_subscription()), (kind, invalidates), "{status} {reason}");
+        let error = notification(subscription.clone())
+            .deliver(&service.net, &vapid())
+            .await
+            .unwrap_err();
+        assert_eq!(
+            (error.class_name(), error.invalidates_subscription()),
+            (kind, invalidates),
+            "{status} {reason}"
+        );
     }
 }
 
@@ -253,17 +318,41 @@ async fn raises_what_the_gem_raises() {
 async fn only_the_subscriptions_own_faults_invalidate_it() {
     // A key that isn't a point on the curve (as in the fixtures) can never be delivered to.
     let service = push_service(201, "Created").await;
-    let bad_key = PushSubscription::new(1, Some("https://fcm.googleapis.com/fcm/send/abc"), Some("dGVzdF9rZXk"), Some("dGVzdF9hdXRo"), None);
+    let bad_key = PushSubscription::new(
+        1,
+        Some("https://fcm.googleapis.com/fcm/send/abc"),
+        Some("dGVzdF9rZXk"),
+        Some("dGVzdF9hdXRo"),
+        None,
+    );
     let error = notification(bad_key).deliver(&service.net, &vapid()).await.unwrap_err();
-    assert_eq!((error.class_name(), error.invalidates_subscription()), ("OpenSSL::PKey::EC::Point::Error", true));
+    assert_eq!(
+        (error.class_name(), error.invalidates_subscription()),
+        ("OpenSSL::PKey::EC::Point::Error", true)
+    );
 
     // A certificate that doesn't verify may be our fault (an empty CA store, a skewed clock).
-    let untrusted = Network { tls: crate::integrations::net::tls_config(rustls::RootCertStore::empty()), ..service.net.clone() };
+    let untrusted = Network {
+        tls: crate::integrations::net::tls_config(rustls::RootCertStore::empty()),
+        ..service.net.clone()
+    };
     let receiver = Receiver::new();
-    let error = notification(receiver.subscription(1, "https://fcm.googleapis.com/fcm/send/abc")).deliver(&untrusted, &vapid()).await.unwrap_err();
-    assert_eq!((error.class_name(), error.invalidates_subscription()), ("OpenSSL::SSL::SSLError", false));
+    let error = notification(receiver.subscription(1, "https://fcm.googleapis.com/fcm/send/abc"))
+        .deliver(&untrusted, &vapid())
+        .await
+        .unwrap_err();
+    assert_eq!(
+        (error.class_name(), error.invalidates_subscription()),
+        ("OpenSSL::SSL::SSLError", false)
+    );
 
-    let blank = PushSubscription::new(1, Some("https://fcm.googleapis.com/fcm/send/abc"), Some(""), Some("dGVzdF9hdXRo"), None);
+    let blank = PushSubscription::new(
+        1,
+        Some("https://fcm.googleapis.com/fcm/send/abc"),
+        Some(""),
+        Some("dGVzdF9hdXRo"),
+        None,
+    );
     let error = notification(blank).deliver(&service.net, &vapid()).await.unwrap_err();
     assert_eq!((error.class_name(), error.invalidates_subscription()), ("ArgumentError", false));
 }
@@ -273,16 +362,31 @@ async fn test_notification() {
     let service = push_service(201, "Created").await;
     let receiver = Receiver::new();
     let subscription = receiver.subscription(1, "https://fcm.googleapis.com/fcm/send/abc");
-    deliver_test_notification(&service.net, &vapid(), &subscription, 4, "http://example.com/users/me/push_subscriptions").await.unwrap();
+    deliver_test_notification(
+        &service.net,
+        &vapid(),
+        &subscription,
+        4,
+        "http://example.com/users/me/push_subscriptions",
+    )
+    .await
+    .unwrap();
 
     let message: serde_json::Value = serde_json::from_str(&receiver.open(&service.server.received()[0].body)).unwrap();
     assert_eq!(message["title"], "Campfire Test");
     assert!(uuid::Uuid::parse_str(message["options"]["body"].as_str().unwrap()).is_ok());
     assert_eq!(message["options"]["icon"], "/account/logo");
-    assert_eq!(message["options"]["data"], serde_json::json!({ "path": "http://example.com/users/me/push_subscriptions", "badge": 4 }));
+    assert_eq!(
+        message["options"]["data"],
+        serde_json::json!({ "path": "http://example.com/users/me/push_subscriptions", "badge": 4 })
+    );
 
     let expired = push_service(410, "Gone").await;
-    assert!(deliver_test_notification(&expired.net, &vapid(), &subscription, 4, "/").await.is_err());
+    assert!(
+        deliver_test_notification(&expired.net, &vapid(), &subscription, 4, "/")
+            .await
+            .is_err()
+    );
 }
 
 /// `test/models/room/push_test.rb`: "deliver new message ..." and "destroys invalid subscriptions".
@@ -296,11 +400,20 @@ async fn pushes_messages_and_destroys_expired_subscriptions() {
         .collect();
     let keys: Vec<(i64, String, String)> = receivers
         .iter()
-        .map(|(id, r)| (*id, encode64_nopad(r.key.public_key().to_encoded_point(false).as_bytes()), encode64_nopad(&r.auth)))
+        .map(|(id, r)| {
+            (
+                *id,
+                encode64_nopad(r.key.public_key().to_encoded_point(false).as_bytes()),
+                encode64_nopad(&r.auth),
+            )
+        })
         .collect();
     t.db.write(move |tx| {
         for (id, p256dh, auth) in &keys {
-            tx.conn().execute("UPDATE push_subscriptions SET p256dh_key = ?, auth_key = ? WHERE id = ?", (p256dh, auth, id))?;
+            tx.conn().execute(
+                "UPDATE push_subscriptions SET p256dh_key = ?, auth_key = ? WHERE id = ?",
+                (p256dh, auth, id),
+            )?;
         }
         Membership::find(tx.conn(), TestDb::id("kevin_designers"))?.update_involvement(tx, campfire_db::Involvement::Invisible)
     })
@@ -328,14 +441,20 @@ async fn pushes_messages_and_destroys_expired_subscriptions() {
     });
     let message = create(t.clone()).await;
     let (queued_pool, now) = (pool.clone(), t.db.env().now());
-    let payload = t.db.read(move |conn| push_message(&queued_pool, conn, &campfire_db::BasicRichText, &message, now)).await.unwrap();
+    let payload =
+        t.db.read(move |conn| push_message(&queued_pool, conn, &campfire_db::BasicRichText, &message, now))
+            .await
+            .unwrap();
     assert_eq!(payload.title, "Designers");
     assert_eq!(payload.body, "David: Hey @kevin");
     pool.shutdown().await;
     let received = ok.server.received();
     assert_eq!(received.len(), 2);
     for request in &received {
-        let (_, receiver) = receivers.iter().find(|(id, _)| request.target.ends_with(&expected_endpoint_suffix(&t, *id))).unwrap();
+        let (_, receiver) = receivers
+            .iter()
+            .find(|(id, _)| request.target.ends_with(&expected_endpoint_suffix(&t, *id)))
+            .unwrap();
         let opened: serde_json::Value = serde_json::from_str(&receiver.open(&request.body)).unwrap();
         assert_eq!(opened["title"], "Designers");
         assert_eq!(opened["options"]["data"]["path"], payload.path);
@@ -354,28 +473,44 @@ async fn pushes_messages_and_destroys_expired_subscriptions() {
     let before = t.db.read(PushSubscription::count).await.unwrap();
     let message = create(t.clone()).await;
     let (queued_pool, now) = (pool.clone(), t.db.env().now());
-    t.db.read(move |conn| push_message(&queued_pool, conn, &campfire_db::BasicRichText, &message, now)).await.unwrap();
+    t.db.read(move |conn| push_message(&queued_pool, conn, &campfire_db::BasicRichText, &message, now))
+        .await
+        .unwrap();
     pool.shutdown().await;
     assert_eq!(t.db.read(PushSubscription::count).await.unwrap(), before - 2);
 }
 
 fn expected_endpoint_suffix(_t: &TestDb, id: i64) -> String {
-    let endpoints = [("david_chrome", "123"), ("jason_chrome", "567"), ("jz_chrome", "456"), ("kevin_chrome", "789")];
-    let label = endpoints.iter().find(|(label, _)| TestDb::id(label) == id).map(|(_, e)| *e).unwrap();
+    let endpoints = [
+        ("david_chrome", "123"),
+        ("jason_chrome", "567"),
+        ("jz_chrome", "456"),
+        ("kevin_chrome", "789"),
+    ];
+    let label = endpoints
+        .iter()
+        .find(|(label, _)| TestDb::id(label) == id)
+        .map(|(_, e)| *e)
+        .unwrap();
     format!("/fcm/send/{label}")
 }
 
 #[tokio::test]
 async fn the_pool_keeps_subscriptions_it_failed_to_reach() {
     let service = push_service(201, "Created").await;
-    let untrusted = Network { tls: crate::integrations::net::tls_config(rustls::RootCertStore::empty()), ..service.net.clone() };
+    let untrusted = Network {
+        tls: crate::integrations::net::tls_config(rustls::RootCertStore::empty()),
+        ..service.net.clone()
+    };
     let destroyed = Arc::new(Mutex::new(Vec::new()));
     let log = destroyed.clone();
     let pool = Pool::new(untrusted, vapid(), move |id| -> Result<(), String> {
         log.lock().unwrap().push(id);
         Ok(())
     });
-    pool.deliver_later(notification(Receiver::new().subscription(1, "https://fcm.googleapis.com/fcm/send/abc")));
+    pool.deliver_later(notification(
+        Receiver::new().subscription(1, "https://fcm.googleapis.com/fcm/send/abc"),
+    ));
     pool.shutdown().await;
     assert!(destroyed.lock().unwrap().is_empty());
 }

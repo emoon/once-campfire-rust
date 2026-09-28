@@ -84,7 +84,9 @@ impl Context {
     }
 
     pub fn html(local: &str) -> Self {
-        Context { name: QualName::new(None, ns!(html), LocalName::from(local)) }
+        Context {
+            name: QualName::new(None, ns!(html), LocalName::from(local)),
+        }
     }
 }
 
@@ -98,7 +100,11 @@ impl Dom {
     }
 
     fn push(&mut self, data: NodeData) -> NodeId {
-        self.nodes.push(Node { data, parent: None, children: Vec::new() });
+        self.nodes.push(Node {
+            data,
+            parent: None,
+            children: Vec::new(),
+        });
         self.nodes.len() - 1
     }
 
@@ -109,7 +115,10 @@ impl Dom {
     pub fn create_element(&mut self, local: &str, attrs: &[(&str, &str)]) -> NodeId {
         let attrs = attrs
             .iter()
-            .map(|(k, v)| Attr { name: QualName::new(None, ns!(), LocalName::from(*k)), value: v.to_string() })
+            .map(|(k, v)| Attr {
+                name: QualName::new(None, ns!(), LocalName::from(*k)),
+                value: v.to_string(),
+            })
             .collect();
         self.push(NodeData::Element(ElementData {
             name: QualName::new(None, ns!(html), LocalName::from(local)),
@@ -173,7 +182,11 @@ impl Dom {
     }
 
     pub fn attr(&self, id: NodeId, name: &str) -> Option<&str> {
-        self.element(id)?.attrs.iter().find(|a| a.qualified_name() == name).map(|a| a.value.as_str())
+        self.element(id)?
+            .attrs
+            .iter()
+            .find(|a| a.qualified_name() == name)
+            .map(|a| a.value.as_str())
     }
 
     pub fn has_attr(&self, id: NodeId, name: &str) -> bool {
@@ -423,7 +436,8 @@ impl Dom {
             }
             NodeData::Text(text) => {
                 let raw = self.parent(id).is_some_and(|p| {
-                    self.element(p).is_some_and(|e| e.name.ns == ns!(html) && is_raw_text_element(&e.name.local))
+                    self.element(p)
+                        .is_some_and(|e| e.name.ns == ns!(html) && is_raw_text_element(&e.name.local))
                 });
                 if raw {
                     out.push_str(text);
@@ -460,8 +474,24 @@ fn serialized_tag_name(name: &QualName) -> String {
 pub fn is_void_element(local: &str) -> bool {
     matches!(
         local,
-        "area" | "base" | "basefont" | "bgsound" | "br" | "col" | "embed" | "frame" | "hr" | "img" | "input"
-            | "keygen" | "link" | "meta" | "param" | "source" | "track" | "wbr"
+        "area"
+            | "base"
+            | "basefont"
+            | "bgsound"
+            | "br"
+            | "col"
+            | "embed"
+            | "frame"
+            | "hr"
+            | "img"
+            | "input"
+            | "keygen"
+            | "link"
+            | "meta"
+            | "param"
+            | "source"
+            | "track"
+            | "wbr"
     )
 }
 
@@ -543,7 +573,13 @@ fn parse_with_html5ever(html: &str, context: &Context) -> ParsedTree {
     // Gumbo parses without scripting, so <noscript> content is markup rather than raw text
     opts.tree_builder.scripting_enabled = false;
     opts.tree_builder.quirks_mode = QuirksMode::NoQuirks;
-    let sink = Sink { nodes: RefCell::new(vec![Node { data: NodeData::Document, parent: None, children: vec![] }]) };
+    let sink = Sink {
+        nodes: RefCell::new(vec![Node {
+            data: NodeData::Document,
+            parent: None,
+            children: vec![],
+        }]),
+    };
     let parser = html5ever::driver::parse_fragment(sink, opts, context.name.clone(), Vec::new(), false);
     parser.one(StrTendril::from(html))
 }
@@ -568,7 +604,11 @@ impl ElemName for OwnedName {
 impl Sink {
     fn new_node(&self, data: NodeData) -> NodeId {
         let mut nodes = self.nodes.borrow_mut();
-        nodes.push(Node { data, parent: None, children: vec![] });
+        nodes.push(Node {
+            data,
+            parent: None,
+            children: vec![],
+        });
         nodes.len() - 1
     }
 
@@ -589,12 +629,17 @@ impl Sink {
             }
             NodeOrText::AppendText(text) => {
                 // Adjacent text merges into the preceding text node, as in the DOM
-                let previous = if index > 0 { Some(self.nodes.borrow()[parent].children[index - 1]) } else { None };
+                let previous = if index > 0 {
+                    Some(self.nodes.borrow()[parent].children[index - 1])
+                } else {
+                    None
+                };
                 if let Some(prev) = previous
-                    && let NodeData::Text(existing) = &mut self.nodes.borrow_mut()[prev].data {
-                        existing.push_str(&text);
-                        return;
-                    }
+                    && let NodeData::Text(existing) = &mut self.nodes.borrow_mut()[prev].data
+                {
+                    existing.push_str(&text);
+                    return;
+                }
                 let node = self.new_node(NodeData::Text(text.to_string()));
                 let mut nodes = self.nodes.borrow_mut();
                 nodes[node].parent = Some(parent);
@@ -610,7 +655,9 @@ impl TreeSink for Sink {
     type ElemName<'a> = OwnedName;
 
     fn finish(self) -> ParsedTree {
-        ParsedTree { nodes: self.nodes.into_inner() }
+        ParsedTree {
+            nodes: self.nodes.into_inner(),
+        }
     }
 
     fn parse_error(&self, _msg: Cow<'static, str>) {}
@@ -630,7 +677,10 @@ impl TreeSink for Sink {
         let mut seen: Vec<Attr> = Vec::with_capacity(attrs.len());
         for a in attrs {
             if !seen.iter().any(|s| s.name == a.name) {
-                seen.push(Attr { name: a.name, value: a.value.to_string() });
+                seen.push(Attr {
+                    name: a.name,
+                    value: a.value.to_string(),
+                });
             }
         }
         self.new_node(NodeData::Element(ElementData { name, attrs: seen }))
@@ -683,7 +733,10 @@ impl TreeSink for Sink {
         if let NodeData::Element(e) = &mut self.nodes.borrow_mut()[*target].data {
             for a in attrs {
                 if !e.attrs.iter().any(|existing| existing.name == a.name) {
-                    e.attrs.push(Attr { name: a.name, value: a.value.to_string() });
+                    e.attrs.push(Attr {
+                        name: a.name,
+                        value: a.value.to_string(),
+                    });
                 }
             }
         }
@@ -715,18 +768,27 @@ mod tests {
     #[test]
     fn serializes_like_nokogiri() {
         assert_eq!(roundtrip("<td>x</td>"), "x");
-        assert_eq!(roundtrip("<p><table><tr><td>a</td></tr></table>"), "<p></p><table><tbody><tr><td>a</td></tr></tbody></table>");
+        assert_eq!(
+            roundtrip("<p><table><tr><td>a</td></tr></table>"),
+            "<p></p><table><tbody><tr><td>a</td></tr></tbody></table>"
+        );
         assert_eq!(
             roundtrip("<a title='a<b>c' href=\"x&y\u{a0}z\">t&lt;\u{a0}>\"'</a>"),
             "<a title=\"a<b>c\" href=\"x&amp;y&nbsp;z\">t&lt;&nbsp;&gt;\"'</a>"
         );
         let mut dom = Dom::new();
         let f = dom.parse_fragment("<a title='a<b>c'>d>e</a>").unwrap();
-        assert_eq!(dom.to_html_with_escaped_attribute_brackets(f), "<a title=\"a&lt;b&gt;c\">d&gt;e</a>");
+        assert_eq!(
+            dom.to_html_with_escaped_attribute_brackets(f),
+            "<a title=\"a&lt;b&gt;c\">d&gt;e</a>"
+        );
         assert_eq!(roundtrip("<pre>\n\nx</pre>"), "<pre>\nx</pre>");
         assert_eq!(roundtrip("<noscript><b>x</b></noscript>"), "<noscript><b>x</b></noscript>");
         assert_eq!(roundtrip("<?php x ?>"), "<!--?php x ?-->");
-        assert_eq!(roundtrip("<SVG viewBox='0 0 1 1'><CLIPPATH/></SVG>"), "<svg viewBox=\"0 0 1 1\"><clipPath></clipPath></svg>");
+        assert_eq!(
+            roundtrip("<SVG viewBox='0 0 1 1'><CLIPPATH/></SVG>"),
+            "<svg viewBox=\"0 0 1 1\"><clipPath></clipPath></svg>"
+        );
     }
 
     #[test]

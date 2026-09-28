@@ -54,12 +54,23 @@ impl Analyzer {
 /// `ImageAnalyzer::Vips#metadata`: dimensions, swapped for EXIF orientations that rotate by 90°.
 /// Files libvips can't read yield `{}`.
 fn image_metadata(path: &Path) -> Json {
-    let Ok(image) = Image::open_sequential(path) else { return Json::object() };
-    let rotated = image
-        .get_string("exif-ifd0-Orientation")
-        .is_some_and(|o| ["Right-top", "Left-bottom", "Top-right", "Bottom-left"].iter().any(|r| o.contains(r)));
-    let (width, height) = if rotated { (image.height(), image.width()) } else { (image.width(), image.height()) };
-    Json::Object(vec![("width".into(), Json::Int(width as i64)), ("height".into(), Json::Int(height as i64))])
+    let Ok(image) = Image::open_sequential(path) else {
+        return Json::object();
+    };
+    let rotated = image.get_string("exif-ifd0-Orientation").is_some_and(|o| {
+        ["Right-top", "Left-bottom", "Top-right", "Bottom-left"]
+            .iter()
+            .any(|r| o.contains(r))
+    });
+    let (width, height) = if rotated {
+        (image.height(), image.width())
+    } else {
+        (image.width(), image.height())
+    };
+    Json::Object(vec![
+        ("width".into(), Json::Int(width as i64)),
+        ("height".into(), Json::Int(height as i64)),
+    ])
 }
 
 /// `ffprobe -print_format json -show_streams -show_format -v error <path>`; `{}` without ffprobe.
@@ -86,7 +97,9 @@ fn streams(probe: &Json) -> &[Json] {
 }
 
 fn stream<'a>(probe: &'a Json, codec_type: &str) -> Option<&'a Json> {
-    streams(probe).iter().find(|s| s.get("codec_type").and_then(Json::as_str) == Some(codec_type))
+    streams(probe)
+        .iter()
+        .find(|s| s.get("codec_type").and_then(Json::as_str) == Some(codec_type))
 }
 
 fn present(stream: Option<&Json>) -> bool {
@@ -98,7 +111,10 @@ fn ruby_float(value: &Json) -> Result<f64> {
     match value {
         Json::Int(i) => Ok(*i as f64),
         Json::Float(f) => Ok(*f),
-        Json::String(s) => s.trim().parse().map_err(|_| Error::Analyze(format!("invalid value for Float(): {s:?}"))),
+        Json::String(s) => s
+            .trim()
+            .parse()
+            .map_err(|_| Error::Analyze(format!("invalid value for Float(): {s:?}"))),
         other => Err(Error::Analyze(format!("can't convert {other:?} into Float"))),
     }
 }
@@ -108,7 +124,10 @@ fn ruby_integer(value: &Json) -> Result<i64> {
     match value {
         Json::Int(i) => Ok(*i),
         Json::Float(f) if f.is_finite() => Ok(f.trunc() as i64),
-        Json::String(s) => s.trim().parse().map_err(|_| Error::Analyze(format!("invalid value for Integer(): {s:?}"))),
+        Json::String(s) => s
+            .trim()
+            .parse()
+            .map_err(|_| Error::Analyze(format!("invalid value for Integer(): {s:?}"))),
         other => Err(Error::Analyze(format!("can't convert {other:?} into Integer"))),
     }
 }
@@ -124,9 +143,9 @@ fn video_metadata(probe: &Json) -> Result<Json> {
         Some(rotate) => Some(ruby_integer(rotate)?),
         None => {
             let display_matrix = match field("side_data_list") {
-                Some(Json::Array(list)) => {
-                    list.iter().find(|d| d.get("side_data_type").and_then(Json::as_str) == Some("Display Matrix"))
-                }
+                Some(Json::Array(list)) => list
+                    .iter()
+                    .find(|d| d.get("side_data_type").and_then(Json::as_str) == Some("Display Matrix")),
                 _ => None,
             };
             match display_matrix.and_then(|d| d.get("rotation")).filter(|r| **r != Json::Null) {

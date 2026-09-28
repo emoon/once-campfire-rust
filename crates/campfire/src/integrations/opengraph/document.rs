@@ -19,13 +19,25 @@ pub fn opengraph_attributes(body: Option<&[u8]>) -> Vec<(&'static str, String)> 
     for meta in metas.iter().filter(|m| is_opengraph_tag(m)) {
         let key = if meta.has_attr("property") { "property" } else { "name" };
         let name = meta.attr(key).unwrap_or("").replace("og:", "");
-        let Some(index) = ATTRIBUTES.iter().position(|a| *a == name) else { continue };
-        let Some(content) = meta.attr("content").filter(|c| !is_blank(c)) else { continue };
-        let content = if meta_encoding.is_some() { content.to_string() } else { content.chars().filter(char::is_ascii).collect() };
+        let Some(index) = ATTRIBUTES.iter().position(|a| *a == name) else {
+            continue;
+        };
+        let Some(content) = meta.attr("content").filter(|c| !is_blank(c)) else {
+            continue;
+        };
+        let content = if meta_encoding.is_some() {
+            content.to_string()
+        } else {
+            content.chars().filter(char::is_ascii).collect()
+        };
         found[index] = Some(content);
     }
 
-    ATTRIBUTES.into_iter().zip(found).filter_map(|(key, value)| Some((key, value?))).collect()
+    ATTRIBUTES
+        .into_iter()
+        .zip(found)
+        .filter_map(|(key, value)| Some((key, value?)))
+        .collect()
 }
 
 /// `//*/meta[starts-with(@property, "og:") or starts-with(@name, "og:")]`
@@ -78,14 +90,23 @@ mod tests {
         };
         let pages = [
             fill("<meta property=\"og:title\" content=\"x\" ", &|i| format!("a{i:07} "), ">"),
-            fill("<meta charset=utf-8>", &|i| format!("<meta property=\"og:t{i}\" content=\"x\">"), "<meta property=\"og:title\" content=\"x\">"),
+            fill(
+                "<meta charset=utf-8>",
+                &|i| format!("<meta property=\"og:t{i}\" content=\"x\">"),
+                "<meta property=\"og:title\" content=\"x\">",
+            ),
             fill("<meta property=\"og:title\" content=\"", &|_| "&amp;é".to_string(), "\">"),
         ];
         for page in pages {
             let started = std::time::Instant::now();
             let found = opengraph_attributes(Some(page.as_bytes()));
             assert_eq!(found[0].0, "title");
-            assert!(started.elapsed() < std::time::Duration::from_secs(1), "{:?} for {}…", started.elapsed(), &page[..60]);
+            assert!(
+                started.elapsed() < std::time::Duration::from_secs(1),
+                "{:?} for {}…",
+                started.elapsed(),
+                &page[..60]
+            );
         }
     }
 }

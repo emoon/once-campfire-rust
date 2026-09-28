@@ -20,12 +20,16 @@ pub fn svg_bytes(data: &[u8]) -> Option<String> {
     out.push_str(&format!(
         r#"<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" viewBox="0 0 {dimension} {dimension}" shape-rendering="crispEdges">"#
     ));
-    out.push_str(&format!(r#"<rect width="{dimension}" height="{dimension}" x="0" y="0" fill="white"/>"#));
+    out.push_str(&format!(
+        r#"<rect width="{dimension}" height="{dimension}" x="0" y="0" fill="white"/>"#
+    ));
     for (row, cells) in modules.iter().enumerate() {
         for (col, &dark) in cells.iter().enumerate() {
             if dark {
                 let (x, y) = (col * module_size, row * module_size);
-                out.push_str(&format!(r#"<rect width="{module_size}" height="{module_size}" x="{x}" y="{y}" fill="black"/>"#));
+                out.push_str(&format!(
+                    r#"<rect width="{module_size}" height="{module_size}" x="{x}" y="{y}" fill="black"/>"#
+                ));
             }
         }
     }
@@ -47,8 +51,8 @@ const LEVEL_H: u32 = 2;
 
 /// `QRMAXBITS[:h]`
 const MAX_BITS_H: [usize; 40] = [
-    72, 128, 208, 288, 368, 480, 528, 688, 800, 976, 1120, 1264, 1440, 1576, 1784, 2024, 2264, 2504, 2728, 3080, 3248,
-    3536, 3712, 4112, 4304, 4768, 5024, 5288, 5608, 5960, 6344, 6760, 7208, 7688, 7888, 8432, 8768, 9136, 9776, 10208,
+    72, 128, 208, 288, 368, 480, 528, 688, 800, 976, 1120, 1264, 1440, 1576, 1784, 2024, 2264, 2504, 2728, 3080, 3248, 3536, 3712, 4112,
+    4304, 4768, 5024, 5288, 5608, 5960, 6344, 6760, 7208, 7688, 7888, 8432, 8768, 9136, 9776, 10208,
 ];
 
 /// The H rows of `QRRSBlock::RS_BLOCK_TABLE`: (count, total, data) groups.
@@ -230,7 +234,11 @@ struct BitBuffer {
 
 impl BitBuffer {
     fn new(version: usize) -> Self {
-        Self { version, buffer: Vec::new(), length: 0 }
+        Self {
+            version,
+            buffer: Vec::new(),
+            length: 0,
+        }
     }
 
     fn put(&mut self, num: u32, length: usize) {
@@ -472,7 +480,9 @@ impl QrCode {
                 place_version_info(&mut grid, version, test);
             }
             map_data(&mut grid, &data, pattern);
-            grid.into_iter().map(|row| row.into_iter().map(|m| m.unwrap_or(false)).collect()).collect()
+            grid.into_iter()
+                .map(|row| row.into_iter().map(|m| m.unwrap_or(false)).collect())
+                .collect()
         };
 
         // `get_best_mask_pattern`: the first pattern with the fewest lost points.
@@ -483,7 +493,9 @@ impl QrCode {
                 best = (pattern, points);
             }
         }
-        Some(Self { modules: make(false, best.0) })
+        Some(Self {
+            modules: make(false, best.0),
+        })
     }
 }
 
@@ -655,9 +667,7 @@ fn lost_points(modules: &[Vec<bool>]) -> f64 {
     }
 
     // 1:1:3:1:1 patterns, in rows then columns.
-    let finder = |cell: &dyn Fn(usize) -> bool| {
-        cell(0) && !cell(1) && cell(2) && cell(3) && cell(4) && !cell(5) && cell(6)
-    };
+    let finder = |cell: &dyn Fn(usize) -> bool| cell(0) && !cell(1) && cell(2) && cell(3) && cell(4) && !cell(5) && cell(6);
     for start in 0..count.saturating_sub(6) {
         for (line, row) in modules.iter().enumerate().take(count) {
             if finder(&|k| row[start + k]) {
@@ -711,7 +721,12 @@ mod tests {
         for vector in vectors {
             let input = decode_base64(&vector.input_base64);
             let segment = Segment::new(&input);
-            assert_eq!(minimum_version(&segment), Some(vector.version), "version for {:?}", vector.input_base64);
+            assert_eq!(
+                minimum_version(&segment),
+                Some(vector.version),
+                "version for {:?}",
+                vector.input_base64
+            );
             let modules: Vec<String> = QrCode::new(&input)
                 .unwrap()
                 .modules
@@ -720,7 +735,12 @@ mod tests {
                 .collect();
             assert_eq!(modules.join("\n"), vector.modules, "modules for {:?}", vector.input_base64);
             if let Some(svg) = vector.svg {
-                assert_eq!(svg_bytes(&input).as_deref(), Some(svg.as_str()), "svg for {:?}", vector.input_base64);
+                assert_eq!(
+                    svg_bytes(&input).as_deref(),
+                    Some(svg.as_str()),
+                    "svg for {:?}",
+                    vector.input_base64
+                );
             }
         }
     }

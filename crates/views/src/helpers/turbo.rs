@@ -15,7 +15,9 @@ pub fn turbo_frame_tag(id: &str, src: Option<&str>, target: Option<&str>, attrib
 pub fn turbo_stream_from(signed_stream_name: &str) -> Html {
     builder_tag(
         "turbo-cable-stream-source",
-        attrs().attr("channel", "Turbo::StreamsChannel").attr("signed-stream-name", signed_stream_name),
+        attrs()
+            .attr("channel", "Turbo::StreamsChannel")
+            .attr("signed-stream-name", signed_stream_name),
     )
 }
 

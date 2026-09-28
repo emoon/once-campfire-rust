@@ -11,7 +11,9 @@ pub async fn create(c: &mut Ctx) -> Result {
     before_actions(c, Before::default()).await?;
     // A hash or array passes `require`, but `URI.parse` can't take it (`InvalidURIError`,
     // rescued), so the metadata has no title and isn't valid.
-    let Some(url) = url_param(c)? else { return Ok(c.head(StatusCode::NO_CONTENT)) };
+    let Some(url) = url_param(c)? else {
+        return Ok(c.head(StatusCode::NO_CONTENT));
+    };
     match opengraph_json(c, &url).await? {
         // `render json: opengraph`
         Some(json) => Ok(c.render_as(StatusCode::OK, campfire_kit::response::JSON_UTF8, json)),
@@ -44,13 +46,19 @@ mod tests {
     async fn unfurls_nothing_from_private_addresses_and_needs_a_url() {
         let Some(app) = TestApp::boot().await else { return };
         let mut david = app.david();
-        let private = david.write(Req::new(Method::POST, "/unfurl_link").form(&[("url", "http://127.0.0.1/secret")])).await;
+        let private = david
+            .write(Req::new(Method::POST, "/unfurl_link").form(&[("url", "http://127.0.0.1/secret")]))
+            .await;
         assert_eq!(private.status, StatusCode::NO_CONTENT);
         let missing = david.write(Req::new(Method::POST, "/unfurl_link").form(&[("url", "")])).await;
         assert_eq!(missing.status, StatusCode::BAD_REQUEST);
-        let hash = david.write(Req::new(Method::POST, "/unfurl_link").form(&[("url[a]", "http://example.com")])).await;
+        let hash = david
+            .write(Req::new(Method::POST, "/unfurl_link").form(&[("url[a]", "http://example.com")]))
+            .await;
         assert_eq!(hash.status, StatusCode::NO_CONTENT);
-        let array = david.write(Req::new(Method::POST, "/unfurl_link").form(&[("url[]", "http://example.com")])).await;
+        let array = david
+            .write(Req::new(Method::POST, "/unfurl_link").form(&[("url[]", "http://example.com")]))
+            .await;
         assert_eq!(array.status, StatusCode::NO_CONTENT);
     }
 }

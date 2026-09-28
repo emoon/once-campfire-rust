@@ -10,9 +10,9 @@ pub mod users {
 
     use crate::app::AppCtx;
     use crate::concerns::{self, Before, cast_integer};
+    use crate::controllers::presenters;
     use crate::controllers::presenters::pagination::Page;
     use crate::controllers::presenters::view_context::Layout;
-    use crate::controllers::presenters;
 
     /// `set_page_and_extract_portion_from find_autocompletable_users.with_attached_avatar.ordered, per_page: 20`
     pub async fn index(c: &mut Ctx) -> Result {
@@ -23,7 +23,12 @@ pub mod users {
         let room_id = match c.params.get("room_id").filter(|param| param.is_present()) {
             Some(param) => {
                 let id = param.as_str().and_then(cast_integer).ok_or(Error::NotFound)?;
-                let room = c.app().db.read(move |conn| Room::find_for_user(conn, user_id, id)).await.map_err(Error::internal)?;
+                let room = c
+                    .app()
+                    .db
+                    .read(move |conn| Room::find_for_user(conn, user_id, id))
+                    .await
+                    .map_err(Error::internal)?;
                 Some(room.ok_or(Error::NotFound)?.id)
             }
             None => None,
@@ -35,10 +40,19 @@ pub mod users {
             .find(|param| param.is_present())
             .and_then(|param| param.to_s());
 
-        let users = c.app().db.read(move |conn| autocompletable_users(conn, room_id, query.as_deref())).await.map_err(Error::internal)?;
+        let users = c
+            .app()
+            .db
+            .read(move |conn| autocompletable_users(conn, room_id, query.as_deref()))
+            .await
+            .map_err(Error::internal)?;
         let page = Page::new(c.param_str("page"), users.len() as i64, &[20]);
         let secrets = c.app().secrets.clone();
-        let users: Vec<_> = page.records(&users).iter().map(|user| presenters::accounts::mention_user(&secrets, user)).collect();
+        let users: Vec<_> = page
+            .records(&users)
+            .iter()
+            .map(|user| presenters::accounts::mention_user(&secrets, user))
+            .collect();
 
         let format = c.respond_to(&[&format::HTML, &format::JSON])?;
         page.apply_headers(c);

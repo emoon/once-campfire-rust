@@ -31,7 +31,10 @@ pub async fn new(c: &mut Ctx) -> Result {
     let current_user_id = require_current_user(c)?.id;
     // `@users = User.active.ordered`; the form shows them all as unselected.
     let form = ClosedFormView {
-        room: FormRoom { id: None, name: Some(DEFAULT_ROOM_NAME.into()) },
+        room: FormRoom {
+            id: None,
+            name: Some(DEFAULT_ROOM_NAME.into()),
+        },
         can_administer: true,
         current_user_id,
         selected_users: Vec::new(),
@@ -72,15 +75,19 @@ pub async fn edit(c: &mut Ctx) -> Result {
         .db
         .read(move |conn| {
             let selected_ids = Room::find(conn, room_id)?.user_ids(conn)?;
-            let (selected, unselected): (Vec<User>, Vec<User>) =
-                User::active_ordered(conn)?.into_iter().partition(|user| selected_ids.contains(&user.id));
+            let (selected, unselected): (Vec<User>, Vec<User>) = User::active_ordered(conn)?
+                .into_iter()
+                .partition(|user| selected_ids.contains(&user.id));
             let views = |users: Vec<User>| users.iter().map(|user| user_view(&secrets, user)).collect::<Vec<_>>();
             Ok((views(selected), views(unselected)))
         })
         .await
         .map_err(db_error)?;
     let form = ClosedFormView {
-        room: FormRoom { id: Some(room.id), name: room.name.clone() },
+        room: FormRoom {
+            id: Some(room.id),
+            name: room.name.clone(),
+        },
         can_administer: current_user.can_administer(Some(room.creator_id), false),
         current_user_id: current_user.id,
         selected_users,
@@ -112,8 +119,11 @@ pub async fn update(c: &mut Ctx) -> Result {
         .db
         .write(move |tx| {
             let granted = existing_user_ids(tx.conn(), &grantee_ids)?;
-            let revoked: Vec<i64> =
-                revised.user_ids(tx.conn())?.into_iter().filter(|id| !grantee_ids.contains(id)).collect();
+            let revoked: Vec<i64> = revised
+                .user_ids(tx.conn())?
+                .into_iter()
+                .filter(|id| !grantee_ids.contains(id))
+                .collect();
             revised.revise(tx, &granted, &revoked)
         })
         .await

@@ -3,10 +3,10 @@
 use std::net::SocketAddr;
 
 use axum::Router;
-use campfire_kit::exceptions::ErrorPages;
 use axum::body::Body as AxumBody;
 use axum::extract::ConnectInfo;
 use axum::http::{Request as HttpRequest, header};
+use campfire_kit::exceptions::ErrorPages;
 use campfire_kit::format::{HTML, JSON, TURBO_STREAM};
 use campfire_kit::{
     Cookie, Ctx, ExpiresIn, Freshness, Kit, KitConfig, Redirect, Result, SendOptions, StatusCode, action, front, halt, testing,
@@ -87,7 +87,13 @@ async fn noop(c: &mut Ctx) -> Result {
 }
 
 async fn notice(c: &mut Ctx) -> Result {
-    c.redirect_to_with("/flash", Redirect { notice: Some("✓".into()), ..Redirect::default() })
+    c.redirect_to_with(
+        "/flash",
+        Redirect {
+            notice: Some("✓".into()),
+            ..Redirect::default()
+        },
+    )
 }
 
 async fn show_flash(c: &mut Ctx) -> Result {
@@ -96,7 +102,8 @@ async fn show_flash(c: &mut Ctx) -> Result {
 }
 
 async fn sign_in(c: &mut Ctx) -> Result {
-    c.cookies.set_signed("session_token", Cookie::new("tok123").permanent().httponly())?;
+    c.cookies
+        .set_signed("session_token", Cookie::new("tok123").permanent().httponly())?;
     c.cookies.set("last_room", Cookie::new("7").permanent());
     Ok(c.head(StatusCode::OK))
 }
@@ -128,7 +135,11 @@ fn require_user(c: &mut Ctx) -> Result<()> {
 }
 
 fn ensure_admin(c: &mut Ctx) -> Result<()> {
-    if c.current::<CurrentUser>().is_some_and(|u| u.0 == "admin") { Ok(()) } else { halt(c.head(StatusCode::FORBIDDEN)) }
+    if c.current::<CurrentUser>().is_some_and(|u| u.0 == "admin") {
+        Ok(())
+    } else {
+        halt(c.head(StatusCode::FORBIDDEN))
+    }
 }
 
 async fn admin(c: &mut Ctx) -> Result {
@@ -159,10 +170,20 @@ async fn redirects(c: &mut Ctx) -> Result {
     match c.param_str("to").unwrap_or("") {
         "relative" => c.redirect_to("rooms/1"),
         "other" => c.redirect_to("https://evil.example/"),
-        "other_allowed" => {
-            c.redirect_to_with("https://docs.example/", Redirect { allow_other_host: true, ..Redirect::default() })
-        }
-        "see_other" => c.redirect_to_with("/rooms", Redirect { status: Some(StatusCode::SEE_OTHER), ..Redirect::default() }),
+        "other_allowed" => c.redirect_to_with(
+            "https://docs.example/",
+            Redirect {
+                allow_other_host: true,
+                ..Redirect::default()
+            },
+        ),
+        "see_other" => c.redirect_to_with(
+            "/rooms",
+            Redirect {
+                status: Some(StatusCode::SEE_OTHER),
+                ..Redirect::default()
+            },
+        ),
         "back" => c.redirect_back_or_to("/fallback"),
         _ => c.redirect_to("/rooms/1?x=1"),
     }
@@ -181,7 +202,14 @@ async fn file(c: &mut Ctx) -> Result {
 
 async fn logo(c: &mut Ctx) -> Result {
     if c.stale(Freshness::etag("accounts/1-20240601")) {
-        c.expires_in(300, ExpiresIn { public: true, stale_while_revalidate: Some(604800), ..ExpiresIn::default() });
+        c.expires_in(
+            300,
+            ExpiresIn {
+                public: true,
+                stale_while_revalidate: Some(604800),
+                ..ExpiresIn::default()
+            },
+        );
         return Ok(c.send_data("PNG", SendOptions::inline("image/png")));
     }
     Ok(c.head(StatusCode::NOT_MODIFIED))
@@ -202,9 +230,17 @@ fn app_with(config: KitConfig) -> Router {
     let router = Router::new()
         .route("/rooms/{id}", campfire_kit::get(show))
         .route("/form", campfire_kit::get(form).post(action(create)))
-        .route("/echo/{id}", campfire_kit::get(echo).post(action(echo)).patch(action(echo)).delete(action(echo)))
+        .route(
+            "/echo/{id}",
+            campfire_kit::get(echo).post(action(echo)).patch(action(echo)).delete(action(echo)),
+        )
         .route("/upload", campfire_kit::patch(upload).post(action(upload)))
-        .route("/session", campfire_kit::get(session_get).post(action(session_set)).delete(action(session_reset)))
+        .route(
+            "/session",
+            campfire_kit::get(session_get)
+                .post(action(session_set))
+                .delete(action(session_reset)),
+        )
         .route("/noop", campfire_kit::get(noop))
         .route("/notice", campfire_kit::get(notice))
         .route("/flash", campfire_kit::get(show_flash))
@@ -226,7 +262,10 @@ fn app_with(config: KitConfig) -> Router {
 
 fn app() -> Router {
     let error_pages = ErrorPages::new([(404, "<h1>Not found</h1>".into()), (422, "<h1>Unprocessable</h1>".into())]);
-    app_with(KitConfig { error_pages, ..KitConfig::default() })
+    app_with(KitConfig {
+        error_pages,
+        ..KitConfig::default()
+    })
 }
 
 struct Reply {
@@ -241,12 +280,20 @@ impl Reply {
     }
 
     fn cookies(&self) -> Vec<String> {
-        self.headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap().to_string()).collect()
+        self.headers
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect()
     }
 
     /// A `Cookie` request header carrying every cookie this response set.
     fn cookie_jar(&self) -> String {
-        self.cookies().iter().map(|c| c.split(';').next().unwrap().to_string()).collect::<Vec<_>>().join("; ")
+        self.cookies()
+            .iter()
+            .map(|c| c.split(';').next().unwrap().to_string())
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     fn json(&self) -> serde_json::Value {
@@ -275,7 +322,10 @@ fn post(uri: &str) -> axum::http::request::Builder {
 }
 
 fn form_post(uri: &str, body: &str) -> HttpRequest<AxumBody> {
-    post(uri).header(header::CONTENT_TYPE, "application/x-www-form-urlencoded").body(AxumBody::from(body.to_string())).unwrap()
+    post(uri)
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(AxumBody::from(body.to_string()))
+        .unwrap()
 }
 
 #[tokio::test]
@@ -298,17 +348,38 @@ async fn conditional_get_on_body_etag() {
     let app = app();
     let first = send(&app, get("/rooms/5").body(AxumBody::empty()).unwrap()).await;
     let etag = first.header("etag").unwrap().to_string();
-    let second = send(&app, get("/rooms/5").header(header::IF_NONE_MATCH, &etag).body(AxumBody::empty()).unwrap()).await;
+    let second = send(
+        &app,
+        get("/rooms/5")
+            .header(header::IF_NONE_MATCH, &etag)
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(second.status, StatusCode::NOT_MODIFIED);
     assert!(second.body.is_empty());
     assert_eq!(second.header("content-type"), None);
 
     // Lists and `*` count, as they do for `fresh_when` (RFC 9110).
     for if_none_match in [format!("\"other\", {etag}"), "*".to_string()] {
-        let listed = send(&app, get("/rooms/5").header(header::IF_NONE_MATCH, &if_none_match).body(AxumBody::empty()).unwrap()).await;
+        let listed = send(
+            &app,
+            get("/rooms/5")
+                .header(header::IF_NONE_MATCH, &if_none_match)
+                .body(AxumBody::empty())
+                .unwrap(),
+        )
+        .await;
         assert_eq!(listed.status, StatusCode::NOT_MODIFIED, "{if_none_match}");
     }
-    let other = send(&app, get("/rooms/5").header(header::IF_NONE_MATCH, "\"other\"").body(AxumBody::empty()).unwrap()).await;
+    let other = send(
+        &app,
+        get("/rooms/5")
+            .header(header::IF_NONE_MATCH, "\"other\"")
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(other.status, StatusCode::OK);
 }
 
@@ -346,7 +417,10 @@ async fn malformed_params_are_400() {
     assert_eq!(reply.status, StatusCode::BAD_REQUEST);
     let reply = send(&app(), form_post("/echo/1", "a=%")).await;
     assert_eq!(reply.status, StatusCode::BAD_REQUEST);
-    let request = post("/echo/1").header(header::CONTENT_TYPE, "application/json").body(AxumBody::from("{nope")).unwrap();
+    let request = post("/echo/1")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(AxumBody::from("{nope"))
+        .unwrap();
     assert_eq!(send(&app(), request).await.status, StatusCode::BAD_REQUEST);
 }
 
@@ -360,7 +434,10 @@ async fn method_override_from_form_param_and_header() {
     let reply = send(&app, form_post("/echo/1", "_method=delete")).await;
     assert_eq!(reply.json()["method"], "DELETE");
 
-    let request = post("/echo/1").header("x-http-method-override", "patch").body(AxumBody::from("")).unwrap();
+    let request = post("/echo/1")
+        .header("x-http-method-override", "patch")
+        .body(AxumBody::from(""))
+        .unwrap();
     assert_eq!(send(&app, request).await.json()["method"], "PATCH");
 
     // JSON bodies aren't forms: `_method` there doesn't count.
@@ -391,7 +468,10 @@ async fn multipart_uploads_with_method_override() {
         .body(AxumBody::from(body))
         .unwrap();
     let reply = send(&app(), request).await;
-    assert_eq!(reply.json(), json!({"method": "PATCH", "name": "Jo", "filename": "me.png", "content": "PNGDATA"}));
+    assert_eq!(
+        reply.json(),
+        json!({"method": "PATCH", "name": "Jo", "filename": "me.png", "content": "PNGDATA"})
+    );
 }
 
 #[tokio::test]
@@ -403,7 +483,11 @@ async fn missing_required_param_is_400() {
 /// The test app as Campfire runs it in production: behind TLS (`assume_ssl`) with `force_ssl`.
 fn ssl_app() -> Router {
     let error_pages = ErrorPages::new([(422, "<h1>Unprocessable</h1>".into())]);
-    let mut config = KitConfig { error_pages, force_ssl: true, ..KitConfig::default() };
+    let mut config = KitConfig {
+        error_pages,
+        force_ssl: true,
+        ..KitConfig::default()
+    };
     config.proxy.assume_ssl = true;
     app_with(config)
 }
@@ -414,7 +498,10 @@ fn post_from(site: Option<&str>) -> HttpRequest<AxumBody> {
         Some(site) => request.header("sec-fetch-site", site),
         None => request,
     };
-    request.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded").body(AxumBody::from("x=1")).unwrap()
+    request
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(AxumBody::from("x=1"))
+        .unwrap()
 }
 
 #[tokio::test]
@@ -438,7 +525,10 @@ async fn forgery_protection_allows_a_missing_header_only_without_ssl() {
     // Browsers send `Sec-Fetch-Site` only to secure origins, so plain HTTP can't require it.
     let app = app();
     assert_eq!(send(&app, post_from(None)).await.status, StatusCode::OK);
-    assert_eq!(send(&app, post_from(Some("cross-site"))).await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        send(&app, post_from(Some("cross-site"))).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
 }
 
 #[tokio::test]
@@ -452,10 +542,17 @@ async fn pages_carry_no_forgery_token_or_session() {
 async fn forgery_protection_checks_the_origin() {
     let app = ssl_app();
     let with_origin = |origin: &str| {
-        post("/form").header("sec-fetch-site", "same-origin").header(header::ORIGIN, origin).body(AxumBody::empty()).unwrap()
+        post("/form")
+            .header("sec-fetch-site", "same-origin")
+            .header(header::ORIGIN, origin)
+            .body(AxumBody::empty())
+            .unwrap()
     };
     assert_eq!(send(&app, with_origin("https://chat.example.com")).await.status, StatusCode::OK);
-    assert_eq!(send(&app, with_origin("https://evil.example")).await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        send(&app, with_origin("https://evil.example")).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
     assert_eq!(send(&app, with_origin("null")).await.status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
@@ -471,7 +568,11 @@ async fn session_cookie_is_written_only_when_the_session_changes() {
     assert!(cookie.starts_with("_campfire_session="));
 
     // Reading it, or not touching it, sends no cookie back: the one the browser has stays.
-    let read = send(&app, get("/session").header(header::COOKIE, &cookie).body(AxumBody::empty()).unwrap()).await;
+    let read = send(
+        &app,
+        get("/session").header(header::COOKIE, &cookie).body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(read.json()["value"], "/rooms/1");
     assert!(read.cookies().is_empty(), "{:?}", read.cookies());
     let id = read.json()["id"].as_str().unwrap().to_string();
@@ -483,22 +584,47 @@ async fn session_cookie_is_written_only_when_the_session_changes() {
     parts.headers.insert(header::COOKIE, cookie.parse().unwrap());
     let same = send(&app, HttpRequest::from_parts(parts, body)).await;
     assert!(same.cookies().is_empty(), "writing the value it already holds changes nothing");
-    let again = send(&app, get("/session").header(header::COOKIE, &cookie).body(AxumBody::empty()).unwrap()).await;
+    let again = send(
+        &app,
+        get("/session").header(header::COOKIE, &cookie).body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(again.json()["id"], id.as_str());
 
     // Resetting leaves nothing to keep, so the cookie goes.
     let reset = send(
         &app,
-        HttpRequest::delete("/session").header(header::COOKIE, &cookie).body(AxumBody::empty()).unwrap(),
+        HttpRequest::delete("/session")
+            .header(header::COOKIE, &cookie)
+            .body(AxumBody::empty())
+            .unwrap(),
     )
     .await;
-    assert!(reset.cookies().iter().any(|c| c.starts_with("_campfire_session=;")), "{:?}", reset.cookies());
-    let after = send(&app, get("/session").header(header::COOKIE, reset.cookie_jar()).body(AxumBody::empty()).unwrap()).await;
+    assert!(
+        reset.cookies().iter().any(|c| c.starts_with("_campfire_session=;")),
+        "{:?}",
+        reset.cookies()
+    );
+    let after = send(
+        &app,
+        get("/session")
+            .header(header::COOKIE, reset.cookie_jar())
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(after.json()["value"], serde_json::Value::Null);
     assert_ne!(after.json()["id"], id.as_str());
 
     // A tampered cookie reads as an empty session.
-    let bogus = send(&app, get("/session").header(header::COOKIE, "_campfire_session=garbage").body(AxumBody::empty()).unwrap()).await;
+    let bogus = send(
+        &app,
+        get("/session")
+            .header(header::COOKIE, "_campfire_session=garbage")
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(bogus.json()["value"], serde_json::Value::Null);
 }
 
@@ -513,8 +639,19 @@ async fn flash_survives_exactly_one_redirect() {
     let shown = send(&app, get("/flash").header(header::COOKIE, &cookie).body(AxumBody::empty()).unwrap()).await;
     assert_eq!(shown.json()["notice"], "✓");
     // Shown, the flash is swept, and with it the only thing the session held.
-    assert!(shown.cookies().iter().any(|c| c.starts_with("_campfire_session=;")), "{:?}", shown.cookies());
-    let gone = send(&app, get("/flash").header(header::COOKIE, shown.cookie_jar()).body(AxumBody::empty()).unwrap()).await;
+    assert!(
+        shown.cookies().iter().any(|c| c.starts_with("_campfire_session=;")),
+        "{:?}",
+        shown.cookies()
+    );
+    let gone = send(
+        &app,
+        get("/flash")
+            .header(header::COOKIE, shown.cookie_jar())
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(gone.json()["notice"], serde_json::Value::Null);
 }
 
@@ -523,8 +660,12 @@ async fn signed_permanent_cookies_and_deletion() {
     let app = app();
     let signed_in = send(&app, get("/sign_in").body(AxumBody::empty()).unwrap()).await;
     let cookies = signed_in.cookies();
-    assert!(cookies.iter().any(|c| c.starts_with("session_token=")
-        && c.ends_with("; path=/; expires=Wed, 01 Jun 2044 12:00:00 GMT; httponly; samesite=lax")));
+    assert!(
+        cookies
+            .iter()
+            .any(|c| c.starts_with("session_token=")
+                && c.ends_with("; path=/; expires=Wed, 01 Jun 2044 12:00:00 GMT; httponly; samesite=lax"))
+    );
     assert!(cookies.contains(&"last_room=7; path=/; expires=Wed, 01 Jun 2044 12:00:00 GMT; samesite=lax".to_string()));
 
     // Rails' Live responses send the action's cookies twice; this sends them once.
@@ -535,11 +676,21 @@ async fn signed_permanent_cookies_and_deletion() {
     let me = send(&app, get("/whoami").header(header::COOKIE, &jar).body(AxumBody::empty()).unwrap()).await;
     assert_eq!(me.json(), json!({"token": "tok123", "last_room": "7"}));
 
-    let forged = send(&app, get("/whoami").header(header::COOKIE, "session_token=tok123").body(AxumBody::empty()).unwrap()).await;
+    let forged = send(
+        &app,
+        get("/whoami")
+            .header(header::COOKIE, "session_token=tok123")
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(forged.json()["token"], serde_json::Value::Null);
 
     let out = send(&app, get("/sign_out").header(header::COOKIE, &jar).body(AxumBody::empty()).unwrap()).await;
-    assert_eq!(out.cookies(), vec!["session_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; samesite=lax"]);
+    assert_eq!(
+        out.cookies(),
+        vec!["session_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; samesite=lax"]
+    );
     let nothing = send(&app, get("/sign_out").body(AxumBody::empty()).unwrap()).await;
     assert!(nothing.cookies().is_empty());
 }
@@ -565,11 +716,19 @@ async fn before_actions_halt_the_chain() {
 async fn respond_to_negotiates_like_rails() {
     let app = app();
     let browser = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
-    let html = send(&app, get("/messages").header(header::ACCEPT, browser).body(AxumBody::empty()).unwrap()).await;
+    let html = send(
+        &app,
+        get("/messages").header(header::ACCEPT, browser).body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(html.header("content-type"), Some("text/html; charset=utf-8"));
 
     let turbo = "text/vnd.turbo-stream.html, text/html, application/xhtml+xml";
-    let stream = send(&app, post("/messages").header(header::ACCEPT, turbo).body(AxumBody::empty()).unwrap()).await;
+    let stream = send(
+        &app,
+        post("/messages").header(header::ACCEPT, turbo).body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(stream.header("content-type"), Some("text/vnd.turbo-stream.html; charset=utf-8"));
 
     let json = send(&app, get("/messages.json").body(AxumBody::empty()).unwrap()).await;
@@ -577,12 +736,27 @@ async fn respond_to_negotiates_like_rails() {
     let json = send(&app, get("/messages?format=json").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(json.header("content-type"), Some("application/json; charset=utf-8"));
 
-    let unacceptable = send(&app, get("/messages").header(header::ACCEPT, "image/png").body(AxumBody::empty()).unwrap()).await;
+    let unacceptable = send(
+        &app,
+        get("/messages")
+            .header(header::ACCEPT, "image/png")
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(unacceptable.status, StatusCode::NOT_ACCEPTABLE);
-    let invalid = send(&app, get("/messages").header(header::ACCEPT, "garbage").body(AxumBody::empty()).unwrap()).await;
+    let invalid = send(
+        &app,
+        get("/messages").header(header::ACCEPT, "garbage").body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(invalid.status, StatusCode::NOT_ACCEPTABLE);
 
-    let any = send(&app, get("/autocomplete").header(header::ACCEPT, "*/*").body(AxumBody::empty()).unwrap()).await;
+    let any = send(
+        &app,
+        get("/autocomplete").header(header::ACCEPT, "*/*").body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(any.header("content-type"), Some("text/html; charset=utf-8"));
 }
 
@@ -598,20 +772,34 @@ async fn redirects_like_rails() {
     let see_other = send(&app, get("/redirect?to=see_other").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(see_other.status, StatusCode::SEE_OTHER);
 
-    assert_eq!(send(&app, get("/redirect?to=relative").body(AxumBody::empty()).unwrap()).await.status, StatusCode::INTERNAL_SERVER_ERROR);
-    assert_eq!(send(&app, get("/redirect?to=other").body(AxumBody::empty()).unwrap()).await.status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        send(&app, get("/redirect?to=relative").body(AxumBody::empty()).unwrap())
+            .await
+            .status,
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+    assert_eq!(
+        send(&app, get("/redirect?to=other").body(AxumBody::empty()).unwrap()).await.status,
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
     let allowed = send(&app, get("/redirect?to=other_allowed").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(allowed.header("location"), Some("https://docs.example/"));
 
     let back = send(
         &app,
-        get("/redirect?to=back").header(header::REFERER, "http://chat.example.com/rooms/3").body(AxumBody::empty()).unwrap(),
+        get("/redirect?to=back")
+            .header(header::REFERER, "http://chat.example.com/rooms/3")
+            .body(AxumBody::empty())
+            .unwrap(),
     )
     .await;
     assert_eq!(back.header("location"), Some("http://chat.example.com/rooms/3"));
     let foreign = send(
         &app,
-        get("/redirect?to=back").header(header::REFERER, "https://evil.example/x").body(AxumBody::empty()).unwrap(),
+        get("/redirect?to=back")
+            .header(header::REFERER, "https://evil.example/x")
+            .body(AxumBody::empty())
+            .unwrap(),
     )
     .await;
     assert_eq!(foreign.header("location"), Some("http://chat.example.com/fallback"));
@@ -636,16 +824,29 @@ async fn send_file_with_disposition_and_ranges() {
     let whole = send(&app, get(&format!("/file?path={encoded}")).body(AxumBody::empty()).unwrap()).await;
     assert_eq!(whole.body, b"0123456789");
     assert_eq!(whole.header("content-type"), Some("image/png"));
-    assert_eq!(whole.header("content-disposition"), Some("inline; filename=\"logo.png\"; filename*=UTF-8''logo.png"));
+    assert_eq!(
+        whole.header("content-disposition"),
+        Some("inline; filename=\"logo.png\"; filename*=UTF-8''logo.png")
+    );
     assert_eq!(whole.header("content-transfer-encoding"), Some("binary"));
     assert_eq!(whole.header("content-length"), Some("10"));
 
-    let ignored = send(&app, get(&format!("/file?path={encoded}")).header(header::RANGE, "bytes=2-4").body(AxumBody::empty()).unwrap()).await;
+    let ignored = send(
+        &app,
+        get(&format!("/file?path={encoded}"))
+            .header(header::RANGE, "bytes=2-4")
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(ignored.status, StatusCode::OK);
 
     let ranged = send(
         &app,
-        get(&format!("/file?path={encoded}&ranges=1")).header(header::RANGE, "bytes=2-4").body(AxumBody::empty()).unwrap(),
+        get(&format!("/file?path={encoded}&ranges=1"))
+            .header(header::RANGE, "bytes=2-4")
+            .body(AxumBody::empty())
+            .unwrap(),
     )
     .await;
     assert_eq!(ranged.status, StatusCode::PARTIAL_CONTENT);
@@ -654,7 +855,10 @@ async fn send_file_with_disposition_and_ranges() {
 
     let unsatisfiable = send(
         &app,
-        get(&format!("/file?path={encoded}&ranges=1")).header(header::RANGE, "bytes=20-").body(AxumBody::empty()).unwrap(),
+        get(&format!("/file?path={encoded}&ranges=1"))
+            .header(header::RANGE, "bytes=20-")
+            .body(AxumBody::empty())
+            .unwrap(),
     )
     .await;
     assert_eq!(unsatisfiable.status, StatusCode::RANGE_NOT_SATISFIABLE);
@@ -669,19 +873,37 @@ async fn stale_and_expires_in() {
     let app = app();
     let first = send(&app, get("/logo").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(first.status, StatusCode::OK);
-    assert_eq!(first.header("cache-control"), Some("max-age=300, public, stale-while-revalidate=604800"));
+    assert_eq!(
+        first.header("cache-control"),
+        Some("max-age=300, public, stale-while-revalidate=604800")
+    );
     let etag = first.header("etag").unwrap().to_string();
     assert!(etag.starts_with("W/\""));
 
-    let second = send(&app, get("/logo").header(header::IF_NONE_MATCH, &etag).body(AxumBody::empty()).unwrap()).await;
+    let second = send(
+        &app,
+        get("/logo").header(header::IF_NONE_MATCH, &etag).body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(second.status, StatusCode::NOT_MODIFIED);
 
     let fresh = send(&app, get("/fresh").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(fresh.header("cache-control"), Some("max-age=0, private, must-revalidate"));
     let etag = fresh.header("etag").unwrap().to_string();
-    let cached = send(&app, get("/fresh").header(header::IF_NONE_MATCH, &etag).body(AxumBody::empty()).unwrap()).await;
+    let cached = send(
+        &app,
+        get("/fresh").header(header::IF_NONE_MATCH, &etag).body(AxumBody::empty()).unwrap(),
+    )
+    .await;
     assert_eq!(cached.status, StatusCode::NOT_MODIFIED);
-    let listed = send(&app, get("/fresh").header(header::IF_NONE_MATCH, format!("\"other\", {etag}")).body(AxumBody::empty()).unwrap()).await;
+    let listed = send(
+        &app,
+        get("/fresh")
+            .header(header::IF_NONE_MATCH, format!("\"other\", {etag}"))
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(listed.status, StatusCode::NOT_MODIFIED);
 
     // Turbo Frame requests get a different ETag (turbo-rails' frame etagger).
@@ -692,21 +914,35 @@ async fn stale_and_expires_in() {
 #[tokio::test]
 async fn remote_ip_from_peer_and_proxies() {
     let app = app();
-    let mut request = get("/echo/1").header("x-forwarded-for", "203.0.113.9, 10.0.0.1").body(AxumBody::empty()).unwrap();
-    request.extensions_mut().insert(ConnectInfo("127.0.0.1:5000".parse::<SocketAddr>().unwrap()));
+    let mut request = get("/echo/1")
+        .header("x-forwarded-for", "203.0.113.9, 10.0.0.1")
+        .body(AxumBody::empty())
+        .unwrap();
+    request
+        .extensions_mut()
+        .insert(ConnectInfo("127.0.0.1:5000".parse::<SocketAddr>().unwrap()));
     assert_eq!(send(&app, request).await.json()["remote_ip"], "203.0.113.9");
 
     let mut request = get("/echo/1").body(AxumBody::empty()).unwrap();
-    request.extensions_mut().insert(ConnectInfo("198.51.100.4:5000".parse::<SocketAddr>().unwrap()));
+    request
+        .extensions_mut()
+        .insert(ConnectInfo("198.51.100.4:5000".parse::<SocketAddr>().unwrap()));
     assert_eq!(send(&app, request).await.json()["remote_ip"], "198.51.100.4");
 
-    let request = get("/echo/1").header("client-ip", "1.1.1.1").header("x-forwarded-for", "2.2.2.2").body(AxumBody::empty()).unwrap();
+    let request = get("/echo/1")
+        .header("client-ip", "1.1.1.1")
+        .header("x-forwarded-for", "2.2.2.2")
+        .body(AxumBody::empty())
+        .unwrap();
     assert_eq!(send(&app, request).await.status, StatusCode::INTERNAL_SERVER_ERROR);
 }
 
 #[tokio::test]
 async fn force_ssl_redirects_and_hardens() {
-    let app = app_with(KitConfig { force_ssl: true, ..KitConfig::default() });
+    let app = app_with(KitConfig {
+        force_ssl: true,
+        ..KitConfig::default()
+    });
     let plain = send(&app, get("/rooms/1?x=1").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(plain.status, StatusCode::MOVED_PERMANENTLY);
     assert_eq!(plain.header("location"), Some("https://chat.example.com/rooms/1?x=1"));
@@ -716,7 +952,10 @@ async fn force_ssl_redirects_and_hardens() {
     let production = app_with(KitConfig::production(false));
     let secure = send(&production, get("/sign_in").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(secure.status, StatusCode::OK);
-    assert_eq!(secure.header("strict-transport-security"), Some("max-age=63072000; includeSubDomains"));
+    assert_eq!(
+        secure.header("strict-transport-security"),
+        Some("max-age=63072000; includeSubDomains")
+    );
     assert!(secure.cookies().iter().all(|c| c.ends_with("; secure")));
 
     let https = send(&production, get("/redirect").body(AxumBody::empty()).unwrap()).await;
@@ -725,7 +964,10 @@ async fn force_ssl_redirects_and_hardens() {
 
 #[tokio::test]
 async fn body_limit_is_413() {
-    let app = app_with(KitConfig { max_body_bytes: Some(16), ..KitConfig::default() });
+    let app = app_with(KitConfig {
+        max_body_bytes: Some(16),
+        ..KitConfig::default()
+    });
     let reply = send(&app, form_post("/echo/1", &"a=1&".repeat(20))).await;
     assert_eq!(reply.status, StatusCode::PAYLOAD_TOO_LARGE);
     let reply = send(&app, HttpRequest::patch("/echo/1").body(AxumBody::from("x".repeat(40))).unwrap()).await;
@@ -734,7 +976,14 @@ async fn body_limit_is_413() {
 
 #[tokio::test]
 async fn request_ids_are_sanitized_passthroughs() {
-    let reply = send(&app(), get("/rooms/1").header("x-request-id", "abc-123<script>").body(AxumBody::empty()).unwrap()).await;
+    let reply = send(
+        &app(),
+        get("/rooms/1")
+            .header("x-request-id", "abc-123<script>")
+            .body(AxumBody::empty())
+            .unwrap(),
+    )
+    .await;
     assert_eq!(reply.header("x-request-id"), Some("abc-123script"));
 }
 
@@ -745,7 +994,10 @@ async fn slow(c: &mut Ctx) -> Result {
 
 #[tokio::test]
 async fn request_timeout_is_408() {
-    let config = KitConfig { request_timeout: Some(std::time::Duration::from_millis(20)), ..KitConfig::default() };
+    let config = KitConfig {
+        request_timeout: Some(std::time::Duration::from_millis(20)),
+        ..KitConfig::default()
+    };
     let app = campfire_kit::app(Router::new().route("/slow", campfire_kit::get(slow)), kit_with(config));
     let reply = send(&app, get("/slow").body(AxumBody::empty()).unwrap()).await;
     assert_eq!(reply.status, StatusCode::REQUEST_TIMEOUT);
@@ -761,16 +1013,30 @@ async fn serves_with_peer_addresses_and_shuts_down_gracefully() {
         let _ = stopped.await;
     });
     let service = front::app_service(app());
-    let server = tokio::spawn(front::serve_plain(listener, service, front::Protocol::Http1, front::Options::default(), shutdown.clone()));
+    let server = tokio::spawn(front::serve_plain(
+        listener,
+        service,
+        front::Protocol::Http1,
+        front::Options::default(),
+        shutdown.clone(),
+    ));
 
     let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-    stream.write_all(b"GET /echo/1 HTTP/1.1\r\nHost: chat.example.com\r\nConnection: close\r\n\r\n").await.unwrap();
+    stream
+        .write_all(b"GET /echo/1 HTTP/1.1\r\nHost: chat.example.com\r\nConnection: close\r\n\r\n")
+        .await
+        .unwrap();
     let mut response = String::new();
     stream.read_to_string(&mut response).await.unwrap();
     assert!(response.starts_with("HTTP/1.1 200 OK"));
     assert!(response.contains(r#""remote_ip":"127.0.0.1""#));
 
     stop.send(()).unwrap();
-    tokio::time::timeout(std::time::Duration::from_secs(5), server).await.unwrap().unwrap();
-    tokio::time::timeout(std::time::Duration::from_secs(5), shutdown.drained()).await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), server)
+        .await
+        .unwrap()
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), shutdown.drained())
+        .await
+        .unwrap();
 }

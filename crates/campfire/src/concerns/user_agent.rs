@@ -34,10 +34,7 @@ pub fn parse(user_agent: &str) -> Agent {
         rest = ruby_strip(&tail).chars().collect();
     }
 
-    let kind = Kind::ALL
-        .into_iter()
-        .find(|kind| kind.extends(&products))
-        .unwrap_or(Kind::Base);
+    let kind = Kind::ALL.into_iter().find(|kind| kind.extends(&products)).unwrap_or(Kind::Base);
     Agent { kind, products }
 }
 
@@ -65,11 +62,7 @@ pub enum Segment {
 impl Segment {
     fn int(digits: &str) -> Self {
         let trimmed = digits.trim_start_matches('0');
-        Segment::Int(if trimmed.is_empty() {
-            "0".into()
-        } else {
-            trimmed.into()
-        })
+        Segment::Int(if trimmed.is_empty() { "0".into() } else { trimmed.into() })
     }
 
     fn as_u64(&self) -> Option<u64> {
@@ -84,8 +77,7 @@ impl Version {
     pub fn new(string: &str) -> Self {
         let blank = string.chars().all(is_ruby_space);
         let digits = string.chars().take_while(char::is_ascii_digit).count();
-        let comparable =
-            !blank && digits > 0 && (digits == string.len() || string[digits..].starts_with('.'));
+        let comparable = !blank && digits > 0 && (digits == string.len() || string[digits..].starts_with('.'));
 
         let sequences = if blank {
             Vec::new()
@@ -215,10 +207,7 @@ struct Product {
 
 impl Product {
     fn comment_at(&self, index: usize) -> Option<&str> {
-        self.comment
-            .as_ref()
-            .and_then(|comment| comment.get(index))
-            .map(String::as_str)
+        self.comment.as_ref().and_then(|comment| comment.get(index)).map(String::as_str)
     }
 
     fn joined_comment(&self) -> Option<String> {
@@ -347,53 +336,32 @@ impl Kind {
             Kind::Edge => products.last().is_some_and(|p| p.product == "Edge"),
             Kind::InternetExplorer => first.is_some_and(|p| {
                 p.comment.is_some()
-                    && (p.comment_at(1).is_some_and(|c| c.contains("MSIE"))
-                        || p.joined_comment().is_some_and(|c| trident_rv(&c)))
+                    && (p.comment_at(1).is_some_and(|c| c.contains("MSIE")) || p.joined_comment().is_some_and(|c| trident_rv(&c)))
             }),
-            Kind::Opera => {
-                first.is_some_and(|p| p.product == "Opera")
-                    || products.last().is_some_and(|p| p.product == "OPR")
-            }
-            Kind::WechatBrowser => products
-                .iter()
-                .any(|p| p.product.to_lowercase().contains("micromessenger")),
+            Kind::Opera => first.is_some_and(|p| p.product == "Opera") || products.last().is_some_and(|p| p.product == "OPR"),
+            Kind::WechatBrowser => products.iter().any(|p| p.product.to_lowercase().contains("micromessenger")),
             Kind::Vivaldi => any("Vivaldi"),
             Kind::Chrome => any("Chrome") || any("CriOS"),
             Kind::ITunes => any("iTunes"),
             Kind::PlayStation => first
                 .and_then(|p| p.comment.as_ref())
                 .and_then(|comment| comment.first())
-                .is_some_and(|c| {
-                    c.contains("PLAYSTATION 3")
-                        || c.contains("PlayStation Vita")
-                        || c.contains("PlayStation 4")
-                }),
+                .is_some_and(|c| c.contains("PLAYSTATION 3") || c.contains("PlayStation Vita") || c.contains("PlayStation 4")),
             Kind::PodcastAddict => {
-                products.len() >= 3
-                    && products[0].product == "Podcast"
-                    && products[1].product == "Addict"
-                    && products[2].product == "-"
+                products.len() >= 3 && products[0].product == "Podcast" && products[1].product == "Addict" && products[2].product == "-"
             }
             Kind::Webkit => products.iter().any(|p| {
-                p.product.to_lowercase() == "applewebkit"
-                    || p.comment
-                        .iter()
-                        .flatten()
-                        .any(|c| webkit_comment_version(c).is_some())
+                p.product.to_lowercase() == "applewebkit" || p.comment.iter().flatten().any(|c| webkit_comment_version(c).is_some())
             }),
             Kind::Gecko => first.is_some_and(|p| p.product == "Mozilla"),
             Kind::WindowsMediaPlayer => products.iter().any(|p| {
                 ["NSPlayer", "Windows-Media-Player", "WMFSDK"].contains(&p.product.as_str())
-                    && !matches!(
-                        first_version,
-                        Some("4.1.0.3856" | "7.10.0.3059" | "7.0.0.1956")
-                    )
+                    && !matches!(first_version, Some("4.1.0.3856" | "7.10.0.3059" | "7.0.0.1956"))
             }),
             Kind::AppleCoreMedia => any("AppleCoreMedia"),
-            Kind::Libavformat => products.iter().any(|p| {
-                p.product == "Lavf"
-                    || (p.product == "NSPlayer" && first_version == Some("4.1.0.3856"))
-            }),
+            Kind::Libavformat => products
+                .iter()
+                .any(|p| p.product == "Lavf" || (p.product == "NSPlayer" && first_version == Some("4.1.0.3856"))),
         }
     }
 }
@@ -448,9 +416,7 @@ impl Agent {
     /// `method_missing` use).
     fn detect_product(&self, name: &str) -> Option<&Product> {
         let name = name.to_lowercase();
-        self.products
-            .iter()
-            .find(|p| p.product.to_lowercase() == name)
+        self.products.iter().find(|p| p.product.to_lowercase() == name)
     }
 
     /// `application`: most classes use the first product; the WebKit-based ones the first product
@@ -458,9 +424,7 @@ impl Agent {
     fn application(&self) -> Option<&Product> {
         match self.kind {
             Kind::Chrome | Kind::Vivaldi | Kind::Webkit | Kind::ITunes | Kind::AppleCoreMedia => {
-                self.products
-                    .iter()
-                    .find(|p| p.comment.as_ref().is_some_and(|c| !c.is_empty()))
+                self.products.iter().find(|p| p.comment.as_ref().is_some_and(|c| !c.is_empty()))
             }
             _ => self.first(),
         }
@@ -541,23 +505,13 @@ impl Agent {
             Kind::Base | Kind::WindowsMediaPlayer | Kind::AppleCoreMedia => self.base_version(),
             Kind::Edge | Kind::Vivaldi => self.last().map(|p| p.version.clone()),
             Kind::InternetExplorer => {
-                let joined = self
-                    .application()
-                    .and_then(Product::joined_comment)
-                    .unwrap_or_default();
+                let joined = self.application().and_then(Product::joined_comment).unwrap_or_default();
                 Some(Version::new(ie_version(&joined).unwrap_or("")))
             }
             Kind::Opera => self.opera_version(),
-            Kind::WechatBrowser => Some(
-                self.detect_product("MicroMessenger")
-                    .ok_or(Raised)?
-                    .version
-                    .clone(),
-            ),
+            Kind::WechatBrowser => Some(self.detect_product("MicroMessenger").ok_or(Raised)?.version.clone()),
             Kind::Chrome => {
-                let product = self
-                    .detect_product("CriOs")
-                    .or_else(|| self.detect_product("chrome"));
+                let product = self.detect_product("CriOs").or_else(|| self.detect_product("chrome"));
                 Some(product.ok_or(Raised)?.version.clone())
             }
             Kind::ITunes => Some(self.detect_product("iTunes").ok_or(Raised)?.version.clone()),
@@ -565,16 +519,8 @@ impl Agent {
             Kind::PodcastAddict => None,
             Kind::Webkit => Some(self.webkit_version()),
             Kind::Gecko => {
-                let version = self
-                    .detect_product(&self.gecko_browser())
-                    .ok_or(Raised)?
-                    .version
-                    .clone();
-                if version.is_nil() {
-                    self.base_version()
-                } else {
-                    Some(version)
-                }
+                let version = self.detect_product(&self.gecko_browser()).ok_or(Raised)?.version.clone();
+                if version.is_nil() { self.base_version() } else { Some(version) }
             }
             Kind::Libavformat => {
                 if self.detect_product("NSPlayer").is_some() {
@@ -597,13 +543,8 @@ impl Agent {
     fn opera_version(&self) -> Option<Version> {
         if self.opera_mini() {
             // `rescue Version.new` covers a comment without an "Opera Mini/<version>".
-            let comment = self
-                .application_comment()
-                .into_iter()
-                .flatten()
-                .find(|c| c.contains("Opera Mini"));
-            let version = comment
-                .and_then(|c| capture_after(c, "Opera Mini/", |c| c.is_ascii_digit() || c == '.'));
+            let comment = self.application_comment().into_iter().flatten().find(|c| c.contains("Opera Mini"));
+            let version = comment.and_then(|c| capture_after(c, "Opera Mini/", |c| c.is_ascii_digit() || c == '.'));
             Some(Version::new(version.unwrap_or("")))
         } else if let Some(product) = self.detect_product("Version") {
             Some(product.version.clone())
@@ -616,14 +557,7 @@ impl Agent {
 
     fn playstation_version(&self) -> Option<Version> {
         let os = self.playstation_os()?;
-        let after = |marker: &str| {
-            Version::new(
-                ruby_split(&os, marker)
-                    .last()
-                    .map(String::as_str)
-                    .unwrap_or(""),
-            )
-        };
+        let after = |marker: &str| Version::new(ruby_split(&os, marker).last().map(String::as_str).unwrap_or(""));
 
         if self.playstation_browser() == Some("Silk") {
             self.last().map(|p| p.version.clone())
@@ -649,20 +583,13 @@ impl Agent {
         {
             return Version::new(&ios.replace('_', "."));
         }
-        let build = self
-            .webkit()
-            .map(|webkit| webkit.as_str().to_string())
-            .unwrap_or_default();
+        let build = self.webkit().map(|webkit| webkit.as_str().to_string()).unwrap_or_default();
         Version::new(webkit_build_version(&build).unwrap_or(""))
     }
 
     /// `Webkit#webkit.version`: the AppleWebKit product's version, or one from a comment.
     fn webkit(&self) -> Option<Version> {
-        if let Some(product) = self
-            .products
-            .iter()
-            .find(|p| p.product.to_lowercase() == "applewebkit")
-        {
+        if let Some(product) = self.products.iter().find(|p| p.product.to_lowercase() == "applewebkit") {
             return Some(product.version.clone());
         }
         self.products
@@ -681,9 +608,7 @@ impl Agent {
 
         Ok(match self.kind {
             Kind::Base | Kind::Libavformat => None,
-            Kind::Edge | Kind::InternetExplorer | Kind::WindowsMediaPlayer => {
-                Some("Windows".into())
-            }
+            Kind::Edge | Kind::InternetExplorer | Kind::WindowsMediaPlayer => Some("Windows".into()),
             Kind::Opera | Kind::AppleCoreMedia => {
                 if comment.is_none() {
                     return Ok(None);
@@ -780,10 +705,7 @@ impl Agent {
                 Some(normalize_os(matched.unwrap_or("")))
             }
             Kind::InternetExplorer => {
-                let joined = self
-                    .application()
-                    .and_then(Product::joined_comment)
-                    .unwrap_or_default();
+                let joined = self.application().and_then(Product::joined_comment).unwrap_or_default();
                 Some(normalize_os(windows_os(&joined).unwrap_or("")))
             }
             Kind::Opera => {
@@ -795,9 +717,9 @@ impl Agent {
                     _ => comment.get(1).cloned(),
                 }
             }
-            Kind::WechatBrowser | Kind::Chrome | Kind::Vivaldi | Kind::AppleCoreMedia => self
-                .application_comment()
-                .and_then(|comment| chrome_os(comment)),
+            Kind::WechatBrowser | Kind::Chrome | Kind::Vivaldi | Kind::AppleCoreMedia => {
+                self.application_comment().and_then(|comment| chrome_os(comment))
+            }
             Kind::Webkit => self.webkit_os(),
             Kind::ITunes => self.itunes_os(),
             Kind::PlayStation => self.playstation_os(),
@@ -853,14 +775,9 @@ impl Agent {
         let full_os = self.application_comment().filter(|c| c.len() > 1)?[1].clone();
         let chars: Vec<char> = full_os.chars().collect();
         let n = chars.len();
-        let reopened = n >= 11
-            && chars[n - 11..n - 4].iter().copied().eq("(Build ".chars())
-            && chars[n - 4..].iter().all(char::is_ascii_digit);
-        Some(if reopened {
-            format!("{full_os})")
-        } else {
-            full_os
-        })
+        let reopened =
+            n >= 11 && chars[n - 11..n - 4].iter().copied().eq("(Build ".chars()) && chars[n - 4..].iter().all(char::is_ascii_digit);
+        Some(if reopened { format!("{full_os})") } else { full_os })
     }
 
     fn playstation_os(&self) -> Option<String> {
@@ -959,16 +876,10 @@ impl Agent {
             Kind::Opera => self.opera_mini(),
             Kind::PlayStation => self.playstation_platform().as_deref() == Some("PlayStation Vita"),
             Kind::PodcastAddict => true,
-            Kind::WindowsMediaPlayer => matches!(
-                self.windows_media_player_os()?,
-                "Windows Phone 8" | "Windows Phone 8.1"
-            ),
+            Kind::WindowsMediaPlayer => matches!(self.windows_media_player_os()?, "Windows Phone 8" | "Windows Phone 8.1"),
             _ => {
                 self.detect_product("Mobile").is_some()
-                    || self
-                        .products
-                        .iter()
-                        .any(|p| p.comment.iter().flatten().any(|c| c == "Mobile"))
+                    || self.products.iter().any(|p| p.comment.iter().flatten().any(|c| c == "Mobile"))
                     || self.try_os()?.is_some_and(|os| os.contains("Android"))
                     || self
                         .application_comment()
@@ -1043,13 +954,9 @@ fn run(s: &[u8], f: impl Fn(u8) -> bool) -> usize {
 fn mac_os_x_version(os: &str) -> Option<Option<&str>> {
     os.char_indices().map(|(i, _)| i).find_map(|i| {
         let rest = &os[i..];
-        let after = rest
-            .strip_prefix("Intel Mac OS X")
-            .or_else(|| rest.strip_prefix("PPC Mac OS X"))?;
+        let after = rest.strip_prefix("Intel Mac OS X").or_else(|| rest.strip_prefix("PPC Mac OS X"))?;
         let after = &after[run(after.as_bytes(), |b| is_ruby_space(b as char))..];
-        let digits = run(after.as_bytes(), |b| {
-            b.is_ascii_digit() || b == b'_' || b == b'.'
-        });
+        let digits = run(after.as_bytes(), |b| b.is_ascii_digit() || b == b'_' || b == b'.');
         Some((digits > 0).then(|| &after[..digits]))
     })
 }
@@ -1058,18 +965,14 @@ fn mac_os_x_version(os: &str) -> Option<Option<&str>> {
 fn ios_version(os: &str) -> Option<&str> {
     os.char_indices().map(|(i, _)| i).find_map(|i| {
         let rest = os[i..].strip_prefix("CPU ")?;
-        [
-            rest.strip_prefix("iPhone "),
-            rest.strip_prefix("iPod "),
-            Some(rest),
-        ]
-        .into_iter()
-        .flatten()
-        .find_map(|rest| {
-            let rest = rest.strip_prefix("OS ")?;
-            let digits = run(rest.as_bytes(), |b| b.is_ascii_digit() || b == b'_');
-            (digits > 0 && rest[digits..].starts_with(" like Mac OS X")).then(|| &rest[..digits])
-        })
+        [rest.strip_prefix("iPhone "), rest.strip_prefix("iPod "), Some(rest)]
+            .into_iter()
+            .flatten()
+            .find_map(|rest| {
+                let rest = rest.strip_prefix("OS ")?;
+                let digits = run(rest.as_bytes(), |b| b.is_ascii_digit() || b == b'_');
+                (digits > 0 && rest[digits..].starts_with(" like Mac OS X")).then(|| &rest[..digits])
+            })
     })
 }
 
@@ -1148,11 +1051,7 @@ fn ie_version(s: &str) -> Option<&str> {
 fn capture_after<'a>(s: &'a str, prefix: &str, class: impl Fn(char) -> bool) -> Option<&'a str> {
     s.match_indices(prefix).find_map(|(i, _)| {
         let tail = &s[i + prefix.len()..];
-        let len: usize = tail
-            .chars()
-            .take_while(|&c| class(c))
-            .map(char::len_utf8)
-            .sum();
+        let len: usize = tail.chars().take_while(|&c| class(c)).map(char::len_utf8).sum();
         (len > 0).then(|| &tail[..len])
     })
 }
@@ -1197,21 +1096,12 @@ pub(crate) mod tests {
     use serde_json::{Value, json};
 
     pub(crate) fn vectors() -> Value {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../vectors/campfire_user_agents.json"
-        );
-        serde_json::from_str(&std::fs::read_to_string(path).expect("read vectors"))
-            .expect("parse vectors")
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../vectors/campfire_user_agents.json");
+        serde_json::from_str(&std::fs::read_to_string(path).expect("read vectors")).expect("parse vectors")
     }
 
     /// Compares a Ruby value (`{"error": ...}` when it raised) with ours.
-    pub(crate) fn check(
-        failures: &mut Vec<String>,
-        context: &str,
-        expected: &Value,
-        actual: Rb<Value>,
-    ) {
+    pub(crate) fn check(failures: &mut Vec<String>, context: &str, expected: &Value, actual: Rb<Value>) {
         let ok = match (expected.get("error"), &actual) {
             (Some(_), Err(Raised)) => true,
             (None, Ok(value)) => value == expected,
@@ -1248,18 +1138,8 @@ pub(crate) mod tests {
                 &case["platform"],
                 agent.try_platform().map(|p| json!(p)),
             );
-            check(
-                &mut failures,
-                &format!("{ua} os"),
-                &case["os"],
-                agent.try_os().map(|o| json!(o)),
-            );
-            check(
-                &mut failures,
-                &format!("{ua} bot"),
-                &case["bot"],
-                Ok(json!(agent.is_bot())),
-            );
+            check(&mut failures, &format!("{ua} os"), &case["os"], agent.try_os().map(|o| json!(o)));
+            check(&mut failures, &format!("{ua} bot"), &case["bot"], Ok(json!(agent.is_bot())));
             check(
                 &mut failures,
                 &format!("{ua} mobile"),
@@ -1268,12 +1148,7 @@ pub(crate) mod tests {
             );
         }
 
-        assert!(
-            failures.is_empty(),
-            "{} mismatches:\n{}",
-            failures.len(),
-            failures.join("\n")
-        );
+        assert!(failures.is_empty(), "{} mismatches:\n{}", failures.len(), failures.join("\n"));
     }
 
     #[test]
@@ -1304,20 +1179,12 @@ pub(crate) mod tests {
                 Ordering::Equal => 0,
                 Ordering::Greater => 1,
             };
-            if json!(cmp) != case["cmp"]
-                || json!(a < b) != case["lt"]
-                || json!(a == b) != case["eq"]
-            {
+            if json!(cmp) != case["cmp"] || json!(a < b) != case["lt"] || json!(a == b) != case["eq"] {
                 failures.push(format!("{case}: cmp={cmp} lt={} eq={}", a < b, a == b));
             }
         }
 
-        assert!(
-            failures.is_empty(),
-            "{} mismatches:\n{}",
-            failures.len(),
-            failures.join("\n")
-        );
+        assert!(failures.is_empty(), "{} mismatches:\n{}", failures.len(), failures.join("\n"));
     }
 
     #[test]

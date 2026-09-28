@@ -7,8 +7,8 @@ use std::cell::RefCell;
 
 use html5ever::tendril::StrTendril;
 use html5ever::tokenizer::{
-    BufferQueue, CharacterTokens, CommentToken, DoctypeToken, EndTag, NullCharacterToken, StartTag, TagToken, Token,
-    TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts,
+    BufferQueue, CharacterTokens, CommentToken, DoctypeToken, EndTag, NullCharacterToken, StartTag, TagToken, Token, TokenSink,
+    TokenSinkResult, Tokenizer, TokenizerOpts,
 };
 
 #[derive(Default)]
@@ -54,8 +54,11 @@ impl TokenSink for Sink {
             NullCharacterToken => self.text.borrow_mut().push('\0'),
             TagToken(tag) => {
                 let name = tag.name.to_string();
-                let mut attrs: Vec<(String, String)> =
-                    tag.attrs.iter().map(|attr| (attr.name.local.to_string(), attr.value.to_string())).collect();
+                let mut attrs: Vec<(String, String)> = tag
+                    .attrs
+                    .iter()
+                    .map(|attr| (attr.name.local.to_string(), attr.value.to_string()))
+                    .collect();
                 // Dropped before flushing, so the text on either side merges as if it weren't there.
                 if tag.kind == StartTag && is_forgery_token(&name, &attrs) {
                     return TokenSinkResult::Continue;
@@ -72,7 +75,9 @@ impl TokenSink for Sink {
             }
             DoctypeToken(doctype) => {
                 self.flush_text();
-                self.lines.borrow_mut().push(format!("<!DOCTYPE {:?}>", doctype.name.map(|n| n.to_string())));
+                self.lines
+                    .borrow_mut()
+                    .push(format!("<!DOCTYPE {:?}>", doctype.name.map(|n| n.to_string())));
             }
             CommentToken(_) => self.flush_text(),
             _ => {}
@@ -105,9 +110,17 @@ pub fn diff(expected: &[String], actual: &[String]) -> Option<String> {
     if expected == actual {
         return None;
     }
-    let first = expected.iter().zip(actual).position(|(e, a)| e != a).unwrap_or(expected.len().min(actual.len()));
+    let first = expected
+        .iter()
+        .zip(actual)
+        .position(|(e, a)| e != a)
+        .unwrap_or(expected.len().min(actual.len()));
     let from = first.saturating_sub(4);
-    let mut report = format!("first difference at token {first} (expected {} tokens, got {})\n", expected.len(), actual.len());
+    let mut report = format!(
+        "first difference at token {first} (expected {} tokens, got {})\n",
+        expected.len(),
+        actual.len()
+    );
     for index in from..(first + 6) {
         let e = expected.get(index).map(String::as_str).unwrap_or("<end>");
         let a = actual.get(index).map(String::as_str).unwrap_or("<end>");

@@ -6,9 +6,9 @@ use campfire_kit::{Ctx, Error, Redirect, Result, StatusCode, format, permit_keys
 use campfire_views::users;
 
 use crate::app::AppCtx;
-use crate::controllers::presenters::page::framed_page;
 use crate::concerns::{self, Before};
 use crate::controllers::presenters::attachments::{self, Assignment, Record};
+use crate::controllers::presenters::page::framed_page;
 use crate::controllers::presenters::{self, accounts::string_attribute};
 
 /// `set_user` (`Current.user`); memberships partitioned into direct and shared rooms.
@@ -47,7 +47,10 @@ pub async fn update(c: &mut Ctx) -> Result {
     let mut user = concerns::require_current_user(c)?.clone();
 
     // params.require(:user).permit(:name, :avatar, :email_address, :password, :bio).compact
-    let params = c.params.require("user")?.permit(&permit_keys(&["name", "avatar", "email_address", "password", "bio"]));
+    let params = c
+        .params
+        .require("user")?
+        .permit(&permit_keys(&["name", "avatar", "email_address", "password", "bio"]));
     let present = |key: &str| string_attribute(&params, key).flatten();
     let changes = UserChanges {
         name: present("name"),
@@ -81,5 +84,11 @@ pub async fn update(c: &mut Ctx) -> Result {
     attachments::analyze_later(c.app(), pending);
 
     let location = c.url_for(&campfire_routes::user_profile());
-    c.redirect_to_with(&location, Redirect { notice: Some(notice.into()), ..Redirect::default() })
+    c.redirect_to_with(
+        &location,
+        Redirect {
+            notice: Some(notice.into()),
+            ..Redirect::default()
+        },
+    )
 }

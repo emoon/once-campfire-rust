@@ -71,7 +71,15 @@ struct Entry {
 
 impl MemoryCache {
     pub fn new(capacity: i64, max_item_size: i64) -> Self {
-        Self { inner: Mutex::new(Inner { capacity, max_item_size, size: 0, keys: Vec::new(), items: HashMap::new() }) }
+        Self {
+            inner: Mutex::new(Inner {
+                capacity,
+                max_item_size,
+                size: 0,
+                keys: Vec::new(),
+                items: HashMap::new(),
+            }),
+        }
     }
 
     pub fn get(&self, key: &str, now: Instant) -> Option<Arc<CachedResponse>> {
@@ -100,7 +108,15 @@ impl MemoryCache {
             Some(existing) => inner.size -= existing.size,
             None => inner.keys.push(key.clone()),
         }
-        inner.items.insert(key, Entry { last_accessed_at: now, expires_at, value: Arc::new(value), size: item_size });
+        inner.items.insert(
+            key,
+            Entry {
+                last_accessed_at: now,
+                expires_at,
+                value: Arc::new(value),
+                size: item_size,
+            },
+        );
         inner.size += item_size;
     }
 
@@ -194,7 +210,11 @@ impl Variant {
         // `/a%2Fb` and `/a/b` one entry.
         let query = encode_query(uri.query().unwrap_or(""));
         let base = format!("{}\n{}\n{query}\n{host}", request.method(), uri.path());
-        Self { base, request_headers: request.headers().clone(), names: Vec::new() }
+        Self {
+            base,
+            request_headers: request.headers().clone(),
+            names: Vec::new(),
+        }
     }
 
     /// `SetResponseHeader`: vary on the response's `Vary` names (canonical, sorted).
@@ -229,7 +249,10 @@ impl Variant {
     }
 
     pub fn variant_headers(&self) -> Vec<(String, String)> {
-        self.names.iter().map(|name| (name.clone(), self.request_value(name).to_string())).collect()
+        self.names
+            .iter()
+            .map(|name| (name.clone(), self.request_value(name).to_string()))
+            .collect()
     }
 
     fn request_value(&self, name: &str) -> &str {
@@ -246,7 +269,9 @@ fn encode_query(query: &str) -> String {
             continue;
         }
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-        let (Some(key), Some(value)) = (query_unescape(key), query_unescape(value)) else { continue };
+        let (Some(key), Some(value)) = (query_unescape(key), query_unescape(value)) else {
+            continue;
+        };
         match values.iter_mut().find(|(k, _)| *k == key) {
             Some((_, list)) => list.push(value),
             None => values.push((key, vec![value])),
@@ -312,7 +337,11 @@ pub fn was_not_modified<B>(cached: &CachedResponse, request: &Request<B>) -> boo
     if etag.is_empty() {
         return false;
     }
-    let if_none_match = request.headers().get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let if_none_match = request
+        .headers()
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if_none_match.split(',').any(|candidate| candidate.trim() == etag)
 }
 
@@ -321,13 +350,21 @@ mod tests {
     use super::*;
 
     fn response(body: &str) -> CachedResponse {
-        CachedResponse { status: StatusCode::OK, headers: HeaderMap::new(), body: Bytes::from(body.to_string()), variant: Vec::new() }
+        CachedResponse {
+            status: StatusCode::OK,
+            headers: HeaderMap::new(),
+            body: Bytes::from(body.to_string()),
+            variant: Vec::new(),
+        }
     }
 
     fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
         let mut map = HeaderMap::new();
         for (name, value) in pairs {
-            map.append(HeaderName::from_bytes(name.as_bytes()).unwrap(), HeaderValue::from_str(value).unwrap());
+            map.append(
+                HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                HeaderValue::from_str(value).unwrap(),
+            );
         }
         map
     }
@@ -335,14 +372,35 @@ mod tests {
     #[test]
     fn lifetime_needs_public_and_a_max_age() {
         let ok = StatusCode::OK;
-        assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "public, max-age=2592000")])), Some(Duration::from_secs(2592000)));
-        assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "max-age=300, public, stale-while-revalidate=604800")])), Some(Duration::from_secs(300)));
-        assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "public, s-max-age=10, max-age=99")])), Some(Duration::from_secs(10)));
-        assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "max-age=0, private, must-revalidate")])), None);
+        assert_eq!(
+            cache_lifetime(ok, &headers(&[("cache-control", "public, max-age=2592000")])),
+            Some(Duration::from_secs(2592000))
+        );
+        assert_eq!(
+            cache_lifetime(
+                ok,
+                &headers(&[("cache-control", "max-age=300, public, stale-while-revalidate=604800")])
+            ),
+            Some(Duration::from_secs(300))
+        );
+        assert_eq!(
+            cache_lifetime(ok, &headers(&[("cache-control", "public, s-max-age=10, max-age=99")])),
+            Some(Duration::from_secs(10))
+        );
+        assert_eq!(
+            cache_lifetime(ok, &headers(&[("cache-control", "max-age=0, private, must-revalidate")])),
+            None
+        );
         assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "public")])), None);
         assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "public, max-age=0")])), None);
-        assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "public, no-cache, max-age=60")])), None);
-        assert_eq!(cache_lifetime(ok, &headers(&[("cache-control", "public, max-age=60"), ("vary", "*")])), None);
+        assert_eq!(
+            cache_lifetime(ok, &headers(&[("cache-control", "public, no-cache, max-age=60")])),
+            None
+        );
+        assert_eq!(
+            cache_lifetime(ok, &headers(&[("cache-control", "public, max-age=60"), ("vary", "*")])),
+            None
+        );
         let public = headers(&[("cache-control", "public, max-age=60")]);
         assert_eq!(cache_lifetime(StatusCode::NOT_MODIFIED, &public), None);
         assert_eq!(cache_lifetime(StatusCode::NOT_FOUND, &public), None);
@@ -370,7 +428,13 @@ mod tests {
 
     #[test]
     fn keys_normalize_the_query_and_include_varying_headers() {
-        let request = |uri: &str, ae: &str| Request::get(uri).header("host", "chat.test").header("accept-encoding", ae).body(()).unwrap();
+        let request = |uri: &str, ae: &str| {
+            Request::get(uri)
+                .header("host", "chat.test")
+                .header("accept-encoding", ae)
+                .body(())
+                .unwrap()
+        };
         let key = |uri: &str| Variant::new(&request(uri, "gzip")).cache_key();
         assert_eq!(key("/a?b=2&a=1"), key("/a?a=1&b=2"));
         assert_eq!(key("/a?q=a+b"), key("/a?q=a%20b"));
@@ -402,7 +466,12 @@ mod tests {
         assert!(cache.get("a", now).is_some());
         assert!(cache.get("a", now + Duration::from_secs(11)).is_none());
 
-        cache.set("big".into(), response_of_size(item as usize + 11), now + Duration::from_secs(10), now);
+        cache.set(
+            "big".into(),
+            response_of_size(item as usize + 11),
+            now + Duration::from_secs(10),
+            now,
+        );
         assert!(cache.get("big", now).is_none(), "larger than the item limit");
 
         cache.set("b".into(), response_of_size(item as usize), now + Duration::from_secs(10), now);

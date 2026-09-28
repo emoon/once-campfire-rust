@@ -23,7 +23,10 @@ fn message_partial_is_the_same_on_every_host() {
     let on_the_reference_host = render(&g);
     g.json["context"]["base_url"] = "https://evil.example".into();
     assert_eq!(render(&g), on_the_reference_host);
-    assert!(on_the_reference_host.contains(&format!("data-copy-to-clipboard-url-value=\"/rooms/{}/@{}\"", message.room_id, message.id)));
+    assert!(on_the_reference_host.contains(&format!(
+        "data-copy-to-clipboard-url-value=\"/rooms/{}/@{}\"",
+        message.room_id, message.id
+    )));
 }
 
 #[test]
@@ -59,7 +62,15 @@ fn create_stream() {
     let g = golden("messages_create");
     let message: messages::MessageItem = g.input_at("message");
     let room_kind: RoomKind = g.input_at("room_kind");
-    g.assert_dom(&g.render(|ctx| messages::CreateStream { ctx, message: &message, room_kind }.render().unwrap()));
+    g.assert_dom(&g.render(|ctx| {
+        messages::CreateStream {
+            ctx,
+            message: &message,
+            room_kind,
+        }
+        .render()
+        .unwrap()
+    }));
 }
 
 #[test]
@@ -87,7 +98,15 @@ fn new_boost() {
     let g = golden("messages_boosts_new");
     let message: MessageView = g.input_at("message");
     let user: UserView = g.input_at("user");
-    g.assert_content(&g.render(|ctx| messages::NewBoost { ctx, message: &message, user: &user }.render().unwrap()));
+    g.assert_content(&g.render(|ctx| {
+        messages::NewBoost {
+            ctx,
+            message: &message,
+            user: &user,
+        }
+        .render()
+        .unwrap()
+    }));
 }
 
 #[test]

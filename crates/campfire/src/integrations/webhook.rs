@@ -88,7 +88,10 @@ pub async fn deliver(net: &Network, url: &str, payload: String) -> Result<Webhoo
 
 async fn deliver_within(net: &Network, url: &str, payload: String, deadline: Duration) -> Result<WebhookDelivery, WebhookError> {
     match tokio::time::timeout(deadline, post(net, url, payload)).await {
-        Ok(Ok((status, content_type, body))) => Ok(WebhookDelivery { status: Some(status), reply: reply(status, content_type, body)? }),
+        Ok(Ok((status, content_type, body))) => Ok(WebhookDelivery {
+            status: Some(status),
+            reply: reply(status, content_type, body)?,
+        }),
         Ok(Err(WebhookError::Http(HttpError::OpenTimeout | HttpError::ReadTimeout))) => Ok(timed_out(ENDPOINT_TIMEOUT)),
         Ok(Err(error)) => Err(error),
         Err(_) => Ok(timed_out(deadline)),
@@ -96,7 +99,10 @@ async fn deliver_within(net: &Network, url: &str, payload: String, deadline: Dur
 }
 
 fn timed_out(after: Duration) -> WebhookDelivery {
-    WebhookDelivery { status: None, reply: WebhookReply::Text(format!("Failed to respond within {} seconds", after.as_secs())) }
+    WebhookDelivery {
+        status: None,
+        reply: WebhookReply::Text(format!("Failed to respond within {} seconds", after.as_secs())),
+    }
 }
 
 /// `post(payload)` over `Net::HTTP.new(uri.host, uri.port)`: the status, content type and body.
@@ -105,19 +111,41 @@ async fn post(net: &Network, url: &str, payload: String) -> Result<(u16, Option<
     if !uri.is_http() {
         return Err(WebhookError::InvalidUrl("not an HTTP URI".into()));
     }
-    let host = uri.host.clone().filter(|h| !h.is_empty()).ok_or_else(|| WebhookError::InvalidUrl("no host component for URI".into()))?;
+    let host = uri
+        .host
+        .clone()
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| WebhookError::InvalidUrl("no host component for URI".into()))?;
     let https = uri.scheme.as_deref().is_some_and(|s| s.eq_ignore_ascii_case("https"));
-    let port = uri.port.and_then(|p| u16::try_from(p).ok()).ok_or_else(|| WebhookError::InvalidUrl("invalid port".into()))?;
-    let endpoint = Endpoint { https, host: host.clone(), port, pinned_ip: None };
+    let port = uri
+        .port
+        .and_then(|p| u16::try_from(p).ok())
+        .ok_or_else(|| WebhookError::InvalidUrl("invalid port".into()))?;
+    let endpoint = Endpoint {
+        https,
+        host: host.clone(),
+        port,
+        pinned_ip: None,
+    };
 
     let hostname = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(&host);
-    let uri_host = if port == if https { 443 } else { 80 } { hostname.to_string() } else { format!("{hostname}:{port}") };
+    let uri_host = if port == if https { 443 } else { 80 } {
+        hostname.to_string()
+    } else {
+        format!("{hostname}:{port}")
+    };
     let headers = vec![("Content-Type".to_string(), "application/json".to_string())];
-    let mut request = http::Request::net_http(hyper::Method::POST, http::request_uri(&uri), Some(uri_host), headers).transport(true, &endpoint);
+    let mut request =
+        http::Request::net_http(hyper::Method::POST, http::request_uri(&uri), Some(uri_host), headers).transport(true, &endpoint);
     request.body = payload.into_bytes();
 
-    let timeouts = Timeouts { open: ENDPOINT_TIMEOUT, read: ENDPOINT_TIMEOUT };
-    let response = http::exchange(net, &endpoint, request, &timeouts).await.map_err(WebhookError::Http)?;
+    let timeouts = Timeouts {
+        open: ENDPOINT_TIMEOUT,
+        read: ENDPOINT_TIMEOUT,
+    };
+    let response = http::exchange(net, &endpoint, request, &timeouts)
+        .await
+        .map_err(WebhookError::Http)?;
     let (status, content_type) = (response.status, response.content_type());
     let body = match response.read_body(MAX_REPLY_SIZE).await.map_err(WebhookError::Http)? {
         Body::Complete(body) => body,
@@ -128,7 +156,9 @@ async fn post(net: &Network, url: &str, payload: String) -> Result<(u16, Option<
 
 /// `extract_text_from`, else `extract_attachment_from`.
 fn reply(status: u16, content_type: Option<String>, body: Vec<u8>) -> Result<WebhookReply, WebhookError> {
-    let Some(content_type) = content_type else { return Ok(WebhookReply::None) };
+    let Some(content_type) = content_type else {
+        return Ok(WebhookReply::None);
+    };
     if status == 200 && (content_type == "text/html" || content_type == "text/plain") {
         return Ok(WebhookReply::Text(String::from_utf8_lossy(&body).into_owned()));
     }
@@ -143,11 +173,20 @@ fn reply(status: u16, content_type: Option<String>, body: Vec<u8>) -> Result<Web
 /// `Mime::Type.lookup(string)`: a registered type (by its string or a synonym), else a new
 /// unregistered type, which must be a valid MIME type.
 fn mime_lookup(string: &str) -> Result<(Option<&'static str>, String), WebhookError> {
-    let registered = |s: &str| MIME_LOOKUP.iter().find(|(key, _, _)| *key == s).map(|(_, symbol, to_s)| (Some(*symbol), to_s.to_string()));
+    let registered = |s: &str| {
+        MIME_LOOKUP
+            .iter()
+            .find(|(key, _, _)| *key == s)
+            .map(|(_, symbol, to_s)| (Some(*symbol), to_s.to_string()))
+    };
     if let Some(found) = registered(string) {
         return Ok(found);
     }
-    let string = string.split(';').next().unwrap_or("").trim_end_matches([' ', '\t', '\n', '\x0b', '\x0c', '\r', '\0']);
+    let string = string
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim_end_matches([' ', '\t', '\n', '\x0b', '\x0c', '\r', '\0']);
     if let Some(found) = registered(string) {
         return Ok(found);
     }
@@ -208,7 +247,11 @@ const MIME_LOOKUP: &[(&str, &str, &str)] = &[
     ("application/x-yaml", "yaml", "application/x-yaml"),
     ("text/yaml", "yaml", "application/x-yaml"),
     ("multipart/form-data", "multipart_form", "multipart/form-data"),
-    ("application/x-www-form-urlencoded", "url_encoded_form", "application/x-www-form-urlencoded"),
+    (
+        "application/x-www-form-urlencoded",
+        "url_encoded_form",
+        "application/x-www-form-urlencoded",
+    ),
     ("application/json", "json", "application/json"),
     ("text/x-json", "json", "application/json"),
     ("application/jsonrequest", "json", "application/json"),
@@ -244,7 +287,12 @@ mod tests {
         let routes = cases
             .iter()
             .map(|c| {
-                let mut route = Route::new("POST", "*", &format!("/{}", c["name"].as_str().unwrap()), c["status"].as_u64().unwrap() as u16);
+                let mut route = Route::new(
+                    "POST",
+                    "*",
+                    &format!("/{}", c["name"].as_str().unwrap()),
+                    c["status"].as_u64().unwrap() as u16,
+                );
                 route.headers = serde_json::from_value(c["headers"].clone()).unwrap();
                 route.body = match c["body_b64"].as_str() {
                     Some(body) => b64(body),
@@ -260,7 +308,10 @@ mod tests {
 
         let runs = cases.iter().map(|c| {
             let net = net.clone();
-            let url = c["url"].as_str().map(str::to_string).unwrap_or_else(|| format!("http://{}/{}", server.addr, c["name"].as_str().unwrap()));
+            let url = c["url"]
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("http://{}/{}", server.addr, c["name"].as_str().unwrap()));
             async move { deliver(&net, &url, r#"{"message":"hi"}"#.to_string()).await }
         });
         let outcomes = futures_join_all(runs).await;
@@ -272,7 +323,9 @@ mod tests {
                     let reply = match delivery.reply {
                         WebhookReply::None => Value::Null,
                         WebhookReply::Text(text) => serde_json::json!({ "text": text }),
-                        WebhookReply::Attachment(a) => serde_json::json!({ "filename": a.filename, "content_type": a.content_type, "data": a.data }),
+                        WebhookReply::Attachment(a) => {
+                            serde_json::json!({ "filename": a.filename, "content_type": a.content_type, "data": a.data })
+                        }
                     };
                     serde_json::json!({ "status": delivery.status, "reply": reply })
                 }
@@ -304,8 +357,10 @@ mod tests {
         // The request as Net::HTTP sends it
         let request = server.received().into_iter().find(|r| r.target == "/text").unwrap();
         let wanted: Vec<(String, String)> = serde_json::from_value(expected[0]["requests"][0]["headers"].clone()).unwrap();
-        let wanted: Vec<(String, String)> =
-            wanted.into_iter().map(|(n, v)| if n == "Host" { (n, server.addr.to_string()) } else { (n, v) }).collect();
+        let wanted: Vec<(String, String)> = wanted
+            .into_iter()
+            .map(|(n, v)| if n == "Host" { (n, server.addr.to_string()) } else { (n, v) })
+            .collect();
         assert_eq!(request.headers, wanted);
         assert_eq!(request.body, expected[0]["requests"][0]["body"].as_str().unwrap().as_bytes());
     }
@@ -326,12 +381,27 @@ mod tests {
     /// is pinned.
     #[tokio::test]
     async fn reaches_internal_services() {
-        let server = FakeServer::start(vec![Route::new("POST", "*", "/hook", 200).header("Content-Type", "text/plain").body("ok")]).await;
+        let server = FakeServer::start(vec![
+            Route::new("POST", "*", "/hook", 200)
+                .header("Content-Type", "text/plain")
+                .body("ok"),
+        ])
+        .await;
         let resolver = Arc::new(FakeResolver::new([("bots.internal", vec!["10.0.0.7"])]));
-        let dialer = Arc::new(MappingDialer { public: HashSet::from(["10.0.0.7".parse().unwrap()]), to: server.addr, dialed: Mutex::new(Vec::new()) });
+        let dialer = Arc::new(MappingDialer {
+            public: HashSet::from(["10.0.0.7".parse().unwrap()]),
+            to: server.addr,
+            dialed: Mutex::new(Vec::new()),
+        });
         let net = network(resolver.clone(), dialer.clone());
         let delivery = deliver(&net, "http://bots.internal:8080/hook", "{}".into()).await.unwrap();
-        assert_eq!(delivery, WebhookDelivery { status: Some(200), reply: WebhookReply::Text("ok".into()) });
+        assert_eq!(
+            delivery,
+            WebhookDelivery {
+                status: Some(200),
+                reply: WebhookReply::Text("ok".into())
+            }
+        );
         assert_eq!(resolver.lookups(), ["bots.internal"]);
         assert_eq!(*dialer.dialed.lock().unwrap(), ["10.0.0.7:8080".parse().unwrap()]);
         assert_eq!(server.received()[0].header("Host"), Some("bots.internal:8080"));
@@ -344,8 +414,16 @@ mod tests {
         let server = trickling_server("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nConnection: close\r\n\r\n").await;
         let net = crate::integrations::net::Network::system();
         let deadline = Duration::from_secs(1);
-        let delivery = deliver_within(&net, &format!("http://{server}/hook"), "{}".into(), deadline).await.unwrap();
-        assert_eq!(delivery, WebhookDelivery { status: None, reply: WebhookReply::Text("Failed to respond within 1 seconds".into()) });
+        let delivery = deliver_within(&net, &format!("http://{server}/hook"), "{}".into(), deadline)
+            .await
+            .unwrap();
+        assert_eq!(
+            delivery,
+            WebhookDelivery {
+                status: None,
+                reply: WebhookReply::Text("Failed to respond within 1 seconds".into())
+            }
+        );
     }
 
     /// A reply that inflates past the limit fails the delivery, having read little more than
@@ -353,7 +431,10 @@ mod tests {
     #[tokio::test]
     async fn rejects_replies_over_the_limit() {
         let bomb = gzip_bomb(MAX_REPLY_SIZE / 1024 / 1024 + 1);
-        let route = Route::new("POST", "*", "/hook", 200).header("Content-Type", "image/png").header("Content-Encoding", "gzip").body(bomb);
+        let route = Route::new("POST", "*", "/hook", 200)
+            .header("Content-Type", "image/png")
+            .header("Content-Encoding", "gzip")
+            .body(bomb);
         let server = FakeServer::start(vec![route]).await;
         let net = crate::integrations::net::Network::system();
         let outcome = deliver(&net, &format!("http://{}/hook", server.addr), "{}".into()).await;
@@ -363,7 +444,10 @@ mod tests {
     #[test]
     fn looks_up_mime_types_like_rails() {
         assert_eq!(mime_lookup("image/jpeg").unwrap(), (Some("jpeg"), "image/jpeg".into()));
-        assert_eq!(mime_lookup("application/x-gzip").unwrap(), (Some("gzip"), "application/gzip".into()));
+        assert_eq!(
+            mime_lookup("application/x-gzip").unwrap(),
+            (Some("gzip"), "application/gzip".into())
+        );
         assert_eq!(mime_lookup("IMAGE/PNG").unwrap(), (None, "IMAGE/PNG".into()));
         assert_eq!(mime_lookup("text/html; charset=utf-8").unwrap(), (Some("html"), "text/html".into()));
         assert_eq!(mime_lookup("video/quicktime").unwrap(), (None, "video/quicktime".into()));

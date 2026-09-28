@@ -10,11 +10,7 @@ fn membership(t: &TestDb) -> Membership {
 }
 
 /// Runs a Connectable method and returns the updated in-memory membership.
-fn run(
-    t: &TestDb,
-    membership: Membership,
-    f: fn(&mut Membership, &mut Tx<'_>) -> Result<()>,
-) -> Membership {
+fn run(t: &TestDb, membership: Membership, f: fn(&mut Membership, &mut Tx<'_>) -> Result<()>) -> Membership {
     t.write(move |tx| {
         let mut m = membership;
         f(&mut m, tx)?;
@@ -150,10 +146,7 @@ fn present_marks_read_and_counts_connections() {
     let reloaded = t.read(|c| Membership::find(c, m.id));
     assert_eq!(reloaded.connections, 1);
     assert_eq!(reloaded.unread_at, None);
-    assert_eq!(
-        reloaded.updated_at, m.updated_at,
-        "Membership.connect doesn't touch updated_at"
-    );
+    assert_eq!(reloaded.updated_at, m.updated_at, "Membership.connect doesn't touch updated_at");
 }
 
 #[test]

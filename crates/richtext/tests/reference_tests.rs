@@ -30,7 +30,11 @@ struct Fixtures;
 
 impl AttachableResolver for Fixtures {
     fn locate_signed(&self, sgid: &str) -> SignedLookup {
-        if sgid == DAVID_SGID { SignedLookup::User(david()) } else { SignedLookup::Invalid }
+        if sgid == DAVID_SGID {
+            SignedLookup::User(david())
+        } else {
+            SignedLookup::Invalid
+        }
     }
 
     fn find_gid(&self, gid: &str) -> GidLookup {
@@ -43,7 +47,10 @@ impl AttachableResolver for Fixtures {
 }
 
 fn ctx() -> RenderContext<'static> {
-    RenderContext { resolver: &Fixtures, request_host: Some("once.campfire.test".into()) }
+    RenderContext {
+        resolver: &Fixtures,
+        request_host: Some("once.campfire.test".into()),
+    }
 }
 
 /// test_helper.rb's `mention_attachment_for(:david)`
@@ -120,7 +127,10 @@ fn unfurled_tweet_with_a_content_image_is_not_styled_as_an_avatar() {
 
 #[test]
 fn entire_message_contains_an_unfurled_url_from_x_com_but_unfurls_to_twitter_com() {
-    for text in ["https://x.com/dhh/status/1752476663303323939", "https://x.com/dhh/status/1752476663303323939?s=20"] {
+    for text in [
+        "https://x.com/dhh/status/1752476663303323939",
+        "https://x.com/dhh/status/1752476663303323939?s=20",
+    ] {
         let body = format!("<div>{text}{TWITTER_UNFURL}</div>");
         let result = filtered(&body);
         assert_ne!(loaded(&body), result);
@@ -139,7 +149,10 @@ fn message_keeps_strikethrough_underline_and_code_block_formatting() {
 
 #[test]
 fn message_contains_a_forbidden_tag() {
-    assert_eq!(filtered("Hello <img src=\"https://ssecurityrise.com/tests/billionlaughs-cache.svg\">World"), "Hello World");
+    assert_eq!(
+        filtered("Hello <img src=\"https://ssecurityrise.com/tests/billionlaughs-cache.svg\">World"),
+        "Hello World"
+    );
 }
 
 #[test]
@@ -167,7 +180,9 @@ fn message_with_a_data_uri_link() {
 
 #[test]
 fn message_with_a_safe_link_and_formatting_is_preserved() {
-    let result = filtered("<div><a href=\"https://example.com\">example</a> <strong>bold</strong> <code>code</code><ul><li>one</li><li>two</li></ul></div>");
+    let result = filtered(
+        "<div><a href=\"https://example.com\">example</a> <strong>bold</strong> <code>code</code><ul><li>one</li><li>two</li></ul></div>",
+    );
     assert!(result.contains("<a href=\"https://example.com\">example</a>"));
     assert!(result.contains("<strong>bold</strong>"));
     assert!(result.contains("<code>code</code>"));
@@ -243,13 +258,22 @@ fn editable_attachment(body: &str) -> (String, String) {
     let value = editable_value(body, &ctx()).unwrap().unwrap();
     let mut dom = Dom::new();
     let root = dom.parse_fragment(&value).unwrap();
-    let node = dom.descendants(root).into_iter().find(|&n| dom.local_name(n) == Some("action-text-attachment")).unwrap();
-    (dom.attr(node, "content-type").unwrap().to_string(), dom.attr(node, "content").unwrap().to_string())
+    let node = dom
+        .descendants(root)
+        .into_iter()
+        .find(|&n| dom.local_name(n) == Some("action-text-attachment"))
+        .unwrap();
+    (
+        dom.attr(node, "content-type").unwrap().to_string(),
+        dom.attr(node, "content").unwrap().to_string(),
+    )
 }
 
 #[test]
 fn editable_body_renders_legacy_opengraph_embeds_into_the_content_attribute() {
-    let (_, content) = editable_attachment("<div>https://example.com/ <action-text-attachment content-type=\"application/vnd.actiontext.opengraph-embed\" url=\"https://example.com/image.png\" href=\"https://example.com/\" filename=\"Example title\" caption=\"Example description\"></action-text-attachment></div>");
+    let (_, content) = editable_attachment(
+        "<div>https://example.com/ <action-text-attachment content-type=\"application/vnd.actiontext.opengraph-embed\" url=\"https://example.com/image.png\" href=\"https://example.com/\" filename=\"Example title\" caption=\"Example description\"></action-text-attachment></div>",
+    );
     // A Trix-era embed has a url, so Lexxy leaves the content as the rendered partial
     assert!(content.contains("<a rel=\"noreferrer\" target=\"_blank\" href=\"https://example.com/\">Example title</a>"));
     assert!(content.contains("<div class=\"og-embed__description\">Example description</div>"));
@@ -281,7 +305,10 @@ fn editable_body_restores_the_content_type_of_a_mention_edited_under_trix() {
 
 #[test]
 fn editable_body_leaves_bodies_without_attachments_unchanged() {
-    assert_eq!(editable_value("<p>Plain text</p>", &ctx()).unwrap().as_deref(), Some("<p>Plain text</p>"));
+    assert_eq!(
+        editable_value("<p>Plain text</p>", &ctx()).unwrap().as_deref(),
+        Some("<p>Plain text</p>")
+    );
 }
 
 // --- test/lib/rails_ext/action_text_attachables_test.rb, test/models/action_text_attachment_test.rb
@@ -317,7 +344,10 @@ fn lookup_user_attachable_with_invalid_signature() {
 #[test]
 fn lookup_invalid_sgid_for_an_attachable_requiring_a_valid_sgid() {
     // A tampered SGID for any model but User is a missing attachable, which renders as ☒
-    for sgid in [format!("{ROOM_SGID_MESSAGE}--invalid"), format!("{ROOM_SGID_MESSAGE}--f7d8e8773314d3310320f3cdd08e5597bb51ca1ainvalid")] {
+    for sgid in [
+        format!("{ROOM_SGID_MESSAGE}--invalid"),
+        format!("{ROOM_SGID_MESSAGE}--f7d8e8773314d3310320f3cdd08e5597bb51ca1ainvalid"),
+    ] {
         assert_eq!(attachment_plain_text(Some(&sgid)), "");
         let html = presentation(&format!("<p><action-text-attachment sgid=\"{sgid}\"></action-text-attachment></p>"));
         assert!(html.contains("☒"), "{html}");
@@ -335,15 +365,32 @@ fn lookup_attachable_with_nil_sgid() {
 
 #[test]
 fn keeps_absolute_http_and_https_links_and_images() {
-    assert_eq!(web_url(Some("http://example.com/page"), "").unwrap().as_deref(), Some("http://example.com/page"));
-    assert_eq!(web_url(Some("https://example.com/image.png"), "").unwrap().as_deref(), Some("https://example.com/image.png"));
+    assert_eq!(
+        web_url(Some("http://example.com/page"), "").unwrap().as_deref(),
+        Some("http://example.com/page")
+    );
+    assert_eq!(
+        web_url(Some("https://example.com/image.png"), "").unwrap().as_deref(),
+        Some("https://example.com/image.png")
+    );
 }
 
 #[test]
 fn drops_a_link_and_an_image_that_arent_web_urls() {
     for value in [
-        "javascript:alert(1)", "data:text/html,pwned", "vbscript:msgbox(1)", "//example.com/image.png", "/rooms/1", "rooms/1", "",
-        "http://exa mple.com/ ", "https:/rooms/1", "https:rooms/1", "http:/rooms/1", "https://", "http://:80/rooms/1",
+        "javascript:alert(1)",
+        "data:text/html,pwned",
+        "vbscript:msgbox(1)",
+        "//example.com/image.png",
+        "/rooms/1",
+        "rooms/1",
+        "",
+        "http://exa mple.com/ ",
+        "https:/rooms/1",
+        "https:rooms/1",
+        "http:/rooms/1",
+        "https://",
+        "http://:80/rooms/1",
     ] {
         assert_eq!(web_url(Some(value), "").unwrap(), None, "{value:?}");
     }
@@ -352,8 +399,12 @@ fn drops_a_link_and_an_image_that_arent_web_urls() {
 #[test]
 fn drops_a_link_and_an_image_on_this_campfires_own_host_however_it_is_spelled() {
     for value in [
-        "https://once.campfire.test/rooms/1", "http://once.campfire.test/rooms/1", "https://ONCE.Campfire.Test/rooms/1",
-        "https://once.campfire.test./rooms/1", "https://%6fnce.campfire.test/rooms/1", "https://%77ww.example.com/x.png",
+        "https://once.campfire.test/rooms/1",
+        "http://once.campfire.test/rooms/1",
+        "https://ONCE.Campfire.Test/rooms/1",
+        "https://once.campfire.test./rooms/1",
+        "https://%6fnce.campfire.test/rooms/1",
+        "https://%77ww.example.com/x.png",
     ] {
         assert_eq!(web_url(Some(value), "once.campfire.test").unwrap(), None, "{value:?}");
     }
@@ -363,8 +414,14 @@ fn drops_a_link_and_an_image_on_this_campfires_own_host_however_it_is_spelled() 
 #[test]
 fn drops_a_link_and_an_image_on_a_bare_address_rather_than_a_domain_name() {
     for value in [
-        "http://127.0.0.1/rooms/1", "http://2130706433/rooms/1", "http://0177.0.0.1/rooms/1", "http://0x7f.0.0.1/rooms/1",
-        "http://1.2.3.0xff/rooms/1", "http://[::1]/rooms/1", "http://localhost/rooms/1", "https://203.0.113.10/image.png",
+        "http://127.0.0.1/rooms/1",
+        "http://2130706433/rooms/1",
+        "http://0177.0.0.1/rooms/1",
+        "http://0x7f.0.0.1/rooms/1",
+        "http://1.2.3.0xff/rooms/1",
+        "http://[::1]/rooms/1",
+        "http://localhost/rooms/1",
+        "https://203.0.113.10/image.png",
     ] {
         assert_eq!(web_url(Some(value), "").unwrap(), None, "{value:?}");
     }
@@ -377,7 +434,9 @@ fn keeps_an_internationalized_domain_written_in_punycode() {
 
 #[test]
 fn renders_the_title_and_the_description_as_text() {
-    let html = presentation("<action-text-attachment content-type=\"application/vnd.actiontext.opengraph-embed\" href=\"https://example.com/page\" url=\"https://example.com/image.png\" filename=\"&lt;b&gt;Title&lt;/b&gt;\" caption=\"&lt;img src=x onerror=alert(1)&gt;\"></action-text-attachment>");
+    let html = presentation(
+        "<action-text-attachment content-type=\"application/vnd.actiontext.opengraph-embed\" href=\"https://example.com/page\" url=\"https://example.com/image.png\" filename=\"&lt;b&gt;Title&lt;/b&gt;\" caption=\"&lt;img src=x onerror=alert(1)&gt;\"></action-text-attachment>",
+    );
     assert!(!html.contains("<b>"));
     assert!(!html.contains("<img src=x"));
     assert!(html.contains("&lt;b&gt;Title&lt;/b&gt;"));
@@ -387,13 +446,20 @@ fn renders_the_title_and_the_description_as_text() {
 
 #[test]
 fn rich_text_body_is_converted_to_plain_text_for_indexing() {
-    assert_eq!(to_plain_text("<span>My hovercraft is full of eels</span>", &ctx()).unwrap(), "My hovercraft is full of eels");
+    assert_eq!(
+        to_plain_text("<span>My hovercraft is full of eels</span>", &ctx()).unwrap(),
+        "My hovercraft is full of eels"
+    );
     assert_eq!(to_plain_text("First post!", &ctx()).unwrap(), "First post!");
 }
 
 #[test]
 fn mentionees_are_the_mentioned_users_once_each() {
-    let body = format!("<div>Hey {} {}</div>", mention_attachment_for_david(), mention_attachment_for_david());
+    let body = format!(
+        "<div>Hey {} {}</div>",
+        mention_attachment_for_david(),
+        mention_attachment_for_david()
+    );
     let users = mentioned_users(&body, &ctx()).unwrap();
     assert_eq!(users.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1]);
 }

@@ -5,10 +5,10 @@ use base64::Engine;
 use regex::Regex;
 use std::sync::LazyLock;
 
+use crate::Error;
 use crate::dom::{Dom, NodeId};
 use crate::ruby::{html_escape, is_blank, presence, strip, truncate};
 use crate::uri::{self, UriError};
-use crate::Error;
 
 pub const MENTION_CONTENT_TYPE: &str = "application/vnd.campfire.mention";
 pub const OPENGRAPH_EMBED_CONTENT_TYPE: &str = "application/vnd.actiontext.opengraph-embed";
@@ -86,13 +86,27 @@ pub enum Attachable {
     User(MentionUser),
     OpengraphEmbed(OpengraphEmbed),
     /// `ActionText::Attachables::ContentAttachment`
-    Content { content: String },
+    Content {
+        content: String,
+    },
     /// `ActionText::Attachables::RemoteImage`
-    RemoteImage { url: String, width: Option<String>, height: Option<String> },
+    RemoteImage {
+        url: String,
+        width: Option<String>,
+        height: Option<String>,
+    },
     /// Lexxy's `ActionText::Attachables::RemoteVideo`
-    RemoteVideo { url: String, content_type: String, width: Option<String>, height: Option<String>, filename: Option<String> },
+    RemoteVideo {
+        url: String,
+        content_type: String,
+        width: Option<String>,
+        height: Option<String>,
+        filename: Option<String>,
+    },
     /// `ActionText::Attachables::MissingAttachable`, remembering the model a still-valid SGID named
-    Missing { signed_model: Option<String> },
+    Missing {
+        signed_model: Option<String>,
+    },
 }
 
 impl Attachable {
@@ -114,8 +128,7 @@ pub struct Attachment {
 
 // --- Resolution --------------------------------------------------------------------------------
 
-static OPENGRAPH_CONTENT_TYPE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"application/vnd.actiontext.opengraph-embed").unwrap());
+static OPENGRAPH_CONTENT_TYPE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"application/vnd.actiontext.opengraph-embed").unwrap());
 static IMAGE_CONTENT_TYPE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^image(/.+|$)").unwrap());
 static VIDEO_CONTENT_TYPE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^video(/.+|$)").unwrap());
 static MARSHALED_GID_RE: LazyLock<regex::bytes::Regex> =
@@ -126,7 +139,10 @@ static MARSHALED_GID_RE: LazyLock<regex::bytes::Regex> =
 /// lookup (as extended by Lexxy).
 pub fn attachment_from_node(dom: &Dom, node: NodeId, ctx: &RenderContext) -> Result<Attachment, Error> {
     let attachable = attachable_from_node(dom, node, ctx)?;
-    Ok(Attachment { attachable, caption: presence(dom.attr(node, "caption")).map(str::to_string) })
+    Ok(Attachment {
+        attachable,
+        caption: presence(dom.attr(node, "caption")).map(str::to_string),
+    })
 }
 
 fn attachable_from_node(dom: &Dom, node: NodeId, ctx: &RenderContext) -> Result<Attachable, Error> {
@@ -143,15 +159,22 @@ fn attachable_from_node(dom: &Dom, node: NodeId, ctx: &RenderContext) -> Result<
 /// `Content#attachables` (and so `Message#mentionees`) uses this directly, without Campfire's
 /// invalid-signature fallback.
 pub fn action_text_attachable_from_node(dom: &Dom, node: NodeId, ctx: &RenderContext) -> Attachable {
-    let signed = dom.attr(node, "sgid").map(|sgid| ctx.resolver.locate_signed(sgid)).unwrap_or(SignedLookup::Invalid);
+    let signed = dom
+        .attr(node, "sgid")
+        .map(|sgid| ctx.resolver.locate_signed(sgid))
+        .unwrap_or(SignedLookup::Invalid);
     if let SignedLookup::User(user) = signed {
         return Attachable::User(user);
     }
     let content_type = dom.attr(node, "content-type");
     if let Some(content) = dom.attr(node, "content")
-        && content_type.is_some_and(|t| t.contains("html")) && !is_blank(content) {
-            return Attachable::Content { content: content.to_string() };
-        }
+        && content_type.is_some_and(|t| t.contains("html"))
+        && !is_blank(content)
+    {
+        return Attachable::Content {
+            content: content.to_string(),
+        };
+    }
     if let Some(url) = dom.attr(node, "url") {
         if IMAGE_CONTENT_TYPE_RE.is_match(content_type.unwrap_or("")) {
             return Attachable::RemoteImage {
@@ -183,7 +206,14 @@ pub fn action_text_attachable_from_node(dom: &Dom, node: NodeId, ctx: &RenderCon
 fn attachable_from_possibly_expired_sgid(sgid: Option<&str>, ctx: &RenderContext) -> Result<Option<MentionUser>, Error> {
     let Some(sgid) = sgid else { return Ok(None) };
     // `sgid.split("--").first`: Ruby drops trailing empty fields, so "" and "--" have no first
-    let Some(message) = sgid.split("--").collect::<Vec<_>>().into_iter().rev().skip_while(|f| f.is_empty()).last() else {
+    let Some(message) = sgid
+        .split("--")
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .skip_while(|f| f.is_empty())
+        .last()
+    else {
         return Ok(None);
     };
     let decoded = decode_base64(message)?;
@@ -204,16 +234,23 @@ fn attachable_from_possibly_expired_sgid(sgid: Option<&str>, ctx: &RenderContext
         Some(serde_json::Value::Object(map)) => Some(map),
         Some(_) => return Err(Error::Raised("TypeError: dig")),
     };
-    let truthy = |v: Option<&serde_json::Value>| v.filter(|v| !matches!(v, serde_json::Value::Null | serde_json::Value::Bool(false))).cloned();
+    let truthy = |v: Option<&serde_json::Value>| {
+        v.filter(|v| !matches!(v, serde_json::Value::Null | serde_json::Value::Bool(false)))
+            .cloned()
+    };
     let gid: Option<String> = if let Some(data) = truthy(rails.and_then(|r| r.get("data"))) {
         // GlobalID.find of anything but a string finds nothing
         data.as_str().map(str::to_string)
     } else if let Some(message) = truthy(rails.and_then(|r| r.get("message"))) {
         // Rails 7 Marshal-dumped the GID. The signature isn't verified, so the dump can't be
         // safely loaded; the GID is matched out of its bytes instead.
-        let serde_json::Value::String(message) = message else { return Err(Error::Raised("NoMethodError: unpack1")) };
+        let serde_json::Value::String(message) = message else {
+            return Err(Error::Raised("NoMethodError: unpack1"));
+        };
         let bytes = decode_base64(&message)?;
-        MARSHALED_GID_RE.find(&bytes).map(|m| String::from_utf8_lossy(m.as_bytes()).into_owned())
+        MARSHALED_GID_RE
+            .find(&bytes)
+            .map(|m| String::from_utf8_lossy(m.as_bytes()).into_owned())
     } else {
         None
     };
@@ -236,14 +273,18 @@ fn decode_base64(message: &str) -> Result<Vec<u8>, Error> {
     } else {
         message.to_string()
     };
-    strict.decode(padded.replace('-', "+").replace('_', "/")).map_err(|_| Error::Raised("ArgumentError: invalid base64"))
+    strict
+        .decode(padded.replace('-', "+").replace('_', "/"))
+        .map_err(|_| Error::Raised("ArgumentError: invalid base64"))
 }
 
 // --- Opengraph embeds --------------------------------------------------------------------------
 
 /// `ActionText::Attachment::OpengraphEmbed.from_node`
 pub fn opengraph_embed_from_node(dom: &Dom, node: NodeId, ctx: &RenderContext) -> Result<Option<OpengraphEmbed>, Error> {
-    let Some(content_type) = dom.attr(node, "content-type") else { return Ok(None) };
+    let Some(content_type) = dom.attr(node, "content-type") else {
+        return Ok(None);
+    };
     if !OPENGRAPH_CONTENT_TYPE_RE.is_match(content_type) {
         return Ok(None);
     }
@@ -285,12 +326,15 @@ fn embed_from_content(content: &str, host: &str) -> Result<OpengraphEmbed, Error
 }
 
 fn has_class(dom: &Dom, node: NodeId, class: &str) -> bool {
-    dom.attr(node, "class").is_some_and(|c| c.split([' ', '\t', '\n', '\r']).any(|token| token == class))
+    dom.attr(node, "class")
+        .is_some_and(|c| c.split([' ', '\t', '\n', '\r']).any(|token| token == class))
 }
 
 /// `web_url`: an absolute http(s) URL on a named host other than this Campfire's.
 pub fn web_url(value: Option<&str>, request_host: &str) -> Result<Option<String>, Error> {
-    let Some(value) = value.filter(|v| !is_blank(v)) else { return Ok(None) };
+    let Some(value) = value.filter(|v| !is_blank(v)) else {
+        return Ok(None);
+    };
     match uri::parse(value) {
         Err(UriError::InvalidUri) => Ok(None),
         Err(UriError::InvalidComponent) => Err(Error::Raised("URI::InvalidComponentError")),
@@ -340,10 +384,7 @@ impl OpengraphEmbed {
 
 /// `render_action_text_attachment(attachment)`: the attachable's partial, chomped. `render_content`
 /// renders a nested content attachment's own content (`ContentAttachment#to_html`).
-pub fn render_attachment(
-    attachment: &Attachment,
-    render_content: &dyn Fn(&str) -> Result<String, Error>,
-) -> Result<String, Error> {
+pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) -> Result<String, Error>) -> Result<String, Error> {
     let html = match &attachment.attachable {
         Attachable::User(user) => render_mention(user),
         Attachable::OpengraphEmbed(embed) => render_opengraph_embed(embed),
@@ -352,20 +393,33 @@ pub fn render_attachment(
         // raised and blanked the whole message; every missing attachable is Action Text's ☒ here.
         Attachable::Missing { .. } => "☒".to_string(),
         Attachable::Content { content } => {
-            format!("<figure class=\"attachment attachment--content\">\n  {}\n</figure>\n", render_content(content)?)
+            format!(
+                "<figure class=\"attachment attachment--content\">\n  {}\n</figure>\n",
+                render_content(content)?
+            )
         }
         Attachable::RemoteImage { url, width, height } => {
             let mut html = String::from("<figure class=\"attachment attachment--preview\">\n  ");
             html.push_str(&image_tag(url, width.as_deref(), height.as_deref())?);
             html.push('\n');
             if let Some(caption) = &attachment.caption {
-                html.push_str(&format!("    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n", html_escape(caption)));
+                html.push_str(&format!(
+                    "    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n",
+                    html_escape(caption)
+                ));
             }
             html.push_str("</figure>\n");
             html
         }
-        Attachable::RemoteVideo { url, content_type, width, height, .. } => {
-            let mut html = String::from("<figure class=\"attachment attachment--preview attachment--video\">\n  <video controls=\"controls\"");
+        Attachable::RemoteVideo {
+            url,
+            content_type,
+            width,
+            height,
+            ..
+        } => {
+            let mut html =
+                String::from("<figure class=\"attachment attachment--preview attachment--video\">\n  <video controls=\"controls\"");
             for (name, value) in [("width", width), ("height", height)] {
                 if let Some(v) = value {
                     html.push_str(&format!(" {name}=\"{}\"", html_escape(v)));
@@ -377,7 +431,10 @@ pub fn render_attachment(
                 html_escape(content_type)
             ));
             if let Some(caption) = &attachment.caption {
-                html.push_str(&format!("    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n", html_escape(caption)));
+                html.push_str(&format!(
+                    "    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n",
+                    html_escape(caption)
+                ));
             }
             html.push_str("</figure>\n");
             html
@@ -406,7 +463,11 @@ pub fn render_opengraph_embed(embed: &OpengraphEmbed) -> String {
                 Some(f) => html_escape(&truncate(f, 280, "…")),
                 None => html_escape(href),
             };
-            format!("<a rel=\"noreferrer\" target=\"_blank\" href=\"{}\">{}</a>", html_escape(href), text)
+            format!(
+                "<a rel=\"noreferrer\" target=\"_blank\" href=\"{}\">{}</a>",
+                html_escape(href),
+                text
+            )
         }
         (None, Some(f)) => html_escape(&truncate(f, 280, "…")),
         (None, None) => String::new(),

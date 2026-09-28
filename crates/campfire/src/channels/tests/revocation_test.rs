@@ -19,8 +19,14 @@ async fn room_channels(app: &TestApp) -> Vec<(String, String)> {
     vec![
         (room_identifier("RoomChannel", designers.id), format!("room:{gid}")),
         (room_identifier("PresenceChannel", designers.id), format!("presence:{gid}")),
-        (room_identifier("TypingNotificationsChannel", designers.id), format!("typing_notifications:{gid}")),
-        (identifier(json!({ "channel": "RoomMessagesChannel", "signed_stream_name": signed })), messages.clone()),
+        (
+            room_identifier("TypingNotificationsChannel", designers.id),
+            format!("typing_notifications:{gid}"),
+        ),
+        (
+            identifier(json!({ "channel": "RoomMessagesChannel", "signed_stream_name": signed })),
+            messages.clone(),
+        ),
     ]
 }
 
@@ -124,6 +130,7 @@ async fn only_the_revoked_users_connections_are_closed() {
     kevin.until_closed().await;
 
     let designers = app.room("designers").await;
-    app.server.broadcast(&format!("room:{}", room_gid(&designers).to_param()), &json!({ "still": "here" }));
+    app.server
+        .broadcast(&format!("room:{}", room_gid(&designers).to_param()), &json!({ "still": "here" }));
     assert_eq!(jz.next_text().await, delivery(&room, r#"{"still":"here"}"#));
 }

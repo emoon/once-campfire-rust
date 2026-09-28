@@ -198,7 +198,11 @@ impl CertManager {
     async fn renew_forever(self: Arc<Self>, name: String, mut not_after: SystemTime) {
         loop {
             let jitter = RENEW_JITTER.mul_f64(rand::random::<f64>());
-            let wait = not_after.duration_since(SystemTime::now()).unwrap_or_default().saturating_sub(RENEW_BEFORE).saturating_sub(jitter);
+            let wait = not_after
+                .duration_since(SystemTime::now())
+                .unwrap_or_default()
+                .saturating_sub(RENEW_BEFORE)
+                .saturating_sub(jitter);
             tokio::time::sleep(wait).await;
             match self.issue(&name).await {
                 Ok((certificate, expires)) => {
@@ -252,7 +256,11 @@ impl CertManager {
     async fn order(&self, account: &Account, name: &str, challenge_type: ChallengeType) -> Result<(Arc<CertifiedKey>, SystemTime), Error> {
         let identifiers = [Identifier::Dns(name.to_string())];
         let mut order = account.new_order(&NewOrder::new(&identifiers)).await?;
-        let mut provisioned = Provisioned { manager: self, http_paths: Vec::new(), alpn_domains: Vec::new() };
+        let mut provisioned = Provisioned {
+            manager: self,
+            http_paths: Vec::new(),
+            alpn_domains: Vec::new(),
+        };
         {
             let mut authorizations = order.authorizations();
             while let Some(authorization) = authorizations.next().await {
@@ -263,7 +271,9 @@ impl CertManager {
                     status => return Err(format!("authorization is {status:?}").into()),
                 }
                 let domain = authorization.identifier().to_string();
-                let mut challenge = authorization.challenge(challenge_type.clone()).ok_or("challenge type not offered")?;
+                let mut challenge = authorization
+                    .challenge(challenge_type.clone())
+                    .ok_or("challenge type not offered")?;
                 let key_authorization = challenge.key_authorization();
                 match challenge_type {
                     ChallengeType::TlsAlpn01 => {
@@ -273,7 +283,10 @@ impl CertManager {
                     }
                     ChallengeType::Http01 => {
                         let path = format!("/.well-known/acme-challenge/{}", challenge.token);
-                        self.http_tokens.write().unwrap().insert(path.clone(), key_authorization.as_str().to_string());
+                        self.http_tokens
+                            .write()
+                            .unwrap()
+                            .insert(path.clone(), key_authorization.as_str().to_string());
                         provisioned.http_paths.push(path);
                     }
                     _ => return Err("unsupported challenge type".into()),
@@ -293,7 +306,9 @@ impl CertManager {
         params.distinguished_name.push(rcgen::DnType::CommonName, name);
         let csr = params.serialize_request(&key)?;
         order.finalize_csr(csr.der()).await?;
-        let chain = order.poll_certificate(&RetryPolicy::new().timeout(Duration::from_secs(120))).await?;
+        let chain = order
+            .poll_certificate(&RetryPolicy::new().timeout(Duration::from_secs(120)))
+            .await?;
 
         let pem = cache_entry(&key.serialize_der(), &chain)?;
         let parsed = parse_cached(pem.as_bytes(), name)?;
@@ -321,14 +336,25 @@ impl CertManager {
             }
             None => match &self.options.external_account {
                 Some((kid, hmac)) => {
-                    let new_account = NewAccount { contact: &[], terms_of_service_agreed: true, only_return_existing: false };
-                    let (account, credentials) = builder()?.create(&new_account, directory, Some(&ExternalAccountKey::new(kid.clone(), hmac))).await?;
-                    self.write_cache_file(ACCOUNT_KEY, private_key_pem(credentials.private_key().secret_pkcs8_der())?.into_bytes()).await?;
+                    let new_account = NewAccount {
+                        contact: &[],
+                        terms_of_service_agreed: true,
+                        only_return_existing: false,
+                    };
+                    let (account, credentials) = builder()?
+                        .create(&new_account, directory, Some(&ExternalAccountKey::new(kid.clone(), hmac)))
+                        .await?;
+                    self.write_cache_file(
+                        ACCOUNT_KEY,
+                        private_key_pem(credentials.private_key().secret_pkcs8_der())?.into_bytes(),
+                    )
+                    .await?;
                     account
                 }
                 None => {
                     let (key, pkcs8) = Key::generate_pkcs8()?;
-                    self.write_cache_file(ACCOUNT_KEY, private_key_pem(pkcs8.secret_pkcs8_der())?.into_bytes()).await?;
+                    self.write_cache_file(ACCOUNT_KEY, private_key_pem(pkcs8.secret_pkcs8_der())?.into_bytes())
+                        .await?;
                     builder()?.create_from_key((key, PrivateKeyDer::Pkcs8(pkcs8)), directory).await?.0
                 }
             },
@@ -463,7 +489,9 @@ fn parse_cached(pem: &[u8], domain: &str) -> Result<(Arc<CertifiedKey>, SystemTi
 
 /// `x509.Certificate.VerifyHostname` for DNS names, including wildcards.
 fn covers(certificate: &x509_parser::certificate::X509Certificate<'_>, domain: &str) -> bool {
-    let Ok(Some(names)) = certificate.subject_alternative_name() else { return false };
+    let Ok(Some(names)) = certificate.subject_alternative_name() else {
+        return false;
+    };
     names.value.general_names.iter().any(|name| match name {
         x509_parser::extensions::GeneralName::DNSName(pattern) => {
             let pattern = pattern.to_ascii_lowercase();
@@ -540,7 +568,10 @@ mod tests {
         assert!(not_after > SystemTime::now());
         assert!(parse_cached(pem.as_bytes(), "other.example.com").is_err());
         let wildcard = cache_entry(&key.serialize_der(), &self_signed(&["*.example.com"]).0);
-        assert!(parse_cached(wildcard.unwrap().as_bytes(), "chat.example.com").is_err(), "a key that doesn't match its certificate");
+        assert!(
+            parse_cached(wildcard.unwrap().as_bytes(), "chat.example.com").is_err(),
+            "a key that doesn't match its certificate"
+        );
     }
 
     #[test]
@@ -562,7 +593,10 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            assert_eq!(std::fs::metadata(path.join("chat.example.com")).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(
+                std::fs::metadata(path.join("chat.example.com")).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
             assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o700);
         }
     }

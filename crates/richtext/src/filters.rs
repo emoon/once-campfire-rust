@@ -1,12 +1,12 @@
 //! `ContentFilters::TextMessagePresentationFilters` (reference/app/helpers/content_filters/*.rb):
 //! RemoveSoloUnfurledLinkText, SanitizeTags, SanitizeAttributes, applied in that order.
 
+use crate::Error;
 use crate::attachables::{OPENGRAPH_EMBED_CONTENT_TYPE, RenderContext, opengraph_embed_from_node};
 use crate::content::{ATTACHMENT_TAG, Content};
 use crate::ruby::{is_blank, strip};
 use crate::sanitizer::{self, SafeList, sanitize_tags_allowed_tags};
 use crate::uri::{self, UriError};
-use crate::Error;
 
 pub fn apply(content: Content, ctx: &RenderContext) -> Result<Content, Error> {
     let content = remove_solo_unfurled_link_text(content, ctx)?;
@@ -22,7 +22,9 @@ pub fn remove_solo_unfurled_link_text(content: Content, ctx: &RenderContext) -> 
         .dom
         .descendants(content.root)
         .into_iter()
-        .filter(|&n| content.dom.local_name(n) == Some(ATTACHMENT_TAG) && content.dom.attr(n, "content-type") == Some(OPENGRAPH_EMBED_CONTENT_TYPE))
+        .filter(|&n| {
+            content.dom.local_name(n) == Some(ATTACHMENT_TAG) && content.dom.attr(n, "content-type") == Some(OPENGRAPH_EMBED_CONTENT_TYPE)
+        })
         .collect();
     let solo_unfurled_url = if unfurled_links.len() == 1 {
         opengraph_embed_from_node(&content.dom, unfurled_links[0], ctx)?.and_then(|embed| embed.href)
@@ -40,11 +42,21 @@ pub fn remove_solo_unfurled_link_text(content: Content, ctx: &RenderContext) -> 
     if is_trix_body {
         // Every div gets the unfurl as its only content
         let unfurl = dom.to_html(unfurled_links[0]);
-        for div in dom.descendants(root).into_iter().filter(|&n| dom.local_name(n) == Some("div")).collect::<Vec<_>>() {
+        for div in dom
+            .descendants(root)
+            .into_iter()
+            .filter(|&n| dom.local_name(n) == Some("div"))
+            .collect::<Vec<_>>()
+        {
             dom.set_inner_html(div, &unfurl).map_err(Error::Parse)?;
         }
     } else {
-        for p in dom.descendants(root).into_iter().filter(|&n| dom.local_name(n) == Some("p")).collect::<Vec<_>>() {
+        for p in dom
+            .descendants(root)
+            .into_iter()
+            .filter(|&n| dom.local_name(n) == Some("p"))
+            .collect::<Vec<_>>()
+        {
             let has_attachment = dom.descendants(p).into_iter().any(|n| dom.local_name(n) == Some(ATTACHMENT_TAG));
             if !has_attachment {
                 dom.detach(p);

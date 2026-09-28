@@ -107,9 +107,7 @@ fn is_uri(source: &str) -> bool {
         return true;
     }
     match lower.find("://") {
-        Some(i) if i > 0 => lower[..i]
-            .chars()
-            .all(|c| c == '-' || c.is_ascii_lowercase()),
+        Some(i) if i > 0 => lower[..i].chars().all(|c| c == '-' || c.is_ascii_lowercase()),
         _ => false,
     }
 }
@@ -122,11 +120,7 @@ fn file_extname(path: &str) -> &str {
 
 /// File.join(host, path)
 fn file_join(host: &str, path: &str) -> String {
-    format!(
-        "{}/{}",
-        host.trim_end_matches('/'),
-        path.trim_start_matches('/')
-    )
+    format!("{}/{}", host.trim_end_matches('/'), path.trim_start_matches('/'))
 }
 
 #[cfg(test)]
@@ -135,39 +129,21 @@ mod tests {
 
     #[test]
     fn digests_logical_paths() {
-        assert_eq!(
-            asset_path("campfire-icon.png"),
-            "/assets/campfire-icon-3d9986c5.png"
-        );
+        assert_eq!(asset_path("campfire-icon.png"), "/assets/campfire-icon-3d9986c5.png");
         assert_eq!(image_path("bot.svg"), "/assets/bot-8a69692e.svg");
         assert_eq!(audio_path("56k.mp3"), "/assets/56k-67359aa6.mp3");
         assert_eq!(
             asset_path("screenshots/android-chat.png"),
-            format!(
-                "/assets/{}",
-                digested_path("screenshots/android-chat.png").unwrap()
-            )
+            format!("/assets/{}", digested_path("screenshots/android-chat.png").unwrap())
         );
     }
 
     #[test]
     fn keeps_tails_and_passes_through_urls_and_absolute_paths() {
-        assert_eq!(
-            asset_path("bot.svg?v=1#x"),
-            "/assets/bot-8a69692e.svg?v=1#x"
-        );
-        assert_eq!(
-            asset_path("https://example.com/a.png"),
-            "https://example.com/a.png"
-        );
-        assert_eq!(
-            asset_path("//cdn.example.com/a.png"),
-            "//cdn.example.com/a.png"
-        );
-        assert_eq!(
-            asset_path("data:image/png;base64,xx"),
-            "data:image/png;base64,xx"
-        );
+        assert_eq!(asset_path("bot.svg?v=1#x"), "/assets/bot-8a69692e.svg?v=1#x");
+        assert_eq!(asset_path("https://example.com/a.png"), "https://example.com/a.png");
+        assert_eq!(asset_path("//cdn.example.com/a.png"), "//cdn.example.com/a.png");
+        assert_eq!(asset_path("data:image/png;base64,xx"), "data:image/png;base64,xx");
         assert_eq!(asset_path("/rooms/1"), "/rooms/1");
         assert_eq!(asset_path(""), "");
     }

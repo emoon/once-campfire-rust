@@ -34,7 +34,11 @@ pub fn humanize_involvement(involvement: &str) -> &'static str {
 
 /// `next_involvement_for(room, involvement:)`.
 pub fn next_involvement(direct: bool, involvement: &str) -> &'static str {
-    let order: &[&'static str] = if direct { &["everything", "nothing"] } else { &["mentions", "everything", "nothing", "invisible"] };
+    let order: &[&'static str] = if direct {
+        &["everything", "nothing"]
+    } else {
+        &["mentions", "everything", "nothing", "invisible"]
+    };
     let index = order.iter().position(|candidate| *candidate == involvement);
     index.and_then(|index| order.get(index + 1)).copied().unwrap_or(order[0])
 }
@@ -58,7 +62,12 @@ pub fn button_to_change_involvement<'r>(ctx: &ViewContext, room: impl std::borro
     let content = format!(
         "{}{}",
         image_tag(ctx, format!("notification-bell-{involvement}.svg"), attrs().aria_hidden().size(20)).0,
-        content_tag_text("span", attrs().class("for-screen-reader").id(label_id.as_str()), humanize_involvement(involvement)).0
+        content_tag_text(
+            "span",
+            attrs().class("for-screen-reader").id(label_id.as_str()),
+            humanize_involvement(involvement)
+        )
+        .0
     );
     let options = attrs()
         .method("put")

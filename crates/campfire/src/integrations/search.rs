@@ -40,7 +40,10 @@ mod tests {
             sanitize_query(Some("héllo wörld_1 ２ 日本語 ‿ a-b \u{fe0f} ❤ é")).as_deref(),
             Some("héllo wörld_1 ２ 日本語 ‿ a b \u{fe0f}   é")
         );
-        assert_eq!(sanitize_query(Some("\"quoted\" OR NEAR(x*)")).as_deref(), Some(" quoted  OR NEAR x  "));
+        assert_eq!(
+            sanitize_query(Some("\"quoted\" OR NEAR(x*)")).as_deref(),
+            Some(" quoted  OR NEAR x  ")
+        );
         assert_eq!(sanitize_query(Some("")).as_deref(), Some(""));
         assert_eq!(sanitize_query(None), None);
     }
@@ -49,7 +52,9 @@ mod tests {
     fn classifies_like_onigmo() {
         // Probed against the reference's Ruby: alphabetic (including letter numbers and circled
         // letters), marks, decimal digits, connector punctuation and join controls.
-        for c in ['a', 'Z', '0', '_', 'é', 'ß', '日', '‿', '\u{0301}', '٣', 'ǅ', 'ʰ', 'Ⅻ', 'Ⓐ', '\u{200d}'] {
+        for c in [
+            'a', 'Z', '0', '_', 'é', 'ß', '日', '‿', '\u{0301}', '٣', 'ǅ', 'ʰ', 'Ⅻ', 'Ⓐ', '\u{200d}',
+        ] {
             assert!(is_word(c), "{c:?} is a word character");
         }
         for c in [' ', '-', '*', '"', '\u{a0}', '❤', '€', '½', '²'] {

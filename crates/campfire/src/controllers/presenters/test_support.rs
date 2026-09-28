@@ -37,13 +37,17 @@ fn seed_dir() -> Option<PathBuf> {
 
 fn parity_env(name: &str) -> Option<String> {
     let env = std::fs::read_to_string(Path::new(ROOT).join("parity/.env.reference")).ok()?;
-    env.lines().find_map(|line| line.strip_prefix(&format!("{name}=")).map(str::to_string))
+    env.lines()
+        .find_map(|line| line.strip_prefix(&format!("{name}=")).map(str::to_string))
 }
 
 /// David's Rails-issued `session_token` cookie header.
 pub fn david_cookie() -> String {
-    let vectors: serde_json::Value =
-        serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vectors/campfire_sessions.json"))).unwrap();
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../vectors/campfire_sessions.json"
+    )))
+    .unwrap();
     vectors["sessions"]
         .as_array()
         .unwrap()
@@ -81,7 +85,10 @@ impl TestApp {
             _ => None,
         })
         .unwrap();
-        Some(TestApp { booted: boot(config).await.unwrap(), _dir: dir })
+        Some(TestApp {
+            booted: boot(config).await.unwrap(),
+            _dir: dir,
+        })
     }
 
     pub fn db(&self) -> &campfire_db::Database {
@@ -90,13 +97,19 @@ impl TestApp {
 
     /// A browser signed in as David.
     pub fn david(&self) -> Browser<'_> {
-        let mut browser = Browser { app: self, cookies: BTreeMap::new() };
+        let mut browser = Browser {
+            app: self,
+            cookies: BTreeMap::new(),
+        };
         browser.absorb_cookie_header(&david_cookie());
         browser
     }
 
     pub fn anonymous(&self) -> Browser<'_> {
-        Browser { app: self, cookies: BTreeMap::new() }
+        Browser {
+            app: self,
+            cookies: BTreeMap::new(),
+        }
     }
 }
 
@@ -156,7 +169,12 @@ pub struct Req {
 
 impl Req {
     pub fn new(method: Method, path: &str) -> Self {
-        Req { method, path: path.to_string(), headers: Vec::new(), body: Vec::new() }
+        Req {
+            method,
+            path: path.to_string(),
+            headers: Vec::new(),
+            body: Vec::new(),
+        }
     }
 
     pub fn header(mut self, name: &str, value: &str) -> Self {
@@ -165,10 +183,7 @@ impl Req {
     }
 
     pub fn form(mut self, pairs: &[(&str, &str)]) -> Self {
-        let body: Vec<String> = pairs
-            .iter()
-            .map(|(k, v)| format!("{}={}", encode(k), encode(v)))
-            .collect();
+        let body: Vec<String> = pairs.iter().map(|(k, v)| format!("{}={}", encode(k), encode(v))).collect();
         self.body = body.join("&").into_bytes();
         self.header("content-type", "application/x-www-form-urlencoded")
     }
@@ -183,7 +198,9 @@ impl Req {
         let boundary = "----campfiretestboundary";
         let mut body = Vec::new();
         for (name, value) in fields {
-            body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes());
+            body.extend_from_slice(
+                format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes(),
+            );
         }
         let (name, filename, content_type, data) = file;
         body.extend_from_slice(
@@ -225,7 +242,10 @@ impl Browser<'_> {
     }
 
     pub async fn send(&mut self, req: Req) -> Reply {
-        let mut request = Request::builder().method(req.method.clone()).uri(&req.path).header(header::HOST, "campfire.test");
+        let mut request = Request::builder()
+            .method(req.method.clone())
+            .uri(&req.path)
+            .header(header::HOST, "campfire.test");
         if !self.cookies.is_empty() {
             let cookie = self.cookies.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; ");
             request = request.header(header::COOKIE, cookie);

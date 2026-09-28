@@ -90,7 +90,10 @@ mod tests {
     #[test]
     fn json_errors() {
         let response = render(&ErrorPages::default(), StatusCode::UNPROCESSABLE_ENTITY, Some(&format::JSON), false);
-        assert_eq!(response.body_bytes().unwrap().as_ref(), br#"{"status":422,"error":"Unprocessable Content"}"#);
+        assert_eq!(
+            response.body_bytes().unwrap().as_ref(),
+            br#"{"status":422,"error":"Unprocessable Content"}"#
+        );
     }
 
     #[test]

@@ -85,7 +85,8 @@ impl<U: Identified + Send + Sync + 'static> ServerBuilder<U> {
         C: Channel<U>,
         F: Fn() -> C + Send + Sync + 'static,
     {
-        self.channels.insert(class_name.to_string(), Arc::new(move || Box::new(factory()) as Box<dyn Channel<U>>));
+        self.channels
+            .insert(class_name.to_string(), Arc::new(move || Box::new(factory()) as Box<dyn Channel<U>>));
         self
     }
 
@@ -125,7 +126,11 @@ struct Inner<U: Send + Sync + 'static> {
 
 impl<U: Identified + Send + Sync + 'static> Server<U> {
     pub fn builder(config: Config, authenticator: impl Authenticate<U>) -> ServerBuilder<U> {
-        ServerBuilder { config, authenticator: Arc::new(authenticator), channels: HashMap::new() }
+        ServerBuilder {
+            config,
+            authenticator: Arc::new(authenticator),
+            channels: HashMap::new(),
+        }
     }
 
     /// The `/cable` endpoint (`ActionCable::Server::Base#call`). Anything that isn't a WebSocket
@@ -137,18 +142,24 @@ impl<U: Identified + Send + Sync + 'static> Server<U> {
         if !websocket_request(&parts.method, &parts.headers) || !self.allow_request_origin(&parts.headers) {
             return page_not_found();
         }
-        let (Some(handshake), Some(on_upgrade)) =
-            (Handshake::accept(&parts.headers), parts.extensions.remove::<hyper::upgrade::OnUpgrade>())
-        else {
+        let (Some(handshake), Some(on_upgrade)) = (
+            Handshake::accept(&parts.headers),
+            parts.extensions.remove::<hyper::upgrade::OnUpgrade>(),
+        ) else {
             return page_not_found();
         };
         let mut response = Response::new(axum::body::Body::empty());
         *response.status_mut() = StatusCode::SWITCHING_PROTOCOLS;
         handshake.response_headers(response.headers_mut());
         if let Some(protocol) = negotiate_protocol(&parts.headers) {
-            response.headers_mut().insert(header::SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_static(protocol));
+            response
+                .headers_mut()
+                .insert(header::SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_static(protocol));
         }
-        let request = ConnectRequest { uri: parts.uri, headers: parts.headers };
+        let request = ConnectRequest {
+            uri: parts.uri,
+            headers: parts.headers,
+        };
         let server = self.clone();
         connections_runtime().spawn(async move {
             if let Ok(upgraded) = on_upgrade.await {
@@ -161,10 +172,13 @@ impl<U: Identified + Send + Sync + 'static> Server<U> {
     /// An Axum router serving [`Server::call`] at `path` (normally [`protocol::DEFAULT_MOUNT_PATH`]).
     pub fn router<S: Clone + Send + Sync + 'static>(&self, path: &str) -> axum::Router<S> {
         let server = self.clone();
-        axum::Router::new().route(path, axum::routing::any(move |request: Request| {
-            let server = server.clone();
-            async move { server.call(request).await }
-        }))
+        axum::Router::new().route(
+            path,
+            axum::routing::any(move |request: Request| {
+                let server = server.clone();
+                async move { server.call(request).await }
+            }),
+        )
     }
 }
 
@@ -219,7 +233,13 @@ impl<U: Send + Sync + 'static> Server<U> {
             r#type: &'static str,
             reconnect: bool,
         }
-        self.broadcast(&internal_channel(connection_identifier), &Disconnect { r#type: "disconnect", reconnect })
+        self.broadcast(
+            &internal_channel(connection_identifier),
+            &Disconnect {
+                r#type: "disconnect",
+                reconnect,
+            },
+        )
     }
 
     /// Broadcastings that currently have subscribers (including connections' internal channels).
@@ -239,7 +259,11 @@ impl<U: Send + Sync + 'static> Server<U> {
         }
         let origin = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok());
         let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
-        let proto = if config.assume_ssl || ssl_request(headers) { "https" } else { "http" };
+        let proto = if config.assume_ssl || ssl_request(headers) {
+            "https"
+        } else {
+            "http"
+        };
         let same_origin = origin == Some(format!("{proto}://{host}").as_str());
         if config.allow_same_origin_as_host && same_origin {
             return true;
@@ -283,7 +307,9 @@ fn unix_now() -> i64 {
 /// `WebSocket::Driver.websocket?(env)`: a GET with `Connection: upgrade` and `Upgrade: websocket`.
 fn websocket_request(method: &Method, headers: &HeaderMap) -> bool {
     let connection_upgrade = headers.get_all(header::CONNECTION).iter().any(|value| {
-        value.to_str().is_ok_and(|v| v.split(',').any(|token| token.trim().eq_ignore_ascii_case("upgrade")))
+        value
+            .to_str()
+            .is_ok_and(|v| v.split(',').any(|token| token.trim().eq_ignore_ascii_case("upgrade")))
     });
     let upgrade_websocket = headers
         .get(header::UPGRADE)
@@ -295,7 +321,10 @@ fn websocket_request(method: &Method, headers: &HeaderMap) -> bool {
 /// `Rack::Request#ssl?` for a request that didn't arrive over TLS itself.
 fn ssl_request(headers: &HeaderMap) -> bool {
     let first = |name: &str| {
-        headers.get(name).and_then(|v| v.to_str().ok()).map(|v| v.split(',').next().unwrap_or("").trim().to_ascii_lowercase())
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.split(',').next().unwrap_or("").trim().to_ascii_lowercase())
     };
     first("x-forwarded-ssl").as_deref() == Some("on")
         || first("x-forwarded-scheme").as_deref() == Some("https")
@@ -315,7 +344,12 @@ fn negotiate_protocol(headers: &HeaderMap) -> Option<&'static str> {
 
 /// `Connection::Base#respond_to_invalid_request`.
 fn page_not_found() -> Response {
-    (StatusCode::NOT_FOUND, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], "Page not found").into_response()
+    (
+        StatusCode::NOT_FOUND,
+        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "Page not found",
+    )
+        .into_response()
 }
 
 /// The runtime connections run on, apart from the app's. A broadcast to a big room wakes every
@@ -347,8 +381,14 @@ mod tests {
 
     #[test]
     fn negotiation_follows_the_clients_order() {
-        assert_eq!(negotiate_protocol(&headers("actioncable-v1-json, actioncable-unsupported")), Some("actioncable-v1-json"));
-        assert_eq!(negotiate_protocol(&headers("actioncable-unsupported, actioncable-v1-json")), Some("actioncable-unsupported"));
+        assert_eq!(
+            negotiate_protocol(&headers("actioncable-v1-json, actioncable-unsupported")),
+            Some("actioncable-v1-json")
+        );
+        assert_eq!(
+            negotiate_protocol(&headers("actioncable-unsupported, actioncable-v1-json")),
+            Some("actioncable-unsupported")
+        );
         assert_eq!(negotiate_protocol(&headers("foo")), None);
         assert_eq!(negotiate_protocol(&HeaderMap::new()), None);
     }

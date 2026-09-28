@@ -135,7 +135,11 @@ fn strip_tags(html: &str) -> Result<String, UnfurlError> {
     }
     let mut dom = Dom::new();
     let fragment = dom.parse_fragment(html).map_err(|_| UnfurlError::Raised("ArgumentError"))?;
-    let text: String = dom.descendants(fragment).into_iter().filter_map(|node| dom.text(node).map(str::to_string)).collect();
+    let text: String = dom
+        .descendants(fragment)
+        .into_iter()
+        .filter_map(|node| dom.text(node).map(str::to_string))
+        .collect();
     let out = dom.new_fragment();
     if !text.is_empty() {
         let node = dom.create_text(&text);
@@ -152,7 +156,11 @@ fn sanitize(html: &str) -> Result<String, UnfurlError> {
 /// A string as `ActiveSupport::JSON` encodes it: JSON with `<`, `>` and `&` escaped (Rails 8.2
 /// defaults leave U+2028 and U+2029 alone).
 pub fn json_string(s: &str) -> String {
-    serde_json::to_string(s).expect("strings encode").replace('<', "\\u003c").replace('>', "\\u003e").replace('&', "\\u0026")
+    serde_json::to_string(s)
+        .expect("strings encode")
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026")
 }
 
 #[cfg(test)]

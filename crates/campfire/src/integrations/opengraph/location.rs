@@ -27,7 +27,12 @@ impl<'n> Location<'n> {
     /// `Location.new(url)`: `parsed_url` is `URI.parse(url) rescue nil`.
     pub fn new(net: &'n Network, url: Option<&str>) -> Self {
         let parsed_url = url.and_then(|url| uri::parse(url).ok());
-        Self { net, url: url.map(str::to_string), parsed_url, resolved_ip: None }
+        Self {
+            net,
+            url: url.map(str::to_string),
+            parsed_url,
+            resolved_ip: None,
+        }
     }
 
     /// `valid?`: both validations run, so the host is resolved even for a non-http URL.

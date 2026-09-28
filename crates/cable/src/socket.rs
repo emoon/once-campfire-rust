@@ -63,7 +63,10 @@ impl Frame {
 
 impl From<String> for Frame {
     fn from(text: String) -> Self {
-        Frame(Arc::new(Payload { text: text.into_boxed_str(), deflated: OnceLock::new() }))
+        Frame(Arc::new(Payload {
+            text: text.into_boxed_str(),
+            deflated: OnceLock::new(),
+        }))
     }
 }
 
@@ -100,7 +103,9 @@ fn deflate(input: &[u8]) -> Box<[u8]> {
             out.reserve(out.capacity());
         }
         let consumed = compress.total_in() as usize;
-        compress.compress_vec(&input[consumed..], &mut out, FlushCompress::Sync).expect("deflate doesn't fail on valid input");
+        compress
+            .compress_vec(&input[consumed..], &mut out, FlushCompress::Sync)
+            .expect("deflate doesn't fail on valid input");
         if compress.total_in() as usize == input.len() && out.len() < out.capacity() {
             break;
         }
@@ -146,7 +151,10 @@ impl Handshake {
     pub fn response_headers(&self, headers: &mut HeaderMap) {
         headers.insert(header::UPGRADE, HeaderValue::from_static("websocket"));
         headers.insert(header::CONNECTION, HeaderValue::from_static("upgrade"));
-        headers.insert(header::SEC_WEBSOCKET_ACCEPT, HeaderValue::from_str(&self.accept).expect("base64 is a header value"));
+        headers.insert(
+            header::SEC_WEBSOCKET_ACCEPT,
+            HeaderValue::from_str(&self.accept).expect("base64 is a header value"),
+        );
         if self.deflate {
             headers.insert(header::SEC_WEBSOCKET_EXTENSIONS, HeaderValue::from_static(DEFLATE_RESPONSE));
         }
@@ -165,7 +173,9 @@ fn acceptable_deflate_offer(offer: &str) -> bool {
         return false;
     }
     params.all(|param| {
-        let (name, value) = param.split_once('=').map_or((param, None), |(n, v)| (n.trim(), Some(v.trim().trim_matches('"'))));
+        let (name, value) = param
+            .split_once('=')
+            .map_or((param, None), |(n, v)| (n.trim(), Some(v.trim().trim_matches('"'))));
         match name {
             "server_no_context_takeover" | "client_no_context_takeover" => value.is_none(),
             "client_max_window_bits" => value.is_none_or(|v| v.parse::<u8>().is_ok_and(|bits| (8..=15).contains(&bits))),
@@ -202,7 +212,11 @@ pub struct Reader<R> {
 
 impl<R: AsyncRead + Unpin> Reader<R> {
     pub fn new(io: R, deflate: bool) -> Self {
-        Self { io, deflate, partial: None }
+        Self {
+            io,
+            deflate,
+            partial: None,
+        }
     }
 
     /// The next message or control frame, reassembling fragments and decompressing.
@@ -341,8 +355,10 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
                 None => (false, frame.as_str().as_bytes()),
             })
             .collect();
-        let headers: Vec<([u8; 10], usize)> =
-            payloads.iter().map(|(compressed, payload)| header(OP_TEXT, *compressed, payload.len())).collect();
+        let headers: Vec<([u8; 10], usize)> = payloads
+            .iter()
+            .map(|(compressed, payload)| header(OP_TEXT, *compressed, payload.len()))
+            .collect();
         let mut slices: Vec<IoSlice<'_>> = Vec::with_capacity(frames.len() * 2);
         for ((header, len), (_, payload)) in headers.iter().zip(&payloads) {
             slices.push(IoSlice::new(&header[..*len]));
@@ -381,7 +397,9 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
             write_all_vectored(io, slices).await?;
             io.flush().await
         };
-        tokio::time::timeout(WRITE_TIMEOUT, write).await.unwrap_or_else(|_| Err(io::ErrorKind::TimedOut.into()))
+        tokio::time::timeout(WRITE_TIMEOUT, write)
+            .await
+            .unwrap_or_else(|_| Err(io::ErrorKind::TimedOut.into()))
     }
 }
 
@@ -466,7 +484,12 @@ mod tests {
         bytes.extend(client_frame(OP_PING, true, false, b"p"));
         bytes.extend(client_frame(OP_CONTINUATION, true, false, "lo ☃".as_bytes()));
         bytes.extend(client_frame(OP_TEXT, true, true, &deflated(&"compressed ".repeat(100))));
-        bytes.extend(client_frame(OP_CLOSE, true, false, &[&1001u16.to_be_bytes()[..], "going away".as_bytes()].concat()));
+        bytes.extend(client_frame(
+            OP_CLOSE,
+            true,
+            false,
+            &[&1001u16.to_be_bytes()[..], "going away".as_bytes()].concat(),
+        ));
         let read: Vec<Incoming> = read_all(bytes, true).await.into_iter().map(Result::unwrap).collect();
         assert_eq!(
             read,
@@ -485,19 +508,22 @@ mod tests {
         let unmasked = vec![0x81, 0x02, b'h', b'i'];
         let cases = [
             unmasked,
-            client_frame(OP_TEXT, true, true, &deflated("hi")),     // compressed, not negotiated
-            client_frame(OP_TEXT, true, false, &[0xff, 0xfe]),     // not UTF-8
-            client_frame(OP_CONTINUATION, true, false, b"x"),      // nothing to continue
-            client_frame(OP_PING, false, false, b"x"),             // fragmented control frame
-            client_frame(0x3, true, false, b"x"),                  // reserved opcode
+            client_frame(OP_TEXT, true, true, &deflated("hi")), // compressed, not negotiated
+            client_frame(OP_TEXT, true, false, &[0xff, 0xfe]),  // not UTF-8
+            client_frame(OP_CONTINUATION, true, false, b"x"),   // nothing to continue
+            client_frame(OP_PING, false, false, b"x"),          // fragmented control frame
+            client_frame(0x3, true, false, b"x"),               // reserved opcode
             client_frame(OP_TEXT, true, false, &vec![b'a'; MAX_MESSAGE + 1]),
-            client_frame(OP_CLOSE, true, false, &[0x03]),                       // one-byte close
-            client_frame(OP_CLOSE, true, false, &1005u16.to_be_bytes()),        // reserved code
-            client_frame(OP_CLOSE, true, false, &[0x03, 0xe8, 0xff]),           // reason not UTF-8
+            client_frame(OP_CLOSE, true, false, &[0x03]),                // one-byte close
+            client_frame(OP_CLOSE, true, false, &1005u16.to_be_bytes()), // reserved code
+            client_frame(OP_CLOSE, true, false, &[0x03, 0xe8, 0xff]),    // reason not UTF-8
         ];
         for bytes in cases {
             let read = read_all(bytes, false).await;
-            assert!(read.last().unwrap().as_ref().is_err_and(|e| e.kind() == io::ErrorKind::InvalidData), "{read:?}");
+            assert!(
+                read.last().unwrap().as_ref().is_err_and(|e| e.kind() == io::ErrorKind::InvalidData),
+                "{read:?}"
+            );
         }
     }
 
@@ -521,15 +547,25 @@ mod tests {
                     len => (len as usize, at + 2),
                 };
                 let payload = &out[start..start + len];
-                let text = if b0 & 0x40 != 0 { String::from_utf8(inflate(payload).unwrap()).unwrap() } else { String::from_utf8(payload.to_vec()).unwrap() };
+                let text = if b0 & 0x40 != 0 {
+                    String::from_utf8(inflate(payload).unwrap()).unwrap()
+                } else {
+                    String::from_utf8(payload.to_vec()).unwrap()
+                };
                 texts.push((b0 & 0x40 != 0, text));
                 at = start + len;
             }
-            assert_eq!(texts, vec![(false, small.as_str().to_string()), (deflate, big.as_str().to_string())]);
+            assert_eq!(
+                texts,
+                vec![(false, small.as_str().to_string()), (deflate, big.as_str().to_string())]
+            );
         }
         let compressed = big.deflated().unwrap();
         assert!(compressed.len() < big.as_str().len() / 10, "{} bytes", compressed.len());
-        assert!(std::ptr::eq(compressed, big.clone().deflated().unwrap()), "compressed once, shared by clones");
+        assert!(
+            std::ptr::eq(compressed, big.clone().deflated().unwrap()),
+            "compressed once, shared by clones"
+        );
     }
 
     fn handshake(extensions: &[&str]) -> Option<Handshake> {
@@ -550,7 +586,11 @@ mod tests {
         // What Chrome, Firefox and Safari offer.
         assert!(handshake(&["permessage-deflate; client_max_window_bits"]).unwrap().deflate());
         assert!(handshake(&["x-webkit-deflate-frame", "permessage-deflate"]).unwrap().deflate());
-        assert!(handshake(&["permessage-deflate; server_no_context_takeover; client_max_window_bits=10"]).unwrap().deflate());
+        assert!(
+            handshake(&["permessage-deflate; server_no_context_takeover; client_max_window_bits=10"])
+                .unwrap()
+                .deflate()
+        );
         assert!(!handshake(&["permessage-deflate; server_max_window_bits=10"]).unwrap().deflate());
         assert!(!handshake(&["permessage-deflate; unknown"]).unwrap().deflate());
 

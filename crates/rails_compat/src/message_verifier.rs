@@ -38,7 +38,13 @@ pub enum Encoding {
 
 impl MessageVerifier {
     pub fn new(secret: Vec<u8>, digest: Digest, encoding: Encoding, serializer: Serializer) -> Self {
-        Self { secret, digest, encoding, serializer, rotations: Vec::new() }
+        Self {
+            secret,
+            digest,
+            encoding,
+            serializer,
+            rotations: Vec::new(),
+        }
     }
 
     pub fn fall_back_to(mut self, rotation: MessageVerifier) -> Self {
@@ -54,7 +60,12 @@ impl MessageVerifier {
     /// `ActiveSupport::JSON` escaping for app verifiers), so key order is under the caller's
     /// control: `{"_rails":{"data":<data_json>,"exp":..,"pur":..}}`.
     pub fn generate_raw(&self, data_json: &str, purpose: Option<&str>, expires_at: Option<Timestamp>) -> String {
-        self.sign(&metadata::serialize_dumped_with_metadata(self.serializer, data_json.as_bytes(), purpose, expires_at))
+        self.sign(&metadata::serialize_dumped_with_metadata(
+            self.serializer,
+            data_json.as_bytes(),
+            purpose,
+            expires_at,
+        ))
     }
 
     /// `verified`, returning the data re-encoded as JSON in this verifier's serializer. Key order

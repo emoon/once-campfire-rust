@@ -36,7 +36,13 @@ pub async fn blobs_redirect(c: &mut Ctx) -> Result {
     c.expires_in(SERVICE_URLS_EXPIRE_IN as u64, ExpiresIn::default());
     let disposition = c.param_str("disposition").map(str::to_string);
     let url = blob_url(c, &blob, disposition.as_deref());
-    c.redirect_to_with(&url, campfire_kit::Redirect { allow_other_host: true, ..Default::default() })
+    c.redirect_to_with(
+        &url,
+        campfire_kit::Redirect {
+            allow_other_host: true,
+            ..Default::default()
+        },
+    )
 }
 
 /// `ActiveStorage::Blobs::ProxyController#show`
@@ -64,7 +70,13 @@ pub async fn representations_redirect(c: &mut Ctx) -> Result {
     c.expires_in(SERVICE_URLS_EXPIRE_IN as u64, ExpiresIn::default());
     let disposition = c.param_str("disposition").map(str::to_string);
     let url = blob_url(c, &image, disposition.as_deref());
-    c.redirect_to_with(&url, campfire_kit::Redirect { allow_other_host: true, ..Default::default() })
+    c.redirect_to_with(
+        &url,
+        campfire_kit::Redirect {
+            allow_other_host: true,
+            ..Default::default()
+        },
+    )
 }
 
 /// `ActiveStorage::Representations::ProxyController#show`
@@ -82,7 +94,11 @@ pub async fn representations_proxy(c: &mut Ctx) -> Result {
 /// `ActiveStorage::SetBlob#set_blob`: `Blob.find_signed!(params[:signed_blob_id] || params[:signed_id])`.
 /// A bad signature is `head :not_found`; a valid one for a missing blob is `RecordNotFound`.
 async fn set_blob(c: &mut Ctx) -> Result<Blob> {
-    let signed_id = c.param_str("signed_blob_id").or_else(|| c.param_str("signed_id")).unwrap_or("").to_string();
+    let signed_id = c
+        .param_str("signed_blob_id")
+        .or_else(|| c.param_str("signed_id"))
+        .unwrap_or("")
+        .to_string();
     let storage = c.app().storage.clone();
     let Some(blob_id) = paths::verify_signed_blob_id(&*storage.verifier, &signed_id, c.now()) else {
         return halt(head(StatusCode::NOT_FOUND));
@@ -117,7 +133,9 @@ pub async fn processed_representation(app: &App, blob: Blob, variation: Variatio
         let variation = app.storage.variation_for(&blob, &variation).map_err(Error::internal)?;
         processed_variant(app, blob, variation).await
     } else {
-        Err(Error::internal(campfire_storage::Error::Unrepresentable(blob.content_type().to_string())))
+        Err(Error::internal(campfire_storage::Error::Unrepresentable(
+            blob.content_type().to_string(),
+        )))
     }
 }
 
@@ -135,7 +153,10 @@ pub async fn processed_preview(app: &App, blob: Blob, transformations: Variation
 /// `VariantWithRecord#processed` for an already-defaulted variation: the existing variant, or
 /// one transformed off the writer and then recorded.
 async fn processed_variant(app: &App, blob: Blob, variation: Variation) -> Result<Blob> {
-    processed_variant_with(app, blob, variation, |storage, blob, variation| storage.transform_variant(blob, variation)).await
+    processed_variant_with(app, blob, variation, |storage, blob, variation| {
+        storage.transform_variant(blob, variation)
+    })
+    .await
 }
 
 pub(crate) async fn processed_variant_with(
@@ -146,7 +167,10 @@ pub(crate) async fn processed_variant_with(
 ) -> Result<Blob> {
     let storage = app.storage.clone();
     let (source, digested) = (blob.clone(), variation.clone());
-    let existing = app.db.read(move |conn| storage.existing_variant(conn, &source, &digested).map_err(storage_error)).await;
+    let existing = app
+        .db
+        .read(move |conn| storage.existing_variant(conn, &source, &digested).map_err(storage_error))
+        .await;
     if let Some(image) = existing.map_err(Error::internal)? {
         return Ok(image);
     }
@@ -159,13 +183,19 @@ pub(crate) async fn processed_variant_with(
     app.db
         .write(move |tx| {
             let conn = tx.conn();
-            match storage.record_variant(conn, &blob, &variation, &image, tx.now().jiff()).map_err(storage_error)? {
+            match storage
+                .record_variant(conn, &blob, &variation, &image, tx.now().jiff())
+                .map_err(storage_error)?
+            {
                 Some(recorded) => {
                     keep_after_commit(tx, image);
                     Ok(recorded)
                 }
                 // Another request recorded it first; ours is dropped (and its file deleted).
-                None => storage.existing_variant(conn, &blob, &variation).map_err(storage_error)?.ok_or(campfire_db::Error::RecordNotFound("ActiveStorage::VariantRecord")),
+                None => storage
+                    .existing_variant(conn, &blob, &variation)
+                    .map_err(storage_error)?
+                    .ok_or(campfire_db::Error::RecordNotFound("ActiveStorage::VariantRecord")),
             }
         })
         .await
@@ -176,7 +206,10 @@ pub(crate) async fn processed_variant_with(
 async fn preview_image(app: &App, blob: Blob) -> Result<Blob> {
     let storage = app.storage.clone();
     let source = blob.clone();
-    let existing = app.db.read(move |conn| storage.existing_preview_image(conn, &source).map_err(storage_error)).await;
+    let existing = app
+        .db
+        .read(move |conn| storage.existing_preview_image(conn, &source).map_err(storage_error))
+        .await;
     if let Some(image) = existing.map_err(Error::internal)? {
         return Ok(image);
     }
@@ -189,12 +222,18 @@ async fn preview_image(app: &App, blob: Blob) -> Result<Blob> {
     app.db
         .write(move |tx| {
             let conn = tx.conn();
-            match storage.record_preview_image(conn, &blob, &image, tx.now().jiff()).map_err(storage_error)? {
+            match storage
+                .record_preview_image(conn, &blob, &image, tx.now().jiff())
+                .map_err(storage_error)?
+            {
                 Some(recorded) => {
                     keep_after_commit(tx, image);
                     Ok(recorded)
                 }
-                None => storage.existing_preview_image(conn, &blob).map_err(storage_error)?.ok_or(campfire_db::Error::RecordNotFound("ActiveStorage::Blob")),
+                None => storage
+                    .existing_preview_image(conn, &blob)
+                    .map_err(storage_error)?
+                    .ok_or(campfire_db::Error::RecordNotFound("ActiveStorage::Blob")),
             }
         })
         .await
@@ -229,8 +268,11 @@ pub fn keep_after_commit(tx: &mut campfire_db::Tx<'_>, staged: Staged) {
 /// a lot of memory and CPU (libvips threads its own work), and uploads shouldn't queue behind
 /// more of them than the machine can run at once.
 async fn process_media<T: Send + 'static>(work: impl FnOnce() -> campfire_storage::Result<T> + Send + 'static) -> Result<T> {
-    static PERMITS: LazyLock<Arc<Semaphore>> =
-        LazyLock::new(|| Arc::new(Semaphore::new(std::thread::available_parallelism().map_or(2, |n| n.get()).clamp(1, MAX_MEDIA_JOBS))));
+    static PERMITS: LazyLock<Arc<Semaphore>> = LazyLock::new(|| {
+        Arc::new(Semaphore::new(
+            std::thread::available_parallelism().map_or(2, |n| n.get()).clamp(1, MAX_MEDIA_JOBS),
+        ))
+    });
     // The permit goes with the work: a request that gives up (a timeout, a closed connection)
     // doesn't stop the blocking task, so it mustn't free the slot either.
     let permit = PERMITS.clone().acquire_owned().await.map_err(Error::internal)?;
@@ -248,7 +290,9 @@ async fn process_media<T: Send + 'static>(work: impl FnOnce() -> campfire_storag
 fn blob_url(c: &Ctx, blob: &Blob, disposition: Option<&str>) -> String {
     let storage = &c.app().storage;
     let content_type = content_types::for_serving(blob.content_type());
-    let disposition = content_types::forced_disposition(blob.content_type()).or(disposition).unwrap_or("inline");
+    let disposition = content_types::forced_disposition(blob.content_type())
+        .or(disposition)
+        .unwrap_or("inline");
     let expires_at = c.now() + jiff::SignedDuration::from_secs(SERVICE_URLS_EXPIRE_IN);
     let path = storage.service.url_path(
         &*storage.verifier,
@@ -264,7 +308,14 @@ fn blob_url(c: &Ctx, blob: &Blob, disposition: Option<&str>) -> String {
 /// `http_cache_forever(public: true)`: cache for 100 years, ETag on the full path, and a fixed
 /// Last-Modified. `Some(304)` when the client's copy is fresh.
 fn http_cache_forever(c: &mut Ctx) -> Option<Response> {
-    c.expires_in(HUNDRED_YEARS, ExpiresIn { public: true, immutable: true, ..ExpiresIn::default() });
+    c.expires_in(
+        HUNDRED_YEARS,
+        ExpiresIn {
+            public: true,
+            immutable: true,
+            ..ExpiresIn::default()
+        },
+    );
     let last_modified: jiff::Timestamp = "2011-01-01T00:00:00Z".parse().expect("valid timestamp");
     c.fresh_when(Freshness {
         etag: Some(c.request.fullpath()),
@@ -284,7 +335,9 @@ fn send_blob_stream(c: &mut Ctx, blob: &Blob, disposition: Option<&str>) -> Resu
         c.expires_now();
         return Ok(c.head(StatusCode::NOT_FOUND));
     }
-    let disposition = content_types::forced_disposition(blob.content_type()).or(disposition).unwrap_or("inline");
+    let disposition = content_types::forced_disposition(blob.content_type())
+        .or(disposition)
+        .unwrap_or("inline");
     c.send_file(
         &path,
         SendOptions {
@@ -310,14 +363,24 @@ fn send_blob_byte_range_data(c: &mut Ctx, blob: &Blob, range: &str) -> Result {
     }
     let content_type_for_serving = content_types::for_serving(blob.content_type()).to_string();
     let (content_type, parts, content_range) = if let [(start, end)] = ranges[..] {
-        (content_type_for_serving, vec![BodyPart::File { path, start, end }], Some(format!("bytes {start}-{end}/{size}")))
+        (
+            content_type_for_serving,
+            vec![BodyPart::File { path, start, end }],
+            Some(format!("bytes {start}-{end}/{size}")),
+        )
     } else {
         let boundary = random_hex(16);
         let mut parts = Vec::new();
         for &(start, end) in &ranges {
-            let heading = format!("\r\n--{boundary}\r\nContent-Type: {content_type_for_serving}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n");
+            let heading = format!(
+                "\r\n--{boundary}\r\nContent-Type: {content_type_for_serving}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n"
+            );
             parts.push(BodyPart::Bytes(heading.into_bytes()));
-            parts.push(BodyPart::File { path: path.clone(), start, end });
+            parts.push(BodyPart::File {
+                path: path.clone(),
+                start,
+                end,
+            });
         }
         parts.push(BodyPart::Bytes(format!("\r\n--{boundary}--\r\n").into_bytes()));
         (format!("multipart/byteranges; boundary={boundary}"), parts, None)
@@ -348,9 +411,11 @@ fn send_blob_byte_range_data(c: &mut Ctx, blob: &Blob, range: &str) -> Result {
 /// file body and several are streamed, so neither is read into memory up front.
 fn parts_body(parts: Vec<BodyPart>) -> campfire_kit::Body {
     match <[BodyPart; 1]>::try_from(parts) {
-        Ok([BodyPart::File { path, start, end }]) => {
-            campfire_kit::Body::File(campfire_kit::response::FileBody { path, offset: start, len: end - start + 1 })
-        }
+        Ok([BodyPart::File { path, start, end }]) => campfire_kit::Body::File(campfire_kit::response::FileBody {
+            path,
+            offset: start,
+            len: end - start + 1,
+        }),
         Ok([BodyPart::Bytes(bytes)]) => campfire_kit::Body::Bytes(bytes.into()),
         Err(parts) if parts.is_empty() => campfire_kit::Body::Empty,
         Err(parts) => campfire_kit::Body::Stream(axum::body::Body::from_stream(stream_parts(parts))),
@@ -414,7 +479,12 @@ fn disk_serve(c: &mut Ctx) -> Result {
         range: c.request.header("range"),
         if_modified_since: c.request.header("if-modified-since"),
     };
-    let served = match file_server::serve_file(&request, &storage.service.path_for(&key.key), key.content_type.as_deref(), Some(&key.disposition)) {
+    let served = match file_server::serve_file(
+        &request,
+        &storage.service.path_for(&key.key),
+        key.content_type.as_deref(),
+        Some(&key.disposition),
+    ) {
         Ok(served) => served,
         Err(campfire_storage::Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(c.head(StatusCode::NOT_FOUND));
@@ -468,7 +538,12 @@ pub async fn direct_uploads_create(c: &mut Ctx) -> Result {
     c.verify_authenticity_token()?;
     require_active_storage_authentication(c).await?;
     // `params.expect(blob: [:filename, :byte_size, :checksum, :content_type, metadata: {}])`
-    let blob_params = c.params.require("blob")?.as_hash().cloned().ok_or_else(|| Error::ParameterMissing("blob".into()))?;
+    let blob_params = c
+        .params
+        .require("blob")?
+        .as_hash()
+        .cloned()
+        .ok_or_else(|| Error::ParameterMissing("blob".into()))?;
     // Strings, and numbers as their text: Active Storage's JavaScript sends `byte_size` as a number.
     let text = |key: &str| {
         blob_params.get(key).and_then(|p| match p {
@@ -477,7 +552,10 @@ pub async fn direct_uploads_create(c: &mut Ctx) -> Result {
             _ => None,
         })
     };
-    let (Some(filename), Some(checksum)) = (text("filename").filter(|f| !f.is_empty()), text("checksum").filter(|c| !c.is_empty())) else {
+    let (Some(filename), Some(checksum)) = (
+        text("filename").filter(|f| !f.is_empty()),
+        text("checksum").filter(|c| !c.is_empty()),
+    ) else {
         return Err(Error::Status(StatusCode::UNPROCESSABLE_ENTITY));
     };
     let Some(byte_size) = text("byte_size").and_then(|s| crate::concerns::cast_integer(&s)) else {
@@ -581,9 +659,14 @@ pub async fn purge(app: &App, blob_id: i64) -> anyhow::Result<()> {
         .db
         .write(move |tx| {
             let conn = tx.conn();
-            let Some(blob) = Blob::find(conn, blob_id).map_err(storage_error)? else { return Ok(None) };
+            let Some(blob) = Blob::find(conn, blob_id).map_err(storage_error)? else {
+                return Ok(None);
+            };
             // before_destroy(prepend: true) { raise ActiveRecord::InvalidForeignKey if attachments.exists? }
-            if !campfire_storage::blob::attachment_records(conn, blob_id).map_err(storage_error)?.is_empty() {
+            if !campfire_storage::blob::attachment_records(conn, blob_id)
+                .map_err(storage_error)?
+                .is_empty()
+            {
                 return Ok(None);
             }
             let mut dependents = Vec::new();
@@ -623,7 +706,13 @@ fn destroy_attachment(conn: &rusqlite::Connection, record_type: &str, record_id:
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map(Some)
-        .or_else(|error| if error == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(error) })?;
+        .or_else(|error| {
+            if error == rusqlite::Error::QueryReturnedNoRows {
+                Ok(None)
+            } else {
+                Err(error)
+            }
+        })?;
     let Some((id, blob_id)) = attachment else { return Ok(None) };
     conn.execute_cached("DELETE FROM active_storage_attachments WHERE id = ?1", [id])?;
     Ok(Some(blob_id))
@@ -631,7 +720,9 @@ fn destroy_attachment(conn: &rusqlite::Connection, record_type: &str, record_id:
 
 fn query_ids(conn: &rusqlite::Connection, sql: &str, id: i64) -> campfire_db::Result<Vec<i64>> {
     let mut statement = conn.prepare_cached(sql)?;
-    let ids = statement.query_map([id], |row| row.get(0))?.collect::<rusqlite::Result<Vec<i64>>>()?;
+    let ids = statement
+        .query_map([id], |row| row.get(0))?
+        .collect::<rusqlite::Result<Vec<i64>>>()?;
     Ok(ids)
 }
 
@@ -661,19 +752,33 @@ mod tests {
         let file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(file.path(), (0..=255u8).cycle().take(200_000).collect::<Vec<u8>>()).unwrap();
         let path = file.path().to_path_buf();
-        let range = |start, end| BodyPart::File { path: path.clone(), start, end };
+        let range = |start, end| BodyPart::File {
+            path: path.clone(),
+            start,
+            end,
+        };
 
         match parts_body(vec![range(10, 199_999)]) {
             campfire_kit::Body::File(body) => assert_eq!((body.offset, body.len), (10, 199_990)),
             other => panic!("a single range should be a file body, got {other:?}"),
         }
 
-        let parts = vec![BodyPart::Bytes(b"<".to_vec()), range(0, 2), BodyPart::Bytes(b">".to_vec()), range(100_000, 170_000)];
+        let parts = vec![
+            BodyPart::Bytes(b"<".to_vec()),
+            range(0, 2),
+            BodyPart::Bytes(b">".to_vec()),
+            range(100_000, 170_000),
+        ];
         let length = parts_len(&parts);
-        let campfire_kit::Body::Stream(stream) = parts_body(parts) else { panic!("several ranges should stream") };
+        let campfire_kit::Body::Stream(stream) = parts_body(parts) else {
+            panic!("several ranges should stream")
+        };
         let streamed = axum::body::to_bytes(stream, usize::MAX).await.unwrap();
         let contents = std::fs::read(file.path()).unwrap();
-        assert_eq!(streamed, [b"<".as_slice(), &contents[0..3], b">", &contents[100_000..=170_000]].concat());
+        assert_eq!(
+            streamed,
+            [b"<".as_slice(), &contents[0..3], b">", &contents[100_000..=170_000]].concat()
+        );
         assert_eq!(streamed.len() as u64, length);
     }
 

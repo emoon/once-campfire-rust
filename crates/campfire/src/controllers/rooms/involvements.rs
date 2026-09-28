@@ -19,7 +19,14 @@ pub async fn show(c: &mut Ctx) -> Result {
         kind: room_kind(room.room_type),
         involvement: membership.involvement.map(|i| i.name().to_string()).unwrap_or_default(),
     };
-    page::content(c, StatusCode::OK, |ctx| InvolvementShow { ctx, involvement: &involvement }.render()).await
+    page::content(c, StatusCode::OK, |ctx| {
+        InvolvementShow {
+            ctx,
+            involvement: &involvement,
+        }
+        .render()
+    })
+    .await
 }
 
 pub async fn update(c: &mut Ctx) -> Result {
@@ -40,7 +47,10 @@ pub async fn update(c: &mut Ctx) -> Result {
 
     // broadcast_visibility_changes
     let partials = render_shared_room(c, &room).await?;
-    c.app().broadcasts.involvement_change(&room, &membership, previous, &partials).map_err(Error::internal)?;
+    c.app()
+        .broadcasts
+        .involvement_change(&room, &membership, previous, &partials)
+        .map_err(Error::internal)?;
 
     let url = c.url_for(&campfire_routes::room_involvement(room.id));
     c.redirect_to(&url)
@@ -50,7 +60,9 @@ pub async fn update(c: &mut Ctx) -> Result {
 /// as nil, anything that isn't one of the values raises ArgumentError ('... is not a valid
 /// involvement'). Verified against the reference with `update!(involvement: "")`.
 fn involvement_param(c: &Ctx) -> Result<Option<Involvement>> {
-    let Some(param) = c.param("involvement").filter(|param| !param.is_blank()) else { return Ok(None) };
+    let Some(param) = c.param("involvement").filter(|param| !param.is_blank()) else {
+        return Ok(None);
+    };
     param
         .as_str()
         .and_then(Involvement::from_name)

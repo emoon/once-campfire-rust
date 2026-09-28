@@ -21,7 +21,10 @@ pub fn for_extension(extension: &str) -> String {
 pub fn by_extension(extension: &str) -> Option<&'static str> {
     let ext = extension.to_lowercase();
     let ext = ext.strip_prefix('.').unwrap_or(&ext);
-    tables::EXTENSIONS.binary_search_by(|(e, _)| (*e).cmp(ext)).ok().map(|i| tables::EXTENSIONS[i].1)
+    tables::EXTENSIONS
+        .binary_search_by(|(e, _)| (*e).cmp(ext))
+        .ok()
+        .map(|i| tables::EXTENSIONS[i].1)
 }
 
 /// `Marcel::Magic.by_path`: the extension per Ruby's `File.extname`.

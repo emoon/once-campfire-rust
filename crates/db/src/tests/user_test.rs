@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::{
-    Ban, Membership, Message, NewUser, PasswordDigest, PushSubscription, Role, Room, RoomType, Search, Session,
-    Status, User, UserChanges, Webhook,
+    Ban, Membership, Message, NewUser, PasswordDigest, PushSubscription, Role, Room, RoomType, Search, Session, Status, User, UserChanges,
+    Webhook,
 };
 
 fn user(t: &TestDb, label: &str) -> User {
@@ -62,17 +62,11 @@ fn creating_subsequent_users_makes_them_members() {
     let user = create_new_user(&t);
     assert!(user.is_member());
     assert!(user.is_active());
-    assert!(
-        user.password_digest
-            .as_deref()
-            .unwrap()
-            .starts_with("$2a$04$")
-    );
+    assert!(user.password_digest.as_deref().unwrap().starts_with("$2a$04$"));
 }
 
 #[test]
-fn deactivating_a_user_deletes_push_subscriptions_searches_memberships_for_non_direct_rooms_and_changes_their_email_address()
- {
+fn deactivating_a_user_deletes_push_subscriptions_searches_memberships_for_non_direct_rooms_and_changes_their_email_address() {
     let t = TestDb::new();
     let david = id("david");
     let memberships = t.read(Membership::count);
@@ -86,10 +80,7 @@ fn deactivating_a_user_deletes_push_subscriptions_searches_memberships_for_non_d
     t.write(move |tx| user.deactivate(tx));
 
     assert_eq!(t.read(Membership::count), memberships - without_directs);
-    assert_eq!(
-        t.read(PushSubscription::count),
-        subscriptions - davids_subscriptions
-    );
+    assert_eq!(t.read(PushSubscription::count), subscriptions - davids_subscriptions);
     assert_eq!(t.read(Search::count), searches - davids_searches);
 
     let reloaded = t.read(|c| User::find(c, david));
@@ -129,11 +120,7 @@ fn initials_and_title() {
     assert_eq!(jz.title(), "JZ – Designer");
     assert_eq!(user(&t, "bender").initials(), "BB");
     jz.name = "Émile Zola".into();
-    assert_eq!(
-        jz.initials(),
-        "Z",
-        "Ruby's \\b sees É as a word character, \\w doesn't"
-    );
+    assert_eq!(jz.initials(), "Z", "Ruby's \\b sees É as a word character, \\w doesn't");
     jz.bio = Some("  ".into());
     assert_eq!(jz.title(), "Émile Zola");
 }
@@ -191,17 +178,9 @@ fn reset_bot_key() {
 fn authenticate_bot() {
     let t = TestDb::new();
     let bot = t.write(|tx| User::create_bot(tx, "Bender", None));
-    assert_eq!(
-        t.read(|c| User::authenticate_bot(c, &bot.bot_key()))
-            .unwrap()
-            .id,
-        bot.id
-    );
+    assert_eq!(t.read(|c| User::authenticate_bot(c, &bot.bot_key())).unwrap().id, bot.id);
     assert!(t.read(|c| User::authenticate_bot(c, "nonsense")).is_none());
-    assert!(
-        t.read(|c| User::authenticate_bot(c, &format!("{}-", bot.id)))
-            .is_none()
-    );
+    assert!(t.read(|c| User::authenticate_bot(c, &format!("{}-", bot.id))).is_none());
 }
 
 #[test]
@@ -228,20 +207,9 @@ fn webhook_payload() {
     let t = TestDb::new();
     let message = t.read(|c| Message::find(c, id("first")));
     let webhook = t.read(|c| Ok(Webhook::find_by_user(c, id("bender"))?.unwrap()));
-    let payload = t.read(|c| {
-        webhook.payload(
-            c,
-            &BasicRichText,
-            &message,
-            "/rooms/1/bot/key/messages",
-            "/rooms/1/@2",
-        )
-    });
+    let payload = t.read(|c| webhook.payload(c, &BasicRichText, &message, "/rooms/1/bot/key/messages", "/rooms/1/@2"));
     let json: serde_json::Value = serde_json::from_str(&payload).unwrap();
-    assert_eq!(
-        json["user"],
-        serde_json::json!({ "id": id("jason"), "name": "Jason" })
-    );
+    assert_eq!(json["user"], serde_json::json!({ "id": id("jason"), "name": "Jason" }));
     assert_eq!(
         json["room"],
         serde_json::json!({ "id": id("designers"), "name": "Designers", "path": "/rooms/1/bot/key/messages" })
@@ -321,11 +289,7 @@ fn ban_rejects_private_session_ips() {
     t.write(move |tx| Session::start(tx, kevin, None, Some("192.168.1.1")).map(|_| ()));
     let mut user = user(&t, "kevin");
     assert!(t.try_write(move |tx| user.ban(tx)).is_err());
-    assert_eq!(
-        t.read(|c| User::find(c, kevin)).status,
-        Status::Active,
-        "rolled back"
-    );
+    assert_eq!(t.read(|c| User::find(c, kevin)).status, Status::Active, "rolled back");
 }
 
 #[test]

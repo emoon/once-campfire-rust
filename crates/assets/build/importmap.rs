@@ -36,21 +36,9 @@ pub fn expand(importmap_rb: &Path, rails_root: &Path) -> Vec<Pin> {
         match entry {
             Entry::Pin { name, to, preload } => {
                 let path = to.unwrap_or_else(|| format!("{name}.js"));
-                insert(
-                    &mut packages,
-                    Pin {
-                        name,
-                        path,
-                        preload,
-                    },
-                );
+                insert(&mut packages, Pin { name, path, preload });
             }
-            Entry::Dir {
-                dir,
-                under,
-                to,
-                preload,
-            } => {
+            Entry::Dir { dir, under, to, preload } => {
                 directories.retain(|d| d.0 != dir);
                 directories.push((dir, under, to, preload));
             }
@@ -66,11 +54,7 @@ pub fn expand(importmap_rb: &Path, rails_root: &Path) -> Vec<Pin> {
         javascript_files_in_tree(&root, &mut files);
         files.sort();
         for file in files {
-            let filename = file
-                .strip_prefix(&root)
-                .unwrap()
-                .to_string_lossy()
-                .into_owned();
+            let filename = file.strip_prefix(&root).unwrap().to_string_lossy().into_owned();
             let name = module_name_from(&filename, under.as_deref());
             let path = [to.as_deref().or(under.as_deref()), Some(filename.as_str())]
                 .into_iter()
@@ -78,14 +62,7 @@ pub fn expand(importmap_rb: &Path, rails_root: &Path) -> Vec<Pin> {
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
                 .join("/");
-            insert(
-                &mut packages,
-                Pin {
-                    name,
-                    path,
-                    preload,
-                },
-            );
+            insert(&mut packages, Pin { name, path, preload });
         }
     }
 
@@ -137,9 +114,7 @@ fn parse_line(line: &str) -> Option<Entry> {
         return None;
     }
     let (command, rest) = line.split_once(char::is_whitespace).unwrap_or((line, ""));
-    let mut args = Args {
-        rest: rest.trim_start(),
-    };
+    let mut args = Args { rest: rest.trim_start() };
     let first = args
         .string()
         .unwrap_or_else(|| panic!("importmap.rb: expected a string in {line:?}"));
@@ -153,11 +128,7 @@ fn parse_line(line: &str) -> Option<Entry> {
         }
     }
     match command {
-        "pin" => Some(Entry::Pin {
-            name: first,
-            to,
-            preload,
-        }),
+        "pin" => Some(Entry::Pin { name: first, to, preload }),
         "pin_all_from" => Some(Entry::Dir {
             dir: first,
             under,
@@ -179,11 +150,7 @@ struct Args<'a> {
 
 impl Args<'_> {
     fn string(&mut self) -> Option<String> {
-        let quote = self
-            .rest
-            .chars()
-            .next()
-            .filter(|c| *c == '"' || *c == '\'')?;
+        let quote = self.rest.chars().next().filter(|c| *c == '"' || *c == '\'')?;
         let end = self.rest[1..].find(quote)? + 1;
         let value = self.rest[1..end].to_string();
         self.rest = self.rest[end + 1..].trim_start();
@@ -198,10 +165,7 @@ impl Args<'_> {
             .rest
             .strip_prefix(',')
             .unwrap_or_else(|| panic!("importmap.rb: can't parse {:?}", self.rest));
-        let (key, rest) = rest
-            .trim_start()
-            .split_once(':')
-            .expect("importmap.rb: expected key: value");
+        let (key, rest) = rest.trim_start().split_once(':').expect("importmap.rb: expected key: value");
         self.rest = rest.trim_start();
         let value = if let Some(s) = self.string() {
             Value::Str(s)

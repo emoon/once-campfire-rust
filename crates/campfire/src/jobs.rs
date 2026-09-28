@@ -42,8 +42,13 @@ pub enum JobKind {
 }
 
 impl JobKind {
-    const ALL: [JobKind; 5] =
-        [JobKind::PushMessage, JobKind::DeliverWebhook, JobKind::RemoveBannedContent, JobKind::PurgeBlob, JobKind::AdHoc];
+    const ALL: [JobKind; 5] = [
+        JobKind::PushMessage,
+        JobKind::DeliverWebhook,
+        JobKind::RemoveBannedContent,
+        JobKind::PurgeBlob,
+        JobKind::AdHoc,
+    ];
 
     /// `None` for an event that isn't a job.
     pub fn of(event: &Event) -> Option<Self> {
@@ -149,7 +154,13 @@ impl Jobs {
                 ((kind, sender), (kind, receiver))
             })
             .unzip();
-        (Self { queues: Arc::new(queues), cable: Arc::new(OnceLock::new()) }, Queue { receivers })
+        (
+            Self {
+                queues: Arc::new(queues),
+                cable: Arc::new(OnceLock::new()),
+            },
+            Queue { receivers },
+        )
     }
 
     /// Enqueues best-effort work (`SomeJob.perform_later`). Dropped with an error log when its
@@ -205,7 +216,10 @@ impl Runner {
     /// `deadline`, after which they're abandoned (logged).
     pub async fn shutdown(self, deadline: Duration) {
         let _ = self.stopping.send(true);
-        if tokio::time::timeout(deadline, futures_util::future::join_all(self.workers)).await.is_err() {
+        if tokio::time::timeout(deadline, futures_util::future::join_all(self.workers))
+            .await
+            .is_err()
+        {
             tracing::warn!("jobs still running at shutdown were abandoned");
         }
     }
@@ -220,7 +234,12 @@ pub fn start(queue: Queue, app: App, registry: Registry, concurrency: usize) -> 
     for (_, receiver) in queue.receivers {
         let receiver = Arc::new(Mutex::new(receiver));
         for _ in 0..concurrency.max(1) {
-            workers.push(tokio::spawn(work(receiver.clone(), app.clone(), registry.clone(), stopping.subscribe())));
+            workers.push(tokio::spawn(work(
+                receiver.clone(),
+                app.clone(),
+                registry.clone(),
+                stopping.subscribe(),
+            )));
         }
     }
     Runner { stopping, workers }
@@ -273,14 +292,20 @@ async fn perform(app: App, registry: &Registry, work: Work) {
 }
 
 fn panic_message(panic: &(dyn std::any::Any + Send)) -> &str {
-    panic.downcast_ref::<&str>().copied().or_else(|| panic.downcast_ref::<String>().map(String::as_str)).unwrap_or("Box<dyn Any>")
+    panic
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("Box<dyn Any>")
 }
 
 /// `RemoveBannedContentJob`: `user.remove_banned_content`, which destroys each of the user's
 /// messages (each in its own transaction) and broadcasts its removal
 /// (`reference/app/models/user/bannable.rb`, `Message::Broadcasts#broadcast_remove`).
 async fn remove_banned_content(app: App, event: Event) -> anyhow::Result<()> {
-    let Event::RemoveBannedContent { user_id } = event else { return Ok(()) };
+    let Event::RemoveBannedContent { user_id } = event else {
+        return Ok(());
+    };
     let messages = app.db.read(move |conn| campfire_db::Message::by_creator(conn, user_id)).await?;
     for message in messages {
         let (removed, room_id) = (message.clone(), message.room_id);

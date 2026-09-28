@@ -145,9 +145,7 @@ impl Param {
             Value::Bool(b) => Param::Bool(b),
             Value::Number(n) => Param::Number(n),
             Value::String(s) => Param::Str(s),
-            Value::Array(items) => {
-                Param::Array(items.into_iter().filter(|v| !v.is_null()).map(Param::from_json).collect())
-            }
+            Value::Array(items) => Param::Array(items.into_iter().filter(|v| !v.is_null()).map(Param::from_json).collect()),
             Value::Object(map) => {
                 let mut params = ParamMap::new();
                 for (k, v) in map {
@@ -277,9 +275,10 @@ impl ParamMap {
                 }
                 Permit::ScalarArray(key) => {
                     if let Some(Param::Array(items)) = self.get(key)
-                        && items.iter().all(Param::is_permitted_scalar) {
-                            permitted.insert(key.clone(), Param::Array(items.clone()));
-                        }
+                        && items.iter().all(Param::is_permitted_scalar)
+                    {
+                        permitted.insert(key.clone(), Param::Array(items.clone()));
+                    }
                 }
                 Permit::AnyHash(key) => {
                     if let Some(Param::Hash(map)) = self.get(key) {
@@ -300,8 +299,11 @@ impl ParamMap {
                         permitted.insert(key.clone(), Param::Hash(map.permit(nested)));
                     }
                     Some(Param::Array(items)) => {
-                        let hashes =
-                            items.iter().filter_map(Param::as_hash).map(|m| Param::Hash(m.permit(nested))).collect();
+                        let hashes = items
+                            .iter()
+                            .filter_map(Param::as_hash)
+                            .map(|m| Param::Hash(m.permit(nested)))
+                            .collect();
                         permitted.insert(key.clone(), Param::Array(hashes));
                     }
                     _ => {}
@@ -328,7 +330,10 @@ impl FromIterator<(String, Param)> for ParamMap {
 
 fn is_multi_parameter_key(candidate: &str, key: &str) -> bool {
     // /\A#{key}\(\d+[if]?\)\z/
-    let Some(rest) = candidate.strip_prefix(key).and_then(|r| r.strip_prefix('(')).and_then(|r| r.strip_suffix(')'))
+    let Some(rest) = candidate
+        .strip_prefix(key)
+        .and_then(|r| r.strip_prefix('('))
+        .and_then(|r| r.strip_suffix(')'))
     else {
         return false;
     };
@@ -404,14 +409,14 @@ pub struct UploadedFile {
 }
 
 impl UploadedFile {
-    pub fn new(
-        original_filename: String,
-        content_type: Option<String>,
-        headers: String,
-        size: u64,
-        path: tempfile::TempPath,
-    ) -> Self {
-        Self { original_filename, content_type, headers, size, path }
+    pub fn new(original_filename: String, content_type: Option<String>, headers: String, size: u64, path: tempfile::TempPath) -> Self {
+        Self {
+            original_filename,
+            content_type,
+            headers,
+            size,
+            path,
+        }
     }
 
     /// Spool `bytes` to a temp file; handy for tests and for bot raw-body attachments.
@@ -496,16 +501,25 @@ pub enum PairValue {
 
 impl RawPair {
     pub fn text(key: &str, value: Option<&str>) -> Self {
-        Self { key: key.as_bytes().to_vec(), value: value.map(|v| PairValue::Bytes(v.as_bytes().to_vec())) }
+        Self {
+            key: key.as_bytes().to_vec(),
+            value: value.map(|v| PairValue::Bytes(v.as_bytes().to_vec())),
+        }
     }
 
     pub fn file(key: &str, file: UploadedFile) -> Self {
-        Self { key: key.as_bytes().to_vec(), value: Some(PairValue::File(Arc::new(file))) }
+        Self {
+            key: key.as_bytes().to_vec(),
+            value: Some(PairValue::File(Arc::new(file))),
+        }
     }
 }
 
 fn split_pairs(qs: &str) -> impl Iterator<Item = &str> {
-    qs.split('&').enumerate().map(|(i, part)| if i == 0 { part } else { part.trim_start_matches(' ') }).filter(|p| !p.is_empty())
+    qs.split('&')
+        .enumerate()
+        .map(|(i, part)| if i == 0 { part } else { part.trim_start_matches(' ') })
+        .filter(|p| !p.is_empty())
 }
 
 fn decode_pair(part: &str) -> Result<RawPair, ParamError> {
@@ -611,7 +625,12 @@ fn top_level_key(name: &str) -> &str {
 }
 
 fn find_byte(s: &str, byte: u8, from: usize) -> Option<usize> {
-    s.as_bytes().iter().enumerate().skip(from).find(|(_, b)| **b == byte).map(|(i, _)| i)
+    s.as_bytes()
+        .iter()
+        .enumerate()
+        .skip(from)
+        .find(|(_, b)| **b == byte)
+        .map(|(i, _)| i)
 }
 
 /// What `store_nested_param` returned: the params hash it was given, a one-element array (for a
@@ -690,7 +709,10 @@ fn store_nested_param(params: &mut ParamMap, name: &str, v: Param, depth: usize)
             None | Some(Param::Null) => ParamMap::new(),
             Some(Param::Hash(existing)) => existing,
             Some(other) => {
-                return Err(ParamError::Type(format!("expected Hash (got {}) for param `{k}'", ruby_class(&other))));
+                return Err(ParamError::Type(format!(
+                    "expected Hash (got {}) for param `{k}'",
+                    ruby_class(&other)
+                )));
             }
         };
         let stored = store_nested_param(&mut child, after, v, depth + 1)?;
@@ -707,7 +729,10 @@ fn array_slot<'a>(params: &'a mut ParamMap, k: &str) -> Result<&'a mut Vec<Param
     }
     match params.get_mut(k) {
         Some(Param::Array(items)) => Ok(items),
-        Some(other) => Err(ParamError::Type(format!("expected Array (got {}) for param `{k}'", ruby_class(other)))),
+        Some(other) => Err(ParamError::Type(format!(
+            "expected Array (got {}) for param `{k}'",
+            ruby_class(other)
+        ))),
         None => unreachable!(),
     }
 }
@@ -820,7 +845,10 @@ mod tests {
             json!({"a": [{"b": "1", "c": "2"}, {"b": "3"}]})
         );
         assert_eq!(parse("a[][b][c]=1&a[][b][d]=2"), json!({"a": [{"b": {"c": "1", "d": "2"}}]}));
-        assert_eq!(parse("a[][b][c]=1&a[][b][c]=2"), json!({"a": [{"b": {"c": "1"}}, {"b": {"c": "2"}}]}));
+        assert_eq!(
+            parse("a[][b][c]=1&a[][b][c]=2"),
+            json!({"a": [{"b": {"c": "1"}}, {"b": {"c": "2"}}]})
+        );
         assert_eq!(parse("a[][b][]=1&a[][b][]=2"), json!({"a": [{"b": ["1", "2"]}]}));
         assert_eq!(parse("a[]b=1"), json!({"a": [{"b": "1"}]}));
         assert_eq!(parse("a[][b]"), json!({"a": [{"b": null}]}));
@@ -914,7 +942,9 @@ mod tests {
     fn many_keys_build_in_linear_time() {
         let object: serde_json::Map<String, serde_json::Value> = (0..100_000).map(|n| (format!("k{n}"), n.into())).collect();
         let started = std::time::Instant::now();
-        let Param::Hash(map) = Param::from_json(serde_json::Value::Object(object)) else { panic!("a hash") };
+        let Param::Hash(map) = Param::from_json(serde_json::Value::Object(object)) else {
+            panic!("a hash")
+        };
         assert_eq!(map.len(), 100_000);
         assert!(started.elapsed() < std::time::Duration::from_secs(1), "{:?}", started.elapsed());
     }

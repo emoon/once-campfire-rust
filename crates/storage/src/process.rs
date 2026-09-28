@@ -30,7 +30,10 @@ pub fn transform(input: &Path, variation: &Variation) -> Result<NamedTempFile> {
         image = image.resize_to_limit(width, height)?;
     }
 
-    let output = tempfile::Builder::new().prefix("image_processing").suffix(&format!(".{format}")).tempfile()?;
+    let output = tempfile::Builder::new()
+        .prefix("image_processing")
+        .suffix(&format!(".{format}"))
+        .tempfile()?;
     image.write_to_file(output.path())?;
     Ok(output)
 }
@@ -93,7 +96,12 @@ pub fn ffmpeg_exists() -> bool {
 /// `draw_relevant_frame_from`: `ffmpeg -i <input> <video_preview_arguments> -`, capturing stdout.
 pub fn video_preview(input: &Path) -> Result<Vec<u8>> {
     let mut command = Command::new(ffmpeg_path());
-    command.arg("-i").arg(input).args(VIDEO_PREVIEW_ARGUMENTS).arg("-").stderr(Stdio::piped());
+    command
+        .arg("-i")
+        .arg(input)
+        .args(VIDEO_PREVIEW_ARGUMENTS)
+        .arg("-")
+        .stderr(Stdio::piped());
     let output = output_within(&mut command, FFMPEG_TIMEOUT).map_err(|error| match error.kind() {
         std::io::ErrorKind::TimedOut => Error::Preview(format!("{} {error}", ffmpeg_path())),
         _ => error.into(),
@@ -120,9 +128,16 @@ pub fn output_within(command: &mut Command, timeout: Duration) -> std::io::Resul
     let Some(status) = wait_until(&mut child, Instant::now() + timeout)? else {
         let _ = child.kill();
         let _ = child.wait();
-        return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("timed out after {:?}", timeout)));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("timed out after {:?}", timeout),
+        ));
     };
-    Ok(Output { status, stdout: stdout.join().unwrap_or_default(), stderr: stderr.join().unwrap_or_default() })
+    Ok(Output {
+        status,
+        stdout: stdout.join().unwrap_or_default(),
+        stderr: stderr.join().unwrap_or_default(),
+    })
 }
 
 fn drain(pipe: Option<impl Read + Send + 'static>) -> std::thread::JoinHandle<Vec<u8>> {
@@ -170,7 +185,9 @@ mod tests {
         let started = Instant::now();
         let pid_file = tempfile::NamedTempFile::new().unwrap();
         let mut command = Command::new("sh");
-        command.arg("-c").arg(format!("echo $$ > {}; exec sleep 30", pid_file.path().display()));
+        command
+            .arg("-c")
+            .arg(format!("echo $$ > {}; exec sleep 30", pid_file.path().display()));
         let error = output_within(&mut command, Duration::from_millis(300)).unwrap_err();
         assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
         assert!(started.elapsed() < Duration::from_secs(5), "took {:?}", started.elapsed());

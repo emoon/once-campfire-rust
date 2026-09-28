@@ -14,11 +14,17 @@ fn room(id: u64) -> String {
 }
 
 fn confirm(identifier: &str) -> String {
-    format!(r#"{{"identifier":{},"type":"confirm_subscription"}}"#, Value::String(identifier.into()))
+    format!(
+        r#"{{"identifier":{},"type":"confirm_subscription"}}"#,
+        Value::String(identifier.into())
+    )
 }
 
 fn reject(identifier: &str) -> String {
-    format!(r#"{{"identifier":{},"type":"reject_subscription"}}"#, Value::String(identifier.into()))
+    format!(
+        r#"{{"identifier":{},"type":"reject_subscription"}}"#,
+        Value::String(identifier.into())
+    )
 }
 
 fn message(identifier: &str, message: &str) -> String {
@@ -76,7 +82,10 @@ async fn negotiates_the_actioncable_subprotocol_and_welcomes() {
 async fn unauthorized_connections_are_told_not_to_reconnect_and_closed() {
     let app = start(test_config()).await;
     let mut client = app.connect_with(None, &app.origin).await;
-    assert_eq!(client.next_text().await, r#"{"type":"disconnect","reason":"unauthorized","reconnect":false}"#);
+    assert_eq!(
+        client.next_text().await,
+        r#"{"type":"disconnect","reason":"unauthorized","reconnect":false}"#
+    );
     assert_eq!(client.next().await, Frame::Close(Some((1000, String::new()))));
 }
 
@@ -223,7 +232,10 @@ async fn remote_disconnect_closes_every_connection_for_the_identifier() {
 
     assert_eq!(app.server.disconnect("user-1", true), 2);
     for client in [&mut first, &mut second] {
-        assert_eq!(client.next_text().await, r#"{"type":"disconnect","reason":"remote","reconnect":true}"#);
+        assert_eq!(
+            client.next_text().await,
+            r#"{"type":"disconnect","reason":"remote","reconnect":true}"#
+        );
         assert_eq!(client.next().await, Frame::Close(Some((1000, String::new()))));
     }
     bystander.assert_silent().await;
@@ -236,7 +248,10 @@ async fn remote_disconnect_closes_every_connection_for_the_identifier() {
     let mut again = app.connect(1).await;
     again.next_text().await;
     app.server.disconnect("user-1", false);
-    assert_eq!(again.next_text().await, r#"{"type":"disconnect","reason":"remote","reconnect":false}"#);
+    assert_eq!(
+        again.next_text().await,
+        r#"{"type":"disconnect","reason":"remote","reconnect":false}"#
+    );
 }
 
 #[tokio::test]
@@ -245,12 +260,20 @@ async fn restart_closes_with_server_restart() {
     let mut client = app.connect(1).await;
     client.next_text().await;
     app.server.restart();
-    assert_eq!(client.next_text().await, r#"{"type":"disconnect","reason":"server_restart","reconnect":true}"#);
+    assert_eq!(
+        client.next_text().await,
+        r#"{"type":"disconnect","reason":"server_restart","reconnect":true}"#
+    );
 }
 
 #[tokio::test]
 async fn lagging_subscribers_are_disconnected_with_reconnect() {
-    let app = start(Config { stream_capacity: 1, max_write_batch: 1, ..test_config() }).await;
+    let app = start(Config {
+        stream_capacity: 1,
+        max_write_batch: 1,
+        ..test_config()
+    })
+    .await;
     let mut client = app.connect(1).await;
     client.next_text().await;
     let room = room(1);
@@ -278,14 +301,20 @@ async fn pings_every_three_seconds_with_a_unix_timestamp() {
     let mut client = app.connect(1).await;
     assert_eq!(client.next_text().await, WELCOME);
     let started = std::time::Instant::now();
-    let Frame::Text(ping) = tokio::time::timeout(Duration::from_secs(4), client.next_including_pings()).await.unwrap() else {
+    let Frame::Text(ping) = tokio::time::timeout(Duration::from_secs(4), client.next_including_pings())
+        .await
+        .unwrap()
+    else {
         panic!("expected a ping");
     };
     assert!(started.elapsed() <= Duration::from_millis(3100));
     let ping: Value = serde_json::from_str(&ping).unwrap();
     assert_eq!(ping.as_object().unwrap().keys().collect::<Vec<_>>(), ["type", "message"]);
     assert_eq!(ping["type"], "ping");
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
     assert!((ping["message"].as_i64().unwrap() - now).abs() <= 1);
 }
 
@@ -302,7 +331,10 @@ async fn turbo_streams_channel_verifies_and_guards_stream_names() {
     app.server.broadcast_remove_to(&["rooms"], "list_room_1");
     assert_eq!(
         client.next_text().await,
-        message(&rooms, r#""\u003cturbo-stream action=\"remove\" target=\"list_room_1\"\u003e\u003c/turbo-stream\u003e""#)
+        message(
+            &rooms,
+            r#""\u003cturbo-stream action=\"remove\" target=\"list_room_1\"\u003e\u003c/turbo-stream\u003e""#
+        )
     );
 
     let forged = identifier(json!({ "channel": "Turbo::StreamsChannel", "signed_stream_name": "rooms" }));
@@ -354,8 +386,15 @@ async fn a_client_close_is_answered_with_its_code() {
     let app = start(test_config()).await;
     let mut client = app.connect(1).await;
     assert_eq!(client.next_text().await, WELCOME);
-    let close = CloseFrame { code: CloseCode::Away, reason: "".into() };
-    client.socket.send(tokio_tungstenite::tungstenite::Message::Close(Some(close))).await.unwrap();
+    let close = CloseFrame {
+        code: CloseCode::Away,
+        reason: "".into(),
+    };
+    client
+        .socket
+        .send(tokio_tungstenite::tungstenite::Message::Close(Some(close)))
+        .await
+        .unwrap();
     assert_eq!(client.next().await, Frame::Close(Some((1001, String::new()))));
 }
 
@@ -370,10 +409,14 @@ async fn a_connection_holds_a_bounded_number_of_subscriptions() {
         assert_eq!(client.next_text().await, confirm(&heartbeat));
     }
     // Past the limit, and an oversized identifier: ignored, no reply.
-    client.subscribe(&identifier(json!({ "channel": "HeartbeatChannel", "nonce": 64 }))).await;
+    client
+        .subscribe(&identifier(json!({ "channel": "HeartbeatChannel", "nonce": 64 })))
+        .await;
     client.assert_silent().await;
     let mut other = app.connect(2).await;
     assert_eq!(other.next_text().await, WELCOME);
-    other.subscribe(&identifier(json!({ "channel": "HeartbeatChannel", "pad": "x".repeat(5000) }))).await;
+    other
+        .subscribe(&identifier(json!({ "channel": "HeartbeatChannel", "pad": "x".repeat(5000) })))
+        .await;
     other.assert_silent().await;
 }

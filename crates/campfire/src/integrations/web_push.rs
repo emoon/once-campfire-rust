@@ -27,7 +27,10 @@ const TTL_SECONDS: u64 = 60 * 60 * 24 * 7 * 4;
 const URGENCY: &str = "high";
 /// Per connect and read. The web-push gem leaves `Net::HTTP`'s 60 seconds, which let a slow push
 /// service hold one of the pool's few workers for minutes.
-const TIMEOUTS: Timeouts = Timeouts { open: Duration::from_secs(10), read: Duration::from_secs(10) };
+const TIMEOUTS: Timeouts = Timeouts {
+    open: Duration::from_secs(10),
+    read: Duration::from_secs(10),
+};
 /// For a whole delivery, however the push service trickles its reply.
 const DELIVERY_DEADLINE: Duration = Duration::from_secs(30);
 /// `Rails.application.routes.url_helpers.account_logo_path`
@@ -69,11 +72,21 @@ impl Notification {
     /// service or doesn't resolve to a public address (`Ok(None)`); otherwise the push
     /// service's status.
     pub async fn deliver(&self, net: &Network, vapid: &VapidConfig) -> Result<Option<u16>, DeliveryError> {
-        let Some(endpoint_ip) = self.resolved_endpoint_ip(net).await else { return Ok(None) };
+        let Some(endpoint_ip) = self.resolved_endpoint_ip(net).await else {
+            return Ok(None);
+        };
         let endpoint = self.subscription.endpoint.as_deref().unwrap_or_default();
-        payload_send(net, vapid, endpoint, endpoint_ip, &self.subscription, self.encoded_message().as_bytes(), unix_now())
-            .await
-            .map(Some)
+        payload_send(
+            net,
+            vapid,
+            endpoint,
+            endpoint_ip,
+            &self.subscription,
+            self.encoded_message().as_bytes(),
+            unix_now(),
+        )
+        .await
+        .map(Some)
     }
 
     /// `Push::Subscription#resolved_endpoint_ip`
@@ -115,7 +128,10 @@ impl DeliveryError {
     /// which includes TLS failures and a bad VAPID key; those say nothing about the
     /// subscription, and a 404 does (RFC 8030, section 7.3).
     pub fn invalidates_subscription(&self) -> bool {
-        matches!(self, DeliveryError::SubscriptionGone { .. } | DeliveryError::InvalidSubscriptionKey(_))
+        matches!(
+            self,
+            DeliveryError::SubscriptionGone { .. } | DeliveryError::InvalidSubscriptionKey(_)
+        )
     }
 
     /// The Ruby exception class, for the pool's log line.
@@ -161,7 +177,8 @@ async fn payload_send(
     message: &[u8],
     now: i64,
 ) -> Result<u16, DeliveryError> {
-    let uri = campfire_richtext::uri::parse(endpoint).map_err(|_| DeliveryError::Argument(format!("bad URI(is not URI?): {endpoint:?}")))?;
+    let uri =
+        campfire_richtext::uri::parse(endpoint).map_err(|_| DeliveryError::Argument(format!("bad URI(is not URI?): {endpoint:?}")))?;
     let host = uri.host.clone().unwrap_or_default();
     let payload = encryption::encrypt(message, subscription.p256dh_key.as_deref(), subscription.auth_key.as_deref())?;
 
@@ -175,7 +192,12 @@ async fn payload_send(
     let audience = format!("{}://{}", uri.scheme.as_deref().unwrap_or("").to_ascii_lowercase(), host);
     headers.push(("Authorization".to_string(), vapid.authorization(&audience, now)));
 
-    let endpoint = Endpoint { https: true, host: host.clone(), port: uri.port.unwrap_or(443) as u16, pinned_ip: Some(endpoint_ip) };
+    let endpoint = Endpoint {
+        https: true,
+        host: host.clone(),
+        port: uri.port.unwrap_or(443) as u16,
+        pinned_ip: Some(endpoint_ip),
+    };
     let mut request = http::Request::net_http(hyper::Method::POST, http::request_uri(&uri), None, headers).transport(true, &endpoint);
     request.body = payload;
     let response = tokio::time::timeout(DELIVERY_DEADLINE, http::exchange(net, &endpoint, request, &TIMEOUTS))
@@ -186,8 +208,20 @@ async fn payload_send(
 
 /// `WebPush::Request#verify_response`
 fn verify_response(status: u16, reason: &str, host: &str) -> Result<u16, DeliveryError> {
-    let error = |kind| Err(DeliveryError::Response { kind, host: host.to_string(), status });
-    let gone = |kind| Err(DeliveryError::SubscriptionGone { kind, host: host.to_string(), status });
+    let error = |kind| {
+        Err(DeliveryError::Response {
+            kind,
+            host: host.to_string(),
+            status,
+        })
+    };
+    let gone = |kind| {
+        Err(DeliveryError::SubscriptionGone {
+            kind,
+            host: host.to_string(),
+            status,
+        })
+    };
     match status {
         410 => gone("WebPush::ExpiredSubscription"),
         404 => gone("WebPush::InvalidSubscription"),
@@ -224,7 +258,13 @@ pub async fn deliver_test_notification(
 /// `Room::PushMessageJob#perform` / `Room::MessagePusher#push`: the payload goes to the
 /// subscriptions of everyone involved in everything, then to mentioned users involved in
 /// mentions. Badges are counted here; delivery happens on the pool.
-pub fn push_message(pool: &Pool, conn: &Connection, rich_text: &dyn RichText, message: &Message, now: Timestamp) -> campfire_db::Result<PushPayload> {
+pub fn push_message(
+    pool: &Pool,
+    conn: &Connection,
+    rich_text: &dyn RichText,
+    message: &Message,
+    now: Timestamp,
+) -> campfire_db::Result<PushPayload> {
     let (payload, everything, mentions) = PushSubscription::pushes_for(conn, rich_text, message, now)?;
     pool.queue(conn, &payload, everything)?;
     pool.queue(conn, &payload, mentions)?;
@@ -232,7 +272,10 @@ pub fn push_message(pool: &Pool, conn: &Connection, rich_text: &dyn RichText, me
 }
 
 fn unix_now() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 /// `WebPush.decode64` (`Base64.urlsafe_decode64`): either alphabet, padding optional.
@@ -241,7 +284,9 @@ pub(crate) fn decode64(value: &str) -> Result<Vec<u8>, EncryptionError> {
     if !value.ends_with('=') && !value.len().is_multiple_of(4) {
         value.push_str(&"=".repeat(4 - value.len() % 4));
     }
-    STANDARD.decode(value).map_err(|_| EncryptionError::Argument("invalid base64".into()))
+    STANDARD
+        .decode(value)
+        .map_err(|_| EncryptionError::Argument("invalid base64".into()))
 }
 
 /// `trim_encode64`: urlsafe Base64 without padding.

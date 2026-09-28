@@ -75,7 +75,15 @@ pub struct Route {
 impl Route {
     fn new(verb: Method, pattern: &'static str, endpoint: &'static str, action: impl Action) -> Self {
         let (regex, names) = compile(pattern);
-        Self { verb, pattern, endpoint, defaults: &[], action: Arc::new(action), regex, names }
+        Self {
+            verb,
+            pattern,
+            endpoint,
+            defaults: &[],
+            action: Arc::new(action),
+            regex,
+            names,
+        }
     }
 
     fn defaults(mut self, defaults: &'static [(&'static str, &'static str)]) -> Self {
@@ -139,9 +147,21 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         put("/first_run(.:format)", "first_runs#update", action_not_found),
         delete("/first_run(.:format)", "first_runs#destroy", action_not_found),
         post("/first_run(.:format)", "first_runs#create", first_runs::create),
-        get("/session/transfers/:id(.:format)", "sessions/transfers#show", sessions::transfers::show),
-        patch("/session/transfers/:id(.:format)", "sessions/transfers#update", sessions::transfers::update),
-        put("/session/transfers/:id(.:format)", "sessions/transfers#update", sessions::transfers::update),
+        get(
+            "/session/transfers/:id(.:format)",
+            "sessions/transfers#show",
+            sessions::transfers::show,
+        ),
+        patch(
+            "/session/transfers/:id(.:format)",
+            "sessions/transfers#update",
+            sessions::transfers::update,
+        ),
+        put(
+            "/session/transfers/:id(.:format)",
+            "sessions/transfers#update",
+            sessions::transfers::update,
+        ),
         get("/session/new(.:format)", "sessions#new", sessions::new),
         get("/session/edit(.:format)", "sessions#edit", action_not_found),
         get("/session(.:format)", "sessions#show", action_not_found),
@@ -157,8 +177,16 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         patch("/account/users/:id(.:format)", "accounts/users#update", accounts::users::update),
         put("/account/users/:id(.:format)", "accounts/users#update", accounts::users::update),
         delete("/account/users/:id(.:format)", "accounts/users#destroy", accounts::users::destroy),
-        patch("/account/bots/:bot_id/key(.:format)", "accounts/bots/keys#update", accounts::bots::keys::update),
-        put("/account/bots/:bot_id/key(.:format)", "accounts/bots/keys#update", accounts::bots::keys::update),
+        patch(
+            "/account/bots/:bot_id/key(.:format)",
+            "accounts/bots/keys#update",
+            accounts::bots::keys::update,
+        ),
+        put(
+            "/account/bots/:bot_id/key(.:format)",
+            "accounts/bots/keys#update",
+            accounts::bots::keys::update,
+        ),
         get("/account/bots(.:format)", "accounts/bots#index", accounts::bots::index),
         post("/account/bots(.:format)", "accounts/bots#create", accounts::bots::create),
         get("/account/bots/new(.:format)", "accounts/bots#new", accounts::bots::new),
@@ -167,12 +195,28 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         patch("/account/bots/:id(.:format)", "accounts/bots#update", accounts::bots::update),
         put("/account/bots/:id(.:format)", "accounts/bots#update", accounts::bots::update),
         delete("/account/bots/:id(.:format)", "accounts/bots#destroy", accounts::bots::destroy),
-        post("/account/join_code(.:format)", "accounts/join_codes#create", accounts::join_codes::create),
+        post(
+            "/account/join_code(.:format)",
+            "accounts/join_codes#create",
+            accounts::join_codes::create,
+        ),
         get("/account/logo(.:format)", "accounts/logos#show", accounts::logos::show),
         delete("/account/logo(.:format)", "accounts/logos#destroy", accounts::logos::destroy),
-        get("/account/custom_styles/edit(.:format)", "accounts/custom_styles#edit", accounts::custom_styles::edit),
-        patch("/account/custom_styles(.:format)", "accounts/custom_styles#update", accounts::custom_styles::update),
-        put("/account/custom_styles(.:format)", "accounts/custom_styles#update", accounts::custom_styles::update),
+        get(
+            "/account/custom_styles/edit(.:format)",
+            "accounts/custom_styles#edit",
+            accounts::custom_styles::edit,
+        ),
+        patch(
+            "/account/custom_styles(.:format)",
+            "accounts/custom_styles#update",
+            accounts::custom_styles::update,
+        ),
+        put(
+            "/account/custom_styles(.:format)",
+            "accounts/custom_styles#update",
+            accounts::custom_styles::update,
+        ),
         get("/account/new(.:format)", "accounts#new", action_not_found),
         get("/account/edit(.:format)", "accounts#edit", accounts::edit),
         get("/account(.:format)", "accounts#show", action_not_found),
@@ -191,21 +235,80 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         get("/users/:user_id/profile/new(.:format)", "users/profiles#new", action_not_found).defaults(ME_DEFAULTS),
         get("/users/:user_id/profile/edit(.:format)", "users/profiles#edit", action_not_found).defaults(ME_DEFAULTS),
         get("/users/:user_id/profile(.:format)", "users/profiles#show", users::profiles::show).defaults(ME_DEFAULTS),
-        patch("/users/:user_id/profile(.:format)", "users/profiles#update", users::profiles::update).defaults(ME_DEFAULTS),
-        put("/users/:user_id/profile(.:format)", "users/profiles#update", users::profiles::update).defaults(ME_DEFAULTS),
+        patch(
+            "/users/:user_id/profile(.:format)",
+            "users/profiles#update",
+            users::profiles::update,
+        )
+        .defaults(ME_DEFAULTS),
+        put(
+            "/users/:user_id/profile(.:format)",
+            "users/profiles#update",
+            users::profiles::update,
+        )
+        .defaults(ME_DEFAULTS),
         delete("/users/:user_id/profile(.:format)", "users/profiles#destroy", action_not_found).defaults(ME_DEFAULTS),
         post("/users/:user_id/profile(.:format)", "users/profiles#create", action_not_found).defaults(ME_DEFAULTS),
-        post("/users/:user_id/push_subscriptions/:push_subscription_id/test_notifications(.:format)", "users/push_subscriptions/test_notifications#create", users::push_subscriptions::test_notifications::create).defaults(ME_DEFAULTS),
-        get("/users/:user_id/push_subscriptions(.:format)", "users/push_subscriptions#index", users::push_subscriptions::index).defaults(ME_DEFAULTS),
-        post("/users/:user_id/push_subscriptions(.:format)", "users/push_subscriptions#create", users::push_subscriptions::create).defaults(ME_DEFAULTS),
-        get("/users/:user_id/push_subscriptions/new(.:format)", "users/push_subscriptions#new", action_not_found).defaults(ME_DEFAULTS),
-        get("/users/:user_id/push_subscriptions/:id/edit(.:format)", "users/push_subscriptions#edit", action_not_found).defaults(ME_DEFAULTS),
-        get("/users/:user_id/push_subscriptions/:id(.:format)", "users/push_subscriptions#show", action_not_found).defaults(ME_DEFAULTS),
-        patch("/users/:user_id/push_subscriptions/:id(.:format)", "users/push_subscriptions#update", action_not_found).defaults(ME_DEFAULTS),
-        put("/users/:user_id/push_subscriptions/:id(.:format)", "users/push_subscriptions#update", action_not_found).defaults(ME_DEFAULTS),
-        delete("/users/:user_id/push_subscriptions/:id(.:format)", "users/push_subscriptions#destroy", users::push_subscriptions::destroy).defaults(ME_DEFAULTS),
+        post(
+            "/users/:user_id/push_subscriptions/:push_subscription_id/test_notifications(.:format)",
+            "users/push_subscriptions/test_notifications#create",
+            users::push_subscriptions::test_notifications::create,
+        )
+        .defaults(ME_DEFAULTS),
+        get(
+            "/users/:user_id/push_subscriptions(.:format)",
+            "users/push_subscriptions#index",
+            users::push_subscriptions::index,
+        )
+        .defaults(ME_DEFAULTS),
+        post(
+            "/users/:user_id/push_subscriptions(.:format)",
+            "users/push_subscriptions#create",
+            users::push_subscriptions::create,
+        )
+        .defaults(ME_DEFAULTS),
+        get(
+            "/users/:user_id/push_subscriptions/new(.:format)",
+            "users/push_subscriptions#new",
+            action_not_found,
+        )
+        .defaults(ME_DEFAULTS),
+        get(
+            "/users/:user_id/push_subscriptions/:id/edit(.:format)",
+            "users/push_subscriptions#edit",
+            action_not_found,
+        )
+        .defaults(ME_DEFAULTS),
+        get(
+            "/users/:user_id/push_subscriptions/:id(.:format)",
+            "users/push_subscriptions#show",
+            action_not_found,
+        )
+        .defaults(ME_DEFAULTS),
+        patch(
+            "/users/:user_id/push_subscriptions/:id(.:format)",
+            "users/push_subscriptions#update",
+            action_not_found,
+        )
+        .defaults(ME_DEFAULTS),
+        put(
+            "/users/:user_id/push_subscriptions/:id(.:format)",
+            "users/push_subscriptions#update",
+            action_not_found,
+        )
+        .defaults(ME_DEFAULTS),
+        delete(
+            "/users/:user_id/push_subscriptions/:id(.:format)",
+            "users/push_subscriptions#destroy",
+            users::push_subscriptions::destroy,
+        )
+        .defaults(ME_DEFAULTS),
         get("/users/:id(.:format)", "users#show", users::show),
-        get("/autocompletable/users(.:format)", "autocompletable/users#index", autocompletable::users::index),
+        get(
+            "/autocompletable/users(.:format)",
+            "autocompletable/users#index",
+            autocompletable::users::index,
+        ),
         get("/rooms/:room_id/messages(.:format)", "messages#index", messages::index),
         post("/rooms/:room_id/messages(.:format)", "messages#create", messages::create),
         get("/rooms/:room_id/messages/new(.:format)", "messages#new", action_not_found),
@@ -214,18 +317,65 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         patch("/rooms/:room_id/messages/:id(.:format)", "messages#update", messages::update),
         put("/rooms/:room_id/messages/:id(.:format)", "messages#update", messages::update),
         delete("/rooms/:room_id/messages/:id(.:format)", "messages#destroy", messages::destroy),
-        post("/rooms/:room_id/:bot_key/messages/:message_id/boosts(.:format)", "messages/boosts/by_bots#create", messages::boosts::by_bots::create).defaults(BOT_DEFAULTS),
-        delete("/rooms/:room_id/:bot_key/messages/:message_id/boosts/:id(.:format)", "messages/boosts/by_bots#destroy", messages::boosts::by_bots::destroy).defaults(BOT_DEFAULTS),
-        get("/rooms/:room_id/:bot_key/messages(.:format)", "messages/by_bots#index", messages::by_bots::index).defaults(BOT_DEFAULTS),
-        post("/rooms/:room_id/:bot_key/messages(.:format)", "messages/by_bots#create", messages::by_bots::create).defaults(BOT_DEFAULTS),
-        patch("/rooms/:room_id/:bot_key/messages/:id(.:format)", "messages/by_bots#update", messages::by_bots::update).defaults(BOT_DEFAULTS),
-        put("/rooms/:room_id/:bot_key/messages/:id(.:format)", "messages/by_bots#update", messages::by_bots::update).defaults(BOT_DEFAULTS),
-        delete("/rooms/:room_id/:bot_key/messages/:id(.:format)", "messages/by_bots#destroy", messages::by_bots::destroy).defaults(BOT_DEFAULTS),
+        post(
+            "/rooms/:room_id/:bot_key/messages/:message_id/boosts(.:format)",
+            "messages/boosts/by_bots#create",
+            messages::boosts::by_bots::create,
+        )
+        .defaults(BOT_DEFAULTS),
+        delete(
+            "/rooms/:room_id/:bot_key/messages/:message_id/boosts/:id(.:format)",
+            "messages/boosts/by_bots#destroy",
+            messages::boosts::by_bots::destroy,
+        )
+        .defaults(BOT_DEFAULTS),
+        get(
+            "/rooms/:room_id/:bot_key/messages(.:format)",
+            "messages/by_bots#index",
+            messages::by_bots::index,
+        )
+        .defaults(BOT_DEFAULTS),
+        post(
+            "/rooms/:room_id/:bot_key/messages(.:format)",
+            "messages/by_bots#create",
+            messages::by_bots::create,
+        )
+        .defaults(BOT_DEFAULTS),
+        patch(
+            "/rooms/:room_id/:bot_key/messages/:id(.:format)",
+            "messages/by_bots#update",
+            messages::by_bots::update,
+        )
+        .defaults(BOT_DEFAULTS),
+        put(
+            "/rooms/:room_id/:bot_key/messages/:id(.:format)",
+            "messages/by_bots#update",
+            messages::by_bots::update,
+        )
+        .defaults(BOT_DEFAULTS),
+        delete(
+            "/rooms/:room_id/:bot_key/messages/:id(.:format)",
+            "messages/by_bots#destroy",
+            messages::by_bots::destroy,
+        )
+        .defaults(BOT_DEFAULTS),
         get("/rooms/:room_id/refresh(.:format)", "rooms/refreshes#show", rooms::refreshes::show),
         get("/rooms/:room_id/settings(.:format)", "rooms/settings#show", missing_controller),
-        get("/rooms/:room_id/involvement(.:format)", "rooms/involvements#show", rooms::involvements::show),
-        patch("/rooms/:room_id/involvement(.:format)", "rooms/involvements#update", rooms::involvements::update),
-        put("/rooms/:room_id/involvement(.:format)", "rooms/involvements#update", rooms::involvements::update),
+        get(
+            "/rooms/:room_id/involvement(.:format)",
+            "rooms/involvements#show",
+            rooms::involvements::show,
+        ),
+        patch(
+            "/rooms/:room_id/involvement(.:format)",
+            "rooms/involvements#update",
+            rooms::involvements::update,
+        ),
+        put(
+            "/rooms/:room_id/involvement(.:format)",
+            "rooms/involvements#update",
+            rooms::involvements::update,
+        ),
         get("/rooms/:room_id/@:message_id(.:format)", "rooms#show", rooms::show),
         get("/rooms(.:format)", "rooms#index", rooms::index),
         post("/rooms(.:format)", "rooms#create", action_not_found),
@@ -259,14 +409,46 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         patch("/rooms/directs/:id(.:format)", "rooms/directs#update", action_not_found),
         put("/rooms/directs/:id(.:format)", "rooms/directs#update", action_not_found),
         delete("/rooms/directs/:id(.:format)", "rooms/directs#destroy", rooms::directs::destroy),
-        get("/messages/:message_id/boosts(.:format)", "messages/boosts#index", messages::boosts::index),
-        post("/messages/:message_id/boosts(.:format)", "messages/boosts#create", messages::boosts::create),
-        get("/messages/:message_id/boosts/new(.:format)", "messages/boosts#new", messages::boosts::new),
-        get("/messages/:message_id/boosts/:id/edit(.:format)", "messages/boosts#edit", action_not_found),
-        get("/messages/:message_id/boosts/:id(.:format)", "messages/boosts#show", action_not_found),
-        patch("/messages/:message_id/boosts/:id(.:format)", "messages/boosts#update", action_not_found),
-        put("/messages/:message_id/boosts/:id(.:format)", "messages/boosts#update", action_not_found),
-        delete("/messages/:message_id/boosts/:id(.:format)", "messages/boosts#destroy", messages::boosts::destroy),
+        get(
+            "/messages/:message_id/boosts(.:format)",
+            "messages/boosts#index",
+            messages::boosts::index,
+        ),
+        post(
+            "/messages/:message_id/boosts(.:format)",
+            "messages/boosts#create",
+            messages::boosts::create,
+        ),
+        get(
+            "/messages/:message_id/boosts/new(.:format)",
+            "messages/boosts#new",
+            messages::boosts::new,
+        ),
+        get(
+            "/messages/:message_id/boosts/:id/edit(.:format)",
+            "messages/boosts#edit",
+            action_not_found,
+        ),
+        get(
+            "/messages/:message_id/boosts/:id(.:format)",
+            "messages/boosts#show",
+            action_not_found,
+        ),
+        patch(
+            "/messages/:message_id/boosts/:id(.:format)",
+            "messages/boosts#update",
+            action_not_found,
+        ),
+        put(
+            "/messages/:message_id/boosts/:id(.:format)",
+            "messages/boosts#update",
+            action_not_found,
+        ),
+        delete(
+            "/messages/:message_id/boosts/:id(.:format)",
+            "messages/boosts#destroy",
+            messages::boosts::destroy,
+        ),
         get("/messages(.:format)", "messages#index", messages::index),
         post("/messages(.:format)", "messages#create", messages::create),
         get("/messages/new(.:format)", "messages#new", action_not_found),
@@ -282,32 +464,136 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         get("/webmanifest(.:format)", "pwa#manifest", pwa::manifest),
         get("/service-worker(.:format)", "pwa#service_worker", pwa::service_worker),
         get("/up(.:format)", "rails/health#show", health::show),
-        get("/recede_historical_location(.:format)", "turbo/native/navigation#recede", turbo_native::recede),
-        get("/resume_historical_location(.:format)", "turbo/native/navigation#resume", turbo_native::resume),
-        get("/refresh_historical_location(.:format)", "turbo/native/navigation#refresh", turbo_native::refresh),
-        post("/rails/action_mailbox/postmark/inbound_emails(.:format)", "action_mailbox/ingresses/postmark/inbound_emails#create", mailbox::ingress_not_configured),
-        post("/rails/action_mailbox/relay/inbound_emails(.:format)", "action_mailbox/ingresses/relay/inbound_emails#create", mailbox::ingress_not_configured),
-        post("/rails/action_mailbox/sendgrid/inbound_emails(.:format)", "action_mailbox/ingresses/sendgrid/inbound_emails#create", mailbox::ingress_not_configured),
-        get("/rails/action_mailbox/mandrill/inbound_emails(.:format)", "action_mailbox/ingresses/mandrill/inbound_emails#health_check", mailbox::ingress_not_configured),
-        post("/rails/action_mailbox/mandrill/inbound_emails(.:format)", "action_mailbox/ingresses/mandrill/inbound_emails#create", mailbox::ingress_not_configured),
-        post("/rails/action_mailbox/mailgun/inbound_emails/mime(.:format)", "action_mailbox/ingresses/mailgun/inbound_emails#create", mailbox::ingress_not_configured),
-        get("/rails/conductor/action_mailbox/inbound_emails(.:format)", "rails/conductor/action_mailbox/inbound_emails#index", mailbox::conductor),
-        post("/rails/conductor/action_mailbox/inbound_emails(.:format)", "rails/conductor/action_mailbox/inbound_emails#create", mailbox::conductor),
-        get("/rails/conductor/action_mailbox/inbound_emails/new(.:format)", "rails/conductor/action_mailbox/inbound_emails#new", mailbox::conductor),
-        get("/rails/conductor/action_mailbox/inbound_emails/:id(.:format)", "rails/conductor/action_mailbox/inbound_emails#show", mailbox::conductor),
-        get("/rails/conductor/action_mailbox/inbound_emails/sources/new(.:format)", "rails/conductor/action_mailbox/inbound_emails/sources#new", mailbox::conductor),
-        post("/rails/conductor/action_mailbox/inbound_emails/sources(.:format)", "rails/conductor/action_mailbox/inbound_emails/sources#create", mailbox::conductor),
-        post("/rails/conductor/action_mailbox/:inbound_email_id/reroute(.:format)", "rails/conductor/action_mailbox/reroutes#create", mailbox::conductor),
-        post("/rails/conductor/action_mailbox/:inbound_email_id/incinerate(.:format)", "rails/conductor/action_mailbox/incinerates#create", mailbox::conductor),
-        get("/rails/active_storage/blobs/redirect/:signed_id/*filename(.:format)", "active_storage/blobs/redirect#show", active_storage::blobs_redirect),
-        get("/rails/active_storage/blobs/proxy/:signed_id/*filename(.:format)", "active_storage/blobs/proxy#show", active_storage::blobs_proxy),
-        get("/rails/active_storage/blobs/:signed_id/*filename(.:format)", "active_storage/blobs/redirect#show", active_storage::blobs_redirect),
-        get("/rails/active_storage/representations/redirect/:signed_blob_id/:variation_key/*filename(.:format)", "active_storage/representations/redirect#show", active_storage::representations_redirect),
-        get("/rails/active_storage/representations/proxy/:signed_blob_id/:variation_key/*filename(.:format)", "active_storage/representations/proxy#show", active_storage::representations_proxy),
-        get("/rails/active_storage/representations/:signed_blob_id/:variation_key/*filename(.:format)", "active_storage/representations/redirect#show", active_storage::representations_redirect),
-        get("/rails/active_storage/disk/:encoded_key/*filename(.:format)", "active_storage/disk#show", active_storage::disk_show),
-        put("/rails/active_storage/disk/:encoded_token(.:format)", "active_storage/disk#update", active_storage::disk_update),
-        post("/rails/active_storage/direct_uploads(.:format)", "active_storage/direct_uploads#create", active_storage::direct_uploads_create),
+        get(
+            "/recede_historical_location(.:format)",
+            "turbo/native/navigation#recede",
+            turbo_native::recede,
+        ),
+        get(
+            "/resume_historical_location(.:format)",
+            "turbo/native/navigation#resume",
+            turbo_native::resume,
+        ),
+        get(
+            "/refresh_historical_location(.:format)",
+            "turbo/native/navigation#refresh",
+            turbo_native::refresh,
+        ),
+        post(
+            "/rails/action_mailbox/postmark/inbound_emails(.:format)",
+            "action_mailbox/ingresses/postmark/inbound_emails#create",
+            mailbox::ingress_not_configured,
+        ),
+        post(
+            "/rails/action_mailbox/relay/inbound_emails(.:format)",
+            "action_mailbox/ingresses/relay/inbound_emails#create",
+            mailbox::ingress_not_configured,
+        ),
+        post(
+            "/rails/action_mailbox/sendgrid/inbound_emails(.:format)",
+            "action_mailbox/ingresses/sendgrid/inbound_emails#create",
+            mailbox::ingress_not_configured,
+        ),
+        get(
+            "/rails/action_mailbox/mandrill/inbound_emails(.:format)",
+            "action_mailbox/ingresses/mandrill/inbound_emails#health_check",
+            mailbox::ingress_not_configured,
+        ),
+        post(
+            "/rails/action_mailbox/mandrill/inbound_emails(.:format)",
+            "action_mailbox/ingresses/mandrill/inbound_emails#create",
+            mailbox::ingress_not_configured,
+        ),
+        post(
+            "/rails/action_mailbox/mailgun/inbound_emails/mime(.:format)",
+            "action_mailbox/ingresses/mailgun/inbound_emails#create",
+            mailbox::ingress_not_configured,
+        ),
+        get(
+            "/rails/conductor/action_mailbox/inbound_emails(.:format)",
+            "rails/conductor/action_mailbox/inbound_emails#index",
+            mailbox::conductor,
+        ),
+        post(
+            "/rails/conductor/action_mailbox/inbound_emails(.:format)",
+            "rails/conductor/action_mailbox/inbound_emails#create",
+            mailbox::conductor,
+        ),
+        get(
+            "/rails/conductor/action_mailbox/inbound_emails/new(.:format)",
+            "rails/conductor/action_mailbox/inbound_emails#new",
+            mailbox::conductor,
+        ),
+        get(
+            "/rails/conductor/action_mailbox/inbound_emails/:id(.:format)",
+            "rails/conductor/action_mailbox/inbound_emails#show",
+            mailbox::conductor,
+        ),
+        get(
+            "/rails/conductor/action_mailbox/inbound_emails/sources/new(.:format)",
+            "rails/conductor/action_mailbox/inbound_emails/sources#new",
+            mailbox::conductor,
+        ),
+        post(
+            "/rails/conductor/action_mailbox/inbound_emails/sources(.:format)",
+            "rails/conductor/action_mailbox/inbound_emails/sources#create",
+            mailbox::conductor,
+        ),
+        post(
+            "/rails/conductor/action_mailbox/:inbound_email_id/reroute(.:format)",
+            "rails/conductor/action_mailbox/reroutes#create",
+            mailbox::conductor,
+        ),
+        post(
+            "/rails/conductor/action_mailbox/:inbound_email_id/incinerate(.:format)",
+            "rails/conductor/action_mailbox/incinerates#create",
+            mailbox::conductor,
+        ),
+        get(
+            "/rails/active_storage/blobs/redirect/:signed_id/*filename(.:format)",
+            "active_storage/blobs/redirect#show",
+            active_storage::blobs_redirect,
+        ),
+        get(
+            "/rails/active_storage/blobs/proxy/:signed_id/*filename(.:format)",
+            "active_storage/blobs/proxy#show",
+            active_storage::blobs_proxy,
+        ),
+        get(
+            "/rails/active_storage/blobs/:signed_id/*filename(.:format)",
+            "active_storage/blobs/redirect#show",
+            active_storage::blobs_redirect,
+        ),
+        get(
+            "/rails/active_storage/representations/redirect/:signed_blob_id/:variation_key/*filename(.:format)",
+            "active_storage/representations/redirect#show",
+            active_storage::representations_redirect,
+        ),
+        get(
+            "/rails/active_storage/representations/proxy/:signed_blob_id/:variation_key/*filename(.:format)",
+            "active_storage/representations/proxy#show",
+            active_storage::representations_proxy,
+        ),
+        get(
+            "/rails/active_storage/representations/:signed_blob_id/:variation_key/*filename(.:format)",
+            "active_storage/representations/redirect#show",
+            active_storage::representations_redirect,
+        ),
+        get(
+            "/rails/active_storage/disk/:encoded_key/*filename(.:format)",
+            "active_storage/disk#show",
+            active_storage::disk_show,
+        ),
+        put(
+            "/rails/active_storage/disk/:encoded_token(.:format)",
+            "active_storage/disk#update",
+            active_storage::disk_update,
+        ),
+        post(
+            "/rails/active_storage/direct_uploads(.:format)",
+            "active_storage/direct_uploads#create",
+            active_storage::direct_uploads_create,
+        ),
     ]
 });
 
@@ -370,7 +656,9 @@ pub fn normalize_path(path: &str) -> String {
         normalized.pop();
     }
     static ESCAPE: LazyLock<Regex> = LazyLock::new(|| Regex::new("%[a-fA-F0-9]{2}").unwrap());
-    ESCAPE.replace_all(&normalized, |m: &regex::Captures| m[0].to_uppercase()).into_owned()
+    ESCAPE
+        .replace_all(&normalized, |m: &regex::Captures| m[0].to_uppercase())
+        .into_owned()
 }
 
 /// `Journey::Router::Utils.unescape_uri`, then Rails' check that the parameter is valid UTF-8
@@ -427,7 +715,10 @@ mod health {
         match c.respond_to(&[&format::HTML, &format::JSON])? {
             f if *f == format::JSON => {
                 let timestamp = jiff::Timestamp::from_second(c.now().as_second()).unwrap_or(c.now());
-                c.json(StatusCode::OK, &serde_json::json!({ "status": "up", "timestamp": timestamp.to_string() }))
+                c.json(
+                    StatusCode::OK,
+                    &serde_json::json!({ "status": "up", "timestamp": timestamp.to_string() }),
+                )
             }
             _ => Ok(c.html(r#"<!DOCTYPE html><html><body style="background-color: green"></body></html>"#)),
         }
@@ -533,7 +824,13 @@ mod tests {
                     assert_eq!(params, sample.params, "{} {}", sample.verb, sample.path);
                 }
                 (None, Some((route, _))) => {
-                    assert!(MISSING_CONTROLLERS.contains(&route.controller()), "{} {} matched {}", sample.verb, sample.path, route.endpoint)
+                    assert!(
+                        MISSING_CONTROLLERS.contains(&route.controller()),
+                        "{} {} matched {}",
+                        sample.verb,
+                        sample.path,
+                        route.endpoint
+                    )
                 }
                 (None, None) => {}
                 (Some(endpoint), None) => panic!("{} {} should be {endpoint}", sample.verb, sample.path),

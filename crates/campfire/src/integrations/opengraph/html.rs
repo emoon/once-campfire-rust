@@ -58,7 +58,10 @@ const MAX_ATTRIBUTES: usize = 256;
 pub fn meta_elements(html: &str) -> Vec<Element> {
     // A NUL ends libxml2's input
     let html = &html[..html.find('\0').unwrap_or(html.len())];
-    let mut scanner = Scanner { bytes: html.as_bytes(), pos: 0 };
+    let mut scanner = Scanner {
+        bytes: html.as_bytes(),
+        pos: 0,
+    };
     let mut metas = Vec::new();
     while let Some(c) = scanner.peek(0) {
         if c != b'<' {
@@ -98,7 +101,9 @@ impl Scanner<'_> {
     }
 
     fn starts_with_ignore_case(&self, text: &str) -> bool {
-        self.bytes.get(self.pos..self.pos + text.len()).is_some_and(|b| b.eq_ignore_ascii_case(text.as_bytes()))
+        self.bytes
+            .get(self.pos..self.pos + text.len())
+            .is_some_and(|b| b.eq_ignore_ascii_case(text.as_bytes()))
     }
 
     /// The text from `start` to here, which begins and ends at ASCII bytes.
@@ -129,7 +134,10 @@ impl Scanner<'_> {
             return None;
         }
         let start = self.pos;
-        while self.peek(0).is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, b':' | b'-' | b'_' | b'.')) {
+        while self
+            .peek(0)
+            .is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, b':' | b'-' | b'_' | b'.'))
+        {
             self.pos += 1;
         }
         Some(self.text_from(start).to_ascii_lowercase())
@@ -250,7 +258,11 @@ impl Scanner<'_> {
             if self.peek(0) != Some(b'&') {
                 break;
             }
-            let decoded = if self.peek(1) == Some(b'#') { self.char_ref().map(|c| c.to_string()) } else { Some(self.entity_ref()) };
+            let decoded = if self.peek(1) == Some(b'#') {
+                self.char_ref().map(|c| c.to_string())
+            } else {
+                Some(self.entity_ref())
+            };
             match decoded {
                 Some(text) if !truncated => out.push_str(&text),
                 Some(_) => {}
@@ -286,7 +298,10 @@ impl Scanner<'_> {
         self.pos += 1;
         let start = self.pos;
         if self.peek(0).is_some_and(|c| c.is_ascii_alphabetic() || matches!(c, b'_' | b':')) {
-            while self.peek(0).is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b':' | b'.' | b'-')) {
+            while self
+                .peek(0)
+                .is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b':' | b'.' | b'-'))
+            {
                 self.pos += 1;
             }
         }
@@ -378,12 +393,24 @@ mod tests {
     #[test]
     fn tokenizes_like_libxml2() {
         let cases: &[(&str, Option<&str>)] = &[
-            ("<script><meta property=\"og:title\" content=\"in script\"></script><meta property=\"og:title\" content=\"after\">", Some("after")),
+            (
+                "<script><meta property=\"og:title\" content=\"in script\"></script><meta property=\"og:title\" content=\"after\">",
+                Some("after"),
+            ),
             ("<style><meta property=\"og:title\" content=\"in style\"></style>", None),
-            ("<textarea><meta property=\"og:title\" content=\"in textarea\"></textarea>", Some("in textarea")),
+            (
+                "<textarea><meta property=\"og:title\" content=\"in textarea\"></textarea>",
+                Some("in textarea"),
+            ),
             ("<title><meta property=\"og:title\" content=\"in title\"></title>", Some("in title")),
-            ("<noscript><meta property=\"og:title\" content=\"in noscript\"></noscript>", Some("in noscript")),
-            ("<template><meta property=\"og:title\" content=\"in template\"></template>", Some("in template")),
+            (
+                "<noscript><meta property=\"og:title\" content=\"in noscript\"></noscript>",
+                Some("in noscript"),
+            ),
+            (
+                "<template><meta property=\"og:title\" content=\"in template\"></template>",
+                Some("in template"),
+            ),
             ("<svg><meta property=\"og:title\" content=\"in svg\"></svg>", Some("in svg")),
             ("<!-- <meta property=\"og:title\" content=\"comment\"> --><p>", None),
             ("<meta property=og:title content=unquoted>", Some("unquoted")),
@@ -398,8 +425,14 @@ mod tests {
             ("<meta property=\"og:title\" content=\"unterminated>", Some("unterminated>")),
             ("<meta property=\"og:title\" content=unq\"uoted>", Some("unq\"uoted")),
             ("<meta property=\"og:title\" content=a&amp;b>", Some("a&b")),
-            ("<!--> <meta property=\"og:title\" content=\"after empty comment\"> -->", Some("after empty comment")),
-            ("<!---> <meta property=\"og:title\" content=\"after dash comment\"> -->", Some("after dash comment")),
+            (
+                "<!--> <meta property=\"og:title\" content=\"after empty comment\"> -->",
+                Some("after empty comment"),
+            ),
+            (
+                "<!---> <meta property=\"og:title\" content=\"after dash comment\"> -->",
+                Some("after dash comment"),
+            ),
             ("<!DOCTYPE html><meta property=\"og:title\" content=\"doctype\">", Some("doctype")),
             ("<?xml version=\"1.0\"?><meta property=\"og:title\" content=\"pi\">", Some("pi")),
             ("<![CDATA[ <meta property=\"og:title\" content=\"cdata\"> ]]>", None),
@@ -426,8 +459,16 @@ mod tests {
         let encoding = |html: &str| meta_encoding(&meta_elements(html));
         assert_eq!(encoding("<meta charset=\"iso-8859-1\">"), Some("iso-8859-1".into()));
         assert_eq!(encoding("<meta charset=\"\">"), Some("".into()));
-        assert_eq!(encoding("<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">"), Some("iso-8859-1".into()));
-        assert_eq!(encoding("<meta http-equiv=\"Content-Type\" content=\"text/html\"><meta http-equiv=\"Content-Type\" content=\"charset=utf-8\">"), None);
+        assert_eq!(
+            encoding("<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">"),
+            Some("iso-8859-1".into())
+        );
+        assert_eq!(
+            encoding(
+                "<meta http-equiv=\"Content-Type\" content=\"text/html\"><meta http-equiv=\"Content-Type\" content=\"charset=utf-8\">"
+            ),
+            None
+        );
         assert_eq!(encoding("<meta http-equiv=\"refresh\" content=\"charset=utf-8\">"), None);
         assert_eq!(encoding("<meta property=\"og:title\" content=\"x\">"), None);
     }

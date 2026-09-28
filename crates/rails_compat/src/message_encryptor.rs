@@ -53,7 +53,11 @@ impl MessageEncryptor {
     /// The decrypted bytes, before any envelope handling.
     pub fn decrypt(&self, message: &str) -> Option<Vec<u8>> {
         let (ciphertext, iv, tag) = extract_parts(message)?;
-        let (ciphertext, iv, tag) = (encoding::strict_decode(ciphertext)?, encoding::strict_decode(iv)?, encoding::strict_decode(tag)?);
+        let (ciphertext, iv, tag) = (
+            encoding::strict_decode(ciphertext)?,
+            encoding::strict_decode(iv)?,
+            encoding::strict_decode(tag)?,
+        );
         if iv.len() != IV_LENGTH || tag.len() != AUTH_TAG_LENGTH {
             return None;
         }
@@ -70,7 +74,11 @@ fn extract_parts(message: &str) -> Option<(&str, &str, &str)> {
     if message.get(tag_start - 2..tag_start)? != "--" || message.get(ciphertext_end..iv_start)? != "--" {
         return None;
     }
-    Some((&message[..ciphertext_end], message.get(iv_start..tag_start - 2)?, message.get(tag_start..)?))
+    Some((
+        &message[..ciphertext_end],
+        message.get(iv_start..tag_start - 2)?,
+        message.get(tag_start..)?,
+    ))
 }
 
 #[cfg(test)]
@@ -82,7 +90,10 @@ mod tests {
         let encryptor = MessageEncryptor::new(&[7u8; 32], Serializer::Null);
         let now = Timestamp::UNIX_EPOCH;
         let message = encryptor.encrypt_and_sign(&Value::String("hi".into()), Some("p"), None);
-        assert_eq!(encryptor.decrypt_and_verify(&message, Some("p"), now), Ok(Value::String("hi".into())));
+        assert_eq!(
+            encryptor.decrypt_and_verify(&message, Some("p"), now),
+            Ok(Value::String("hi".into()))
+        );
         assert_eq!(encryptor.decrypt_and_verify(&message, Some("q"), now), Err(Error::PurposeMismatch));
         let tampered = format!("A{}", &message[1..]);
         assert!(encryptor.decrypt_and_verify(&tampered, Some("p"), now).is_err() || tampered == message);

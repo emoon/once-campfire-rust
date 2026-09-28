@@ -41,7 +41,9 @@ async fn find_room(db: &Database, sub: &Subscription<CableUser>) -> ChannelResul
 /// (`non_numeric_string?`), which matches nothing. So does anything out of range.
 pub fn cast_id(value: &Value) -> Option<i64> {
     match value {
-        Value::Number(n) => n.as_i64().or_else(|| n.as_f64().filter(|f| f.is_finite() && f.abs() < 9.2e18).map(|f| f.trunc() as i64)),
+        Value::Number(n) => n
+            .as_i64()
+            .or_else(|| n.as_f64().filter(|f| f.is_finite() && f.abs() < 9.2e18).map(|f| f.trunc() as i64)),
         Value::Bool(b) => Some(i64::from(*b)),
         Value::String(s) => ruby_to_i(s),
         _ => None,

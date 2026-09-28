@@ -35,7 +35,10 @@ impl DbResolver<'_> {
     }
 
     pub fn render_context(&self, request_host: Option<String>) -> RenderContext<'_> {
-        RenderContext { resolver: self, request_host }
+        RenderContext {
+            resolver: self,
+            request_host,
+        }
     }
 }
 
@@ -47,22 +50,26 @@ impl AttachableResolver for DbResolver<'_> {
         match gid.model_name.as_str() {
             "User" => match self.find_user(&gid.id) {
                 Some(user) => SignedLookup::User(self.mention_user(&user)),
-                None => SignedLookup::MissingRecord { model_name: gid.model_name },
+                None => SignedLookup::MissingRecord {
+                    model_name: gid.model_name,
+                },
             },
-            _ => SignedLookup::MissingRecord { model_name: gid.model_name },
+            _ => SignedLookup::MissingRecord {
+                model_name: gid.model_name,
+            },
         }
     }
 
     fn find_gid(&self, gid: &str) -> GidLookup {
-        let Some(gid) = GlobalId::parse(gid) else { return GidLookup::NotFound };
+        let Some(gid) = GlobalId::parse(gid) else {
+            return GidLookup::NotFound;
+        };
         match gid.model_name.as_str() {
             "User" => match self.find_user(&gid.id) {
                 Some(user) => GidLookup::User(self.mention_user(&user)),
                 None => GidLookup::NotFound,
             },
-            "Message" | "Room" | "Rooms::Open" | "Rooms::Closed" | "Rooms::Direct" | "Boost" | "Account" => {
-                GidLookup::OtherModel
-            }
+            "Message" | "Room" | "Rooms::Open" | "Rooms::Closed" | "Rooms::Direct" | "Boost" | "Account" => GidLookup::OtherModel,
             _ => GidLookup::Raises,
         }
     }

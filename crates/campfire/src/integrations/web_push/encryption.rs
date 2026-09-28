@@ -38,7 +38,10 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub const GEM: Layout = Layout { record_size: None, padding: &[2, 0] };
+    pub const GEM: Layout = Layout {
+        record_size: None,
+        padding: &[2, 0],
+    };
 }
 
 pub fn encrypt_with(
@@ -62,8 +65,8 @@ pub fn encrypt_with(
 
     // OpenSSL::BN.new(bytes, 2) drops leading zero bytes before the point is decoded
     let client_public_bytes = strip_leading_zeros(decode64(p256dh.unwrap())?);
-    let client_public = PublicKey::from_sec1_bytes(&client_public_bytes)
-        .map_err(|_| EncryptionError::InvalidKey("invalid encoding".into()))?;
+    let client_public =
+        PublicKey::from_sec1_bytes(&client_public_bytes).map_err(|_| EncryptionError::InvalidKey("invalid encoding".into()))?;
     let auth = decode64(auth.unwrap())?;
 
     let server_public = server_key.public_key().to_encoded_point(false);
@@ -79,7 +82,9 @@ pub fn encrypt_with(
     let mut plaintext = message.to_vec();
     plaintext.extend_from_slice(layout.padding);
     let cipher = Aes128Gcm::new_from_slice(&content_encryption_key).expect("16-byte key");
-    let ciphertext = cipher.encrypt(Nonce::from_slice(&nonce), plaintext.as_slice()).expect("AES-GCM encrypts");
+    let ciphertext = cipher
+        .encrypt(Nonce::from_slice(&nonce), plaintext.as_slice())
+        .expect("AES-GCM encrypts");
 
     let record_size = ciphertext.len();
     if record_size > 4096 {
@@ -97,7 +102,9 @@ pub fn encrypt_with(
 
 fn hkdf(salt: &[u8], ikm: &[u8], info: &[u8], length: usize) -> Vec<u8> {
     let mut okm = vec![0; length];
-    Hkdf::<Sha256>::new(Some(salt), ikm).expand(info, &mut okm).expect("valid HKDF length");
+    Hkdf::<Sha256>::new(Some(salt), ikm)
+        .expand(info, &mut okm)
+        .expect("valid HKDF length");
     okm
 }
 
@@ -123,7 +130,10 @@ pub fn decrypt(body: &[u8], receiver: &SecretKey, auth: &[u8]) -> Option<(u32, V
     let prk = hkdf(auth, shared_secret.raw_secret_bytes(), &info, 32);
     let key = hkdf(salt, &prk, b"Content-Encoding: aes128gcm\0", 16);
     let nonce = hkdf(salt, &prk, b"Content-Encoding: nonce\0", 12);
-    let plaintext = Aes128Gcm::new_from_slice(&key).ok()?.decrypt(Nonce::from_slice(&nonce), ciphertext).ok()?;
+    let plaintext = Aes128Gcm::new_from_slice(&key)
+        .ok()?
+        .decrypt(Nonce::from_slice(&nonce), ciphertext)
+        .ok()?;
     Some((record_size, plaintext))
 }
 
@@ -149,7 +159,10 @@ mod tests {
     fn matches_the_rfc_8291_test_vector() {
         let server_key = SecretKey::from_slice(&b64(AS_PRIVATE)).unwrap();
         let salt: [u8; 16] = b64(SALT).try_into().unwrap();
-        let layout = Layout { record_size: Some(4096), padding: &[2] };
+        let layout = Layout {
+            record_size: Some(4096),
+            padding: &[2],
+        };
         let body = encrypt_with(&b64(PLAINTEXT), Some(UA_PUBLIC), Some(AUTH), &server_key, &salt, layout).unwrap();
         assert_eq!(encode64_nopad(&body), MESSAGE);
 
@@ -187,8 +200,17 @@ mod tests {
         let ok = encode64_nopad(key.public_key().to_encoded_point(false).as_bytes());
         assert!(matches!(encrypt(b"m", None, Some("YXV0aA")), Err(EncryptionError::Argument(_))));
         assert!(matches!(encrypt(b"m", Some(&ok), Some("")), Err(EncryptionError::Argument(_))));
-        assert!(matches!(encrypt(b"m", Some("not base64!"), Some("YXV0aA")), Err(EncryptionError::Argument(_))));
-        assert!(matches!(encrypt(b"m", Some("dGVzdF9rZXk"), Some("YXV0aA")), Err(EncryptionError::InvalidKey(_))));
-        assert!(matches!(encrypt(&[b'x'; 4100], Some(&ok), Some("YXV0aA")), Err(EncryptionError::Argument(_))));
+        assert!(matches!(
+            encrypt(b"m", Some("not base64!"), Some("YXV0aA")),
+            Err(EncryptionError::Argument(_))
+        ));
+        assert!(matches!(
+            encrypt(b"m", Some("dGVzdF9rZXk"), Some("YXV0aA")),
+            Err(EncryptionError::InvalidKey(_))
+        ));
+        assert!(matches!(
+            encrypt(&[b'x'; 4100], Some(&ok), Some("YXV0aA")),
+            Err(EncryptionError::Argument(_))
+        ));
     }
 }

@@ -55,7 +55,10 @@ pub fn chomp_newlines(s: &str) -> &str {
 
 /// `String#chomp` with no argument: removes one trailing `\r\n`, `\n` or `\r`.
 pub fn chomp(s: &str) -> &str {
-    s.strip_suffix("\r\n").or_else(|| s.strip_suffix('\n')).or_else(|| s.strip_suffix('\r')).unwrap_or(s)
+    s.strip_suffix("\r\n")
+        .or_else(|| s.strip_suffix('\n'))
+        .or_else(|| s.strip_suffix('\r'))
+        .unwrap_or(s)
 }
 
 /// Action View's `truncate(text, length:, omission:)` with the default separator, before escaping.
@@ -191,7 +194,10 @@ pub fn json_value_inspect(v: &Value) -> String {
             } else {
                 format!(
                     "{{{}}}",
-                    map.iter().map(|(k, v)| format!("{} => {}", string_inspect(k), json_value_inspect(v))).collect::<Vec<_>>().join(", ")
+                    map.iter()
+                        .map(|(k, v)| format!("{} => {}", string_inspect(k), json_value_inspect(v)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             }
         }

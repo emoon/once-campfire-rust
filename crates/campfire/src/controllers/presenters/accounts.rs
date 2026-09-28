@@ -10,11 +10,11 @@ mod tests;
 
 use campfire_db::{Account, CachedStatements, Connection, Membership, PushSubscription, Room, RoomType, User};
 use campfire_kit::Ctx;
+use campfire_views::Platform;
 use campfire_views::accounts::{Bot, BotForm, BotRoom, HelpContact};
 use campfire_views::users::{
     MentionUser, ProfileMembership, PushSubscription as PushSubscriptionView, SidebarDirect, SidebarDirectItem, SidebarRoom, UserSummary,
 };
-use campfire_views::Platform;
 use rails_compat::Secrets;
 use rails_compat::global_id::{self, GlobalId};
 use rusqlite::params;
@@ -58,12 +58,17 @@ pub fn platform(c: &Ctx) -> Platform {
 /// `User.administrator.first`, for `accounts/_help_contact`.
 pub fn help_contact(conn: &Connection) -> campfire_db::Result<Option<HelpContact>> {
     let owner: Option<(String, Option<String>)> = conn
-        .query_row_cached(r#"SELECT "users"."name", "users"."email_address" FROM "users" WHERE "users"."role" = 1 ORDER BY "users"."id" ASC LIMIT 1"#, [], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
+        .query_row_cached(
+            r#"SELECT "users"."name", "users"."email_address" FROM "users" WHERE "users"."role" = 1 ORDER BY "users"."id" ASC LIMIT 1"#,
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
         .map(Some)
         .or_else(no_rows)?;
-    Ok(owner.map(|(name, email_address)| HelpContact { name, email_address: email_address.unwrap_or_default() }))
+    Ok(owner.map(|(name, email_address)| HelpContact {
+        name,
+        email_address: email_address.unwrap_or_default(),
+    }))
 }
 
 /// `User.none?`
@@ -74,29 +79,48 @@ pub fn no_users(conn: &Connection) -> campfire_db::Result<bool> {
 /// `record.touch`: bumps `updated_at` (what `belongs_to :record, touch: true` does to an
 /// attachment's record, and `Blob#touch_attachments` after analysis).
 pub fn touch(conn: &Connection, table: &str, id: i64, now: campfire_db::Timestamp) -> campfire_db::Result<()> {
-    conn.execute_cached(&format!(r#"UPDATE "{table}" SET "updated_at" = ? WHERE "{table}"."id" = ?"#), params![now, id])?;
+    conn.execute_cached(
+        &format!(r#"UPDATE "{table}" SET "updated_at" = ? WHERE "{table}"."id" = ?"#),
+        params![now, id],
+    )?;
     Ok(())
 }
 
 fn no_rows<T>(error: rusqlite::Error) -> Result<Option<T>, rusqlite::Error> {
-    if error == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(error) }
+    if error == rusqlite::Error::QueryReturnedNoRows {
+        Ok(None)
+    } else {
+        Err(error)
+    }
 }
 
 // --- Users -----------------------------------------------------------------------------------------
 
 /// A user for `users/_mention` and the autocompletable views.
 pub fn mention_user(secrets: &Secrets, user: &User) -> MentionUser {
-    MentionUser { user: user_summary(secrets, user), attachable_sgid: attachable_sgid(secrets, user.id) }
+    MentionUser {
+        user: user_summary(secrets, user),
+        attachable_sgid: attachable_sgid(secrets, user.id),
+    }
 }
 
 /// `room_display_name(room, for_user:)`: a direct room is named after its other members.
 pub fn room_display_name(conn: &Connection, room: &Room, for_user: &User) -> campfire_db::Result<String> {
     let names: Vec<String> = if room.direct() {
-        room.users(conn)?.into_iter().filter(|user| user.id != for_user.id).map(|user| user.name).collect()
+        room.users(conn)?
+            .into_iter()
+            .filter(|user| user.id != for_user.id)
+            .map(|user| user.name)
+            .collect()
     } else {
         Vec::new()
     };
-    Ok(campfire_views::rooms::room_display_name(room.name.as_deref(), room.direct(), &names, Some(&for_user.name)))
+    Ok(campfire_views::rooms::room_display_name(
+        room.name.as_deref(),
+        room.direct(),
+        &names,
+        Some(&for_user.name),
+    ))
 }
 
 /// `Room.model_name.param_key` for the room's STI class.
@@ -118,7 +142,11 @@ pub fn profile_memberships(conn: &Connection, user: &User) -> campfire_db::Resul
             room_id: room.id,
             room_param_key: room_param_key(room.room_type).to_string(),
             room_display_name: room_display_name(conn, &room, user)?,
-            involvement: membership.involvement.map(|involvement| involvement.name()).unwrap_or_default().to_string(),
+            involvement: membership
+                .involvement
+                .map(|involvement| involvement.name())
+                .unwrap_or_default()
+                .to_string(),
             direct: room.direct(),
         };
         if room.direct() { direct.push(view) } else { shared.push(view) }
@@ -151,10 +179,12 @@ pub fn sidebar(conn: &Connection, secrets: &Secrets, user: &User) -> campfire_db
         .iter()
         .map(|(membership, room)| {
             // `cache membership` wraps the whole partial: on a hit Rails loads none of its members.
-            Ok(match campfire_views::users::cached_direct_room_fragment(membership.id, membership.updated_at.jiff()) {
-                Some(html) => SidebarDirectItem::Fragment(html),
-                None => SidebarDirectItem::View(sidebar_direct(conn, secrets, membership, room)?),
-            })
+            Ok(
+                match campfire_views::users::cached_direct_room_fragment(membership.id, membership.updated_at.jiff()) {
+                    Some(html) => SidebarDirectItem::Fragment(html),
+                    None => SidebarDirectItem::View(sidebar_direct(conn, secrets, membership, room)?),
+                },
+            )
         })
         .collect::<campfire_db::Result<_>>()?;
     let other_memberships = all_memberships
@@ -168,7 +198,11 @@ pub fn sidebar(conn: &Connection, secrets: &Secrets, user: &User) -> campfire_db
         })
         .collect();
 
-    Ok(Sidebar { direct_memberships, other_memberships, direct_placeholder_users: direct_placeholder_users(conn, secrets, user)? })
+    Ok(Sidebar {
+        direct_memberships,
+        other_memberships,
+        direct_placeholder_users: direct_placeholder_users(conn, secrets, user)?,
+    })
 }
 
 /// `users/sidebars/rooms/_direct` locals: `room.users.without(membership.user).presence || [ membership.user ]`.
@@ -194,7 +228,10 @@ pub fn sidebar_direct(conn: &Connection, secrets: &Secrets, membership: &Members
 /// `.including(Current.user.id)`: `including` appends even when the id is already there, and the
 /// limit counts that duplicate.
 fn direct_placeholder_users(conn: &Connection, secrets: &Secrets, user: &User) -> campfire_db::Result<Vec<UserSummary>> {
-    let direct_room_ids: Vec<i64> = Room::for_user_of_type(conn, user.id, RoomType::Direct)?.iter().map(|room| room.id).collect();
+    let direct_room_ids: Vec<i64> = Room::for_user_of_type(conn, user.id, RoomType::Direct)?
+        .iter()
+        .map(|room| room.id)
+        .collect();
     let mut exclude_user_ids: Vec<i64> = Vec::new();
     if !direct_room_ids.is_empty() {
         let sql = format!(
@@ -228,7 +265,11 @@ fn direct_placeholder_users(conn: &Connection, secrets: &Secrets, user: &User) -
 /// AccountsController#account_users: `User.where(status: [ :active, :banned ])` for
 /// administrators, `User.active` otherwise; `.ordered.without_bots`.
 pub fn account_users(conn: &Connection, can_administer: bool) -> campfire_db::Result<Vec<User>> {
-    let status = if can_administer { r#""users"."status" IN (0, 2)"# } else { r#""users"."status" = 0"# };
+    let status = if can_administer {
+        r#""users"."status" IN (0, 2)"#
+    } else {
+        r#""users"."status" = 0"#
+    };
     let sql = format!(r#"SELECT * FROM "users" WHERE {status} AND "users"."role" != 2 ORDER BY LOWER(name)"#);
     query_users(conn, &sql, [])
 }
@@ -240,7 +281,13 @@ pub fn bot(conn: &Connection, secrets: &Secrets, bot: &User) -> campfire_db::Res
     Ok(Bot {
         user: user_summary(secrets, bot),
         bot_key: bot.bot_key(),
-        rooms: rooms.into_iter().map(|room| BotRoom { id: room.id, name: room.name.unwrap_or_default() }).collect(),
+        rooms: rooms
+            .into_iter()
+            .map(|room| BotRoom {
+                id: room.id,
+                name: room.name.unwrap_or_default(),
+            })
+            .collect(),
     })
 }
 
@@ -251,8 +298,12 @@ pub fn bot_form(conn: &Connection, storage: &campfire_storage::Storage, base_url
     Ok(BotForm {
         name: Some(bot.name.clone()),
         webhook_url: bot.webhook_url(conn)?,
-        avatar_attachment_url: avatar
-            .map(|blob| format!("{base_url}{}", campfire_storage::paths::blob_redirect_path(&*storage.verifier, &blob, None))),
+        avatar_attachment_url: avatar.map(|blob| {
+            format!(
+                "{base_url}{}",
+                campfire_storage::paths::blob_redirect_path(&*storage.verifier, &blob, None)
+            )
+        }),
     })
 }
 

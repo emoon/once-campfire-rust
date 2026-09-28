@@ -77,10 +77,7 @@ pub fn prepare(conn: &mut Connection, environment: &str, clock: &dyn Clock) -> R
     let prepared = if table_exists(conn, "schema_migrations")? {
         let pending = pending_migrations(conn)?;
         if !pending.is_empty() {
-            return Err(Error::Other(format!(
-                "pending migrations: {}",
-                pending.join(", ")
-            )));
+            return Err(Error::Other(format!("pending migrations: {}", pending.join(", "))));
         }
         Prepared::UpToDate
     } else {
@@ -110,10 +107,7 @@ fn load_schema(conn: &mut Connection, environment: &str, clock: &dyn Clock) -> R
 
     // `assume_migrated_upto_version` inserts the current version, then the rest newest first.
     for version in MIGRATION_VERSIONS.iter().rev() {
-        tx.execute(
-            r#"INSERT INTO "schema_migrations" ("version") VALUES (?)"#,
-            [version],
-        )?;
+        tx.execute(r#"INSERT INTO "schema_migrations" ("version") VALUES (?)"#, [version])?;
     }
 
     set_internal_metadata(&tx, "environment", environment, clock.now())?;
@@ -124,11 +118,7 @@ fn load_schema(conn: &mut Connection, environment: &str, clock: &dyn Clock) -> R
 
 fn set_internal_metadata(conn: &Connection, key: &str, value: &str, now: Timestamp) -> Result<()> {
     let existing: Option<String> = conn
-        .query_row(
-            r#"SELECT "value" FROM "ar_internal_metadata" WHERE "key" = ?"#,
-            [key],
-            |r| r.get(0),
-        )
+        .query_row(r#"SELECT "value" FROM "ar_internal_metadata" WHERE "key" = ?"#, [key], |r| r.get(0))
         .optional()?;
     match existing {
         None => {
@@ -176,15 +166,7 @@ mod tests {
     fn migration_versions_match_reference_migrations() {
         let mut versions: Vec<String> = std::fs::read_dir(format!("{REFERENCE}/migrate"))
             .unwrap()
-            .map(|e| {
-                e.unwrap()
-                    .file_name()
-                    .to_string_lossy()
-                    .split('_')
-                    .next()
-                    .unwrap()
-                    .to_string()
-            })
+            .map(|e| e.unwrap().file_name().to_string_lossy().split('_').next().unwrap().to_string())
             .collect();
         versions.sort();
         assert_eq!(versions, MIGRATION_VERSIONS);
@@ -193,42 +175,21 @@ mod tests {
     #[test]
     fn prepare_loads_then_is_idempotent() {
         let mut conn = Connection::open_in_memory().unwrap();
-        assert_eq!(
-            prepare(&mut conn, "production", &SystemClock).unwrap(),
-            Prepared::Loaded
-        );
-        assert_eq!(
-            prepare(&mut conn, "production", &SystemClock).unwrap(),
-            Prepared::UpToDate
-        );
+        assert_eq!(prepare(&mut conn, "production", &SystemClock).unwrap(), Prepared::Loaded);
+        assert_eq!(prepare(&mut conn, "production", &SystemClock).unwrap(), Prepared::UpToDate);
 
         let first: String = conn
-            .query_row(
-                "SELECT version FROM schema_migrations ORDER BY rowid LIMIT 1",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT version FROM schema_migrations ORDER BY rowid LIMIT 1", [], |r| r.get(0))
             .unwrap();
         assert_eq!(first, "20251212154340");
         let sha: String = conn
-            .query_row(
-                "SELECT value FROM ar_internal_metadata WHERE key = 'schema_sha1'",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT value FROM ar_internal_metadata WHERE key = 'schema_sha1'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(sha, SCHEMA_SHA1);
-        conn.execute(
-            "INSERT INTO message_search_index(rowid, body) VALUES (1, 'running dogs')",
-            [],
-        )
-        .unwrap();
+        conn.execute("INSERT INTO message_search_index(rowid, body) VALUES (1, 'running dogs')", [])
+            .unwrap();
         let hit: i64 = conn
-            .query_row(
-                "SELECT rowid FROM message_search_index WHERE body MATCH 'run'",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT rowid FROM message_search_index WHERE body MATCH 'run'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(hit, 1, "porter tokenizer");
     }
@@ -245,10 +206,14 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         prepare(&mut conn, "production", &SystemClock).unwrap();
         let plan = query_plan(&conn, last_page);
-        assert!(plan.contains("index_messages_on_room_id_and_created_at") && !plan.contains("TEMP B-TREE"), "{plan}");
+        assert!(
+            plan.contains("index_messages_on_room_id_and_created_at") && !plan.contains("TEMP B-TREE"),
+            "{plan}"
+        );
 
         // A database the Rails app created doesn't have it until the app boots on it.
-        conn.execute_batch(r#"DROP INDEX "index_messages_on_room_id_and_created_at""#).unwrap();
+        conn.execute_batch(r#"DROP INDEX "index_messages_on_room_id_and_created_at""#)
+            .unwrap();
         assert!(query_plan(&conn, last_page).contains("TEMP B-TREE"));
         assert_eq!(prepare(&mut conn, "production", &SystemClock).unwrap(), Prepared::UpToDate);
         assert!(!query_plan(&conn, last_page).contains("TEMP B-TREE"));
@@ -258,11 +223,8 @@ mod tests {
     fn prepare_reports_pending_migrations() {
         let mut conn = Connection::open_in_memory().unwrap();
         prepare(&mut conn, "production", &SystemClock).unwrap();
-        conn.execute(
-            "DELETE FROM schema_migrations WHERE version = '20251212154340'",
-            [],
-        )
-        .unwrap();
+        conn.execute("DELETE FROM schema_migrations WHERE version = '20251212154340'", [])
+            .unwrap();
         assert!(prepare(&mut conn, "production", &SystemClock).is_err());
     }
 }

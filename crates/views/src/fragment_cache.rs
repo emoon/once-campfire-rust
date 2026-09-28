@@ -119,7 +119,10 @@ impl FragmentCache {
     /// A store that keeps at most `max_bytes` of entries (as [`CacheSize`] and
     /// [`PER_ENTRY_OVERHEAD`] count them).
     pub fn new(max_bytes: usize) -> Arc<Self> {
-        Arc::new(Self { max_bytes, entries: Mutex::default() })
+        Arc::new(Self {
+            max_bytes,
+            entries: Mutex::default(),
+        })
     }
 
     /// `Rails.cache.fetch(key) { render }` for a rendered fragment.
@@ -180,7 +183,9 @@ impl FragmentCache {
 
     fn read<T: Clone + 'static>(&self, key: &str) -> Option<T> {
         let mut entries = self.lock();
-        let Entries { values, recency, clock, .. } = &mut *entries;
+        let Entries {
+            values, recency, clock, ..
+        } = &mut *entries;
         let entry = values.get_mut(key)?;
         let value = entry.value.downcast_ref::<T>()?.clone();
         *clock += 1;
@@ -191,7 +196,12 @@ impl FragmentCache {
     /// Stores `value` unless `key` already holds one of its type, and returns what `key` holds.
     fn write<T: Clone + Send + Sync + 'static>(&self, key: &str, value: T, size: usize) -> T {
         let mut entries = self.lock();
-        let Entries { values, recency, clock, bytes } = &mut *entries;
+        let Entries {
+            values,
+            recency,
+            clock,
+            bytes,
+        } = &mut *entries;
         *clock += 1;
         if let Some(entry) = values.get_mut(key) {
             if let Some(stored) = entry.value.downcast_ref::<T>() {
@@ -208,7 +218,15 @@ impl FragmentCache {
             return value;
         }
         let key: Arc<str> = key.into();
-        values.insert(key.clone(), Entry { key: key.clone(), value: Arc::new(value.clone()), used: *clock, size });
+        values.insert(
+            key.clone(),
+            Entry {
+                key: key.clone(),
+                value: Arc::new(value.clone()),
+                used: *clock,
+                size,
+            },
+        );
         recency.insert(*clock, key);
         *bytes += size;
         if *bytes > self.max_bytes {
@@ -286,7 +304,10 @@ pub struct Scoped<F> {
 
 impl<F: Future> Scoped<F> {
     pub fn new(cache: Arc<FragmentCache>, future: F) -> Self {
-        Self { cache, future: Box::pin(future) }
+        Self {
+            cache,
+            future: Box::pin(future),
+        }
     }
 }
 
@@ -368,7 +389,10 @@ mod tests {
         assert!(cache.len() < 20);
         assert!(cache.bytes() > max / 2, "pruning stops at three quarters, not empty");
         for hot in 0..3 {
-            assert!(cache.get::<Fragment>(&hot.to_string()).is_some(), "entry {hot} is used every sixth write");
+            assert!(
+                cache.get::<Fragment>(&hot.to_string()).is_some(),
+                "entry {hot} is used every sixth write"
+            );
         }
     }
 
@@ -481,7 +505,9 @@ mod tests {
     #[test]
     fn nested_fragments_use_the_same_store() {
         let cache = FragmentCache::new(BIG);
-        let outer = with(&cache, || fetch(|| "outer".into(), || format!("[{}]", fetch(|| "inner".into(), || "x".into()))));
+        let outer = with(&cache, || {
+            fetch(|| "outer".into(), || format!("[{}]", fetch(|| "inner".into(), || "x".into())))
+        });
         assert_eq!(outer, "[x]");
         assert_eq!(cache.len(), 2);
         assert!(current().is_none(), "the store is only current inside `with`");

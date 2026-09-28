@@ -28,14 +28,28 @@ pub async fn new(c: &mut Ctx) -> Result {
     c.respond_to(&[&format::HTML])?;
     let user = user_view(&c.app().secrets, require_current_user(c)?);
     let view = present(c, move |presenter| presenter.message(&message)).await?;
-    page::content(c, StatusCode::OK, |ctx| views::NewBoost { ctx, message: &view, user: &user }.render()).await
+    page::content(c, StatusCode::OK, |ctx| {
+        views::NewBoost {
+            ctx,
+            message: &view,
+            user: &user,
+        }
+        .render()
+    })
+    .await
 }
 
 pub async fn create(c: &mut Ctx) -> Result {
     before_actions(c, Before::default()).await?;
     let message = set_message(c).await?;
     // params.require(:boost).permit(:content)
-    let content = c.params.require("boost")?.permit(&permit_keys(&["content"])).get("content").and_then(|p| p.as_str()).map(str::to_string);
+    let content = c
+        .params
+        .require("boost")?
+        .permit(&permit_keys(&["content"]))
+        .get("content")
+        .and_then(|p| p.as_str())
+        .map(str::to_string);
     let boost = create_boost(c, &message, content).await?;
     broadcast_create(c, &message, &boost).await?;
     let url = c.url_for(&campfire_routes::message_boosts(message.id));
@@ -54,16 +68,28 @@ pub async fn destroy(c: &mut Ctx) -> Result {
 /// `Current.user.reachable_messages.find(params[:message_id])`
 async fn set_message(c: &mut Ctx) -> Result<Message> {
     let user_id = require_current_user(c)?.id;
-    let Some(id) = c.param_str("message_id").and_then(cast_integer) else { return Err(Error::NotFound) };
-    c.app().db.read(move |conn| Message::find_reachable(conn, user_id, id)).await.map_err(db_error)
+    let Some(id) = c.param_str("message_id").and_then(cast_integer) else {
+        return Err(Error::NotFound);
+    };
+    c.app()
+        .db
+        .read(move |conn| Message::find_reachable(conn, user_id, id))
+        .await
+        .map_err(db_error)
 }
 
 /// `@message.boosts.find_by!(id: params[:id], booster: Current.user)`
 pub(crate) async fn set_boost(c: &mut Ctx, message: &Message) -> Result<Boost> {
     let user_id = require_current_user(c)?.id;
-    let Some(id) = c.param_str("id").and_then(cast_integer) else { return Err(Error::NotFound) };
+    let Some(id) = c.param_str("id").and_then(cast_integer) else {
+        return Err(Error::NotFound);
+    };
     let message_id = message.id;
-    c.app().db.read(move |conn| Boost::find_by_message_and_booster(conn, message_id, id, user_id)).await.map_err(db_error)
+    c.app()
+        .db
+        .read(move |conn| Boost::find_by_message_and_booster(conn, message_id, id, user_id))
+        .await
+        .map_err(db_error)
 }
 
 /// `@message.boosts.create!(content:)`, boosted by `Current.user`.
@@ -72,7 +98,11 @@ pub(crate) async fn create_boost(c: &Ctx, message: &Message, content: Option<Str
     let message_id = message.id;
     // A nil content violates the column's NOT NULL (ActiveRecord::NotNullViolation, a 500).
     let content = content.ok_or_else(|| Error::internal(anyhow::anyhow!("NOT NULL constraint failed: boosts.content")))?;
-    c.app().db.write(move |tx| Boost::create(tx, message_id, booster_id, &content)).await.map_err(db_error)
+    c.app()
+        .db
+        .write(move |tx| Boost::create(tx, message_id, booster_id, &content))
+        .await
+        .map_err(db_error)
 }
 
 /// `@boost.destroy!` then `broadcast_remove`.
@@ -97,7 +127,10 @@ pub(crate) async fn broadcast_create(c: &Ctx, message: &Message, boost: &Boost) 
             let account = campfire_db::Account::first(conn)?;
             let html = page::render_detached_at(&app, account.as_ref(), &base_url, |ctx| views::boost(ctx, &view));
             let room = Room::find(conn, message.room_id)?;
-            let partials = Rendered { boost: Some(html), ..Rendered::default() };
+            let partials = Rendered {
+                boost: Some(html),
+                ..Rendered::default()
+            };
             app.broadcasts.boost_create(&room, &message, &boost, &partials);
             Ok(())
         })

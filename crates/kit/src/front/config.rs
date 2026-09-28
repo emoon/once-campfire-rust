@@ -64,7 +64,10 @@ impl FrontConfig {
         let int = |key: &str, default: i64| find(key).and_then(|v| v.parse::<i64>().ok()).unwrap_or(default);
         let port = |key: &str, default: u16| u16::try_from(int(key, default.into())).unwrap_or(default);
         let seconds = |key: &str, default: u64| {
-            find(key).and_then(|v| v.parse::<i64>().ok()).map(|s| Duration::from_secs(s.max(0) as u64)).unwrap_or(Duration::from_secs(default))
+            find(key)
+                .and_then(|v| v.parse::<i64>().ok())
+                .map(|s| Duration::from_secs(s.max(0) as u64))
+                .unwrap_or(Duration::from_secs(default))
         };
         let boolean = |key: &str, default: bool| find(key).and_then(|v| parse_bool(&v)).unwrap_or(default);
 
@@ -73,7 +76,9 @@ impl FrontConfig {
             .unwrap_or_default();
         let mut config = Self {
             target_port: port("TARGET_PORT", 3000),
-            target_bind: find("TARGET_BIND").and_then(|v| v.parse().ok()).unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            target_bind: find("TARGET_BIND")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)),
             cache_size: int("CACHE_SIZE", 64 * MB),
             max_cache_item_size: int("MAX_CACHE_ITEM_SIZE", MB),
             gzip_compression_enabled: boolean("GZIP_COMPRESSION_ENABLED", true),
@@ -150,12 +155,20 @@ mod tests {
     fn target_bind_can_open_the_app_listener() {
         assert_eq!(config(&[("TARGET_BIND", "0.0.0.0")]).target_bind, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
         assert_eq!(config(&[("TARGET_BIND", "::")]).target_bind.to_string(), "::");
-        assert_eq!(config(&[("TARGET_BIND", "everywhere")]).target_bind, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(
+            config(&[("TARGET_BIND", "everywhere")]).target_bind,
+            IpAddr::V4(Ipv4Addr::LOCALHOST)
+        );
     }
 
     #[test]
     fn unparseable_values_fall_back_to_the_default() {
-        let c = config(&[("HTTP_PORT", "eighty"), ("HTTP_READ_TIMEOUT", "5s"), ("LOG_REQUESTS", "yes"), ("H2C_ENABLED", "1")]);
+        let c = config(&[
+            ("HTTP_PORT", "eighty"),
+            ("HTTP_READ_TIMEOUT", "5s"),
+            ("LOG_REQUESTS", "yes"),
+            ("H2C_ENABLED", "1"),
+        ]);
         assert_eq!(c.http_port, 80);
         assert_eq!(c.http_read_timeout, Duration::from_secs(30));
         assert!(c.log_requests && c.h2c_enabled);

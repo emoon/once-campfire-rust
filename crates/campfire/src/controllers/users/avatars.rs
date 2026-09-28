@@ -35,7 +35,14 @@ pub async fn show(c: &mut Ctx) -> Result {
     if let Some(not_modified) = c.fresh_when(freshness) {
         return Ok(not_modified);
     }
-    c.expires_in(MAX_AGE, ExpiresIn { public: true, stale_while_revalidate: Some(STALE_WHILE_REVALIDATE), ..ExpiresIn::default() });
+    c.expires_in(
+        MAX_AGE,
+        ExpiresIn {
+            public: true,
+            stale_while_revalidate: Some(STALE_WHILE_REVALIDATE),
+            ..ExpiresIn::default()
+        },
+    );
 
     if let Some(variant) = avatar_variant(c, &user).await? {
         let path = c.app().storage.service.path_for(&variant.key);
@@ -69,7 +76,12 @@ async fn from_avatar_token(c: &mut Ctx) -> Result<User> {
     let Some(user_id) = presenters::accounts::user_id_from_avatar_token(&c.app().secrets, &token, c.now()) else {
         return halt(c.head(campfire_kit::StatusCode::NOT_FOUND));
     };
-    c.app().db.read(move |conn| User::find_by_id(conn, user_id)).await.map_err(Error::internal)?.ok_or(Error::NotFound)
+    c.app()
+        .db
+        .read(move |conn| User::find_by_id(conn, user_id))
+        .await
+        .map_err(Error::internal)?
+        .ok_or(Error::NotFound)
 }
 
 /// Whether `lookup_context.find_all("show", ["users/avatars", ...])` finds `show.svg.erb` for the
@@ -82,7 +94,13 @@ fn template_found(c: &mut Ctx) -> bool {
 
 /// `avatar.variant(:square).processed if avatar.variable?` (`resize_to_limit: [512, 512], format: :webp`).
 async fn avatar_variant(c: &Ctx, user: &User) -> Result<Option<campfire_storage::Blob>> {
-    attachments::processed_variant(c.app(), Record::user(user.id), "avatar", Variation::resize_to_limit(512, 512, Some("webp"))).await
+    attachments::processed_variant(
+        c.app(),
+        Record::user(user.id),
+        "avatar",
+        Variation::resize_to_limit(512, 512, Some("webp")),
+    )
+    .await
 }
 
 /// `send_file Rails.root.join("app/assets/images/default-bot-avatar.svg"), content_type: "image/svg+xml", disposition: :inline`
@@ -93,7 +111,12 @@ fn render_default_bot(c: &mut Ctx) -> Result {
 
 /// `render formats: :svg` (`users/avatars/show.svg.erb`).
 fn render_initials(c: &mut Ctx, user: &User) -> Result {
-    let svg = AvatarSvg { user_id: user.id, initials: user.initials() }.render().map_err(Error::internal)?;
+    let svg = AvatarSvg {
+        user_id: user.id,
+        initials: user.initials(),
+    }
+    .render()
+    .map_err(Error::internal)?;
     // `Vary: Accept` like any render when the format came from a non-browser `Accept` (e.g.
     // `image/*`); a browser's image `Accept` ends in `*/*`, so it usually doesn't apply.
     Ok(c.render_as(campfire_kit::StatusCode::OK, "image/svg+xml; charset=utf-8", svg))
@@ -112,8 +135,14 @@ pub fn asset_file(logical_path: &str) -> Result<std::path::PathBuf> {
     let path = dir.as_ref().expect("initialized above").path().join(logical_path);
     if !path.exists() {
         let url = campfire_assets::asset_path(logical_path);
-        let request = campfire_assets::StaticRequest { method: "GET", path: &url, ..Default::default() };
-        let data = campfire_assets::serve(&request).ok_or_else(|| Error::internal(anyhow::anyhow!("missing asset {logical_path}")))?.body;
+        let request = campfire_assets::StaticRequest {
+            method: "GET",
+            path: &url,
+            ..Default::default()
+        };
+        let data = campfire_assets::serve(&request)
+            .ok_or_else(|| Error::internal(anyhow::anyhow!("missing asset {logical_path}")))?
+            .body;
         let parent = path.parent().expect("joined onto a directory");
         std::fs::create_dir_all(parent)?;
         let mut partial = tempfile::NamedTempFile::new_in(parent)?;
@@ -129,7 +158,9 @@ mod tests {
 
     #[test]
     fn concurrent_first_requests_all_get_the_whole_file() {
-        let threads: Vec<_> = (0..16).map(|_| std::thread::spawn(|| std::fs::read(asset_file("default-bot-avatar.svg").unwrap()).unwrap())).collect();
+        let threads: Vec<_> = (0..16)
+            .map(|_| std::thread::spawn(|| std::fs::read(asset_file("default-bot-avatar.svg").unwrap()).unwrap()))
+            .collect();
         let contents: Vec<Vec<u8>> = threads.into_iter().map(|t| t.join().unwrap()).collect();
         assert!(!contents[0].is_empty());
         assert!(contents.iter().all(|c| c == &contents[0]));

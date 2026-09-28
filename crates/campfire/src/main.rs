@@ -40,7 +40,16 @@ fn disable_transparent_huge_pages() {
         let off: libc::c_ulong = 1;
         // SAFETY: PR_SET_THP_DISABLE takes machine-width integer arguments and only changes this
         // process's memory policy.
-        if unsafe { libc::prctl(libc::PR_SET_THP_DISABLE, off, 0 as libc::c_ulong, 0 as libc::c_ulong, 0 as libc::c_ulong) } != 0 {
+        if unsafe {
+            libc::prctl(
+                libc::PR_SET_THP_DISABLE,
+                off,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+            )
+        } != 0
+        {
             eprintln!("couldn't disable transparent huge pages: {}", std::io::Error::last_os_error());
         }
     }
@@ -61,9 +70,7 @@ mod tests {
         let mut thp: *const std::ffi::c_char = std::ptr::null();
         let mut len = std::mem::size_of_val(&thp);
         // SAFETY: `opt.thp` is a `const char *`, written into a variable of that type and size.
-        let status = unsafe {
-            tikv_jemalloc_sys::mallctl(c"opt.thp".as_ptr(), (&raw mut thp).cast(), &mut len, std::ptr::null_mut(), 0)
-        };
+        let status = unsafe { tikv_jemalloc_sys::mallctl(c"opt.thp".as_ptr(), (&raw mut thp).cast(), &mut len, std::ptr::null_mut(), 0) };
         assert_eq!(status, 0);
         // SAFETY: jemalloc returned a pointer to one of its static option names.
         assert_eq!(unsafe { std::ffi::CStr::from_ptr(thp) }, c"never");

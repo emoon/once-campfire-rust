@@ -29,7 +29,10 @@ impl StreamsChannel {
     }
 
     pub fn with_verifier(verifier: impl Fn(&str) -> Option<String> + Send + Sync + 'static) -> Self {
-        Self { verifier: Arc::new(verifier), guard: None }
+        Self {
+            verifier: Arc::new(verifier),
+            guard: None,
+        }
     }
 
     /// Rejects any subscription whose verified stream name `guarded` returns true for, before
@@ -49,10 +52,7 @@ impl StreamsChannel {
 
 /// `params[:signed_stream_name]` verified with `verifier`. A missing or `null` name is simply
 /// unverified; any other non-string makes `MessageVerifier#verified` raise.
-pub fn verified_stream_name_from_params(
-    params: &Params,
-    verifier: impl Fn(&str) -> Option<String>,
-) -> ChannelResult<Option<String>> {
+pub fn verified_stream_name_from_params(params: &Params, verifier: impl Fn(&str) -> Option<String>) -> ChannelResult<Option<String>> {
     match params.get("signed_stream_name") {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(signed)) => Ok(verifier(signed)),
@@ -146,7 +146,12 @@ pub fn action_tag(action: Action, target: Target<'_>, template: Option<&str>, at
 
 /// `turbo_stream_refresh_tag(request_id:)`.
 pub fn refresh_tag(request_id: Option<&str>) -> String {
-    action_tag(Action::Refresh, Target::None, None, &[("request-id", request_id.filter(|id| !id.is_empty()))])
+    action_tag(
+        Action::Refresh,
+        Target::None,
+        None,
+        &[("request-id", request_id.filter(|id| !id.is_empty()))],
+    )
 }
 
 fn push_attribute(tag: &mut String, name: &str, value: &str) {
@@ -228,7 +233,12 @@ mod tests {
     #[test]
     fn append_tag() {
         assert_eq!(
-            action_tag(Action::Append, Target::Target("messages_room_1"), Some("<div id=\"m\">Hi &amp; bye</div>"), &[]),
+            action_tag(
+                Action::Append,
+                Target::Target("messages_room_1"),
+                Some("<div id=\"m\">Hi &amp; bye</div>"),
+                &[]
+            ),
             r#"<turbo-stream action="append" target="messages_room_1"><template><div id="m">Hi &amp; bye</div></template></turbo-stream>"#
         );
     }
@@ -244,7 +254,12 @@ mod tests {
     #[test]
     fn attributes_come_before_action_and_are_not_dasherized() {
         assert_eq!(
-            action_tag(Action::Replace, Target::Target("presentation_message_1"), Some("x"), &[("maintain_scroll", Some("true"))]),
+            action_tag(
+                Action::Replace,
+                Target::Target("presentation_message_1"),
+                Some("x"),
+                &[("maintain_scroll", Some("true"))]
+            ),
             r#"<turbo-stream maintain_scroll="true" action="replace" target="presentation_message_1"><template>x</template></turbo-stream>"#
         );
     }
@@ -260,6 +275,9 @@ mod tests {
     #[test]
     fn refresh_tags() {
         assert_eq!(refresh_tag(None), r#"<turbo-stream action="refresh"></turbo-stream>"#);
-        assert_eq!(refresh_tag(Some("abc")), r#"<turbo-stream request-id="abc" action="refresh"></turbo-stream>"#);
+        assert_eq!(
+            refresh_tag(Some("abc")),
+            r#"<turbo-stream request-id="abc" action="refresh"></turbo-stream>"#
+        );
     }
 }

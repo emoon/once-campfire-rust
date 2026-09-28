@@ -88,7 +88,11 @@ impl Endpoint {
             self.host.clone()
         };
         let default_port = if self.https { 443 } else { 80 };
-        if self.port == default_port { host } else { format!("{host}:{}", self.port) }
+        if self.port == default_port {
+            host
+        } else {
+            format!("{host}:{}", self.port)
+        }
     }
 
     fn bare_host(&self) -> &str {
@@ -103,7 +107,10 @@ pub struct Timeouts {
 
 impl Default for Timeouts {
     fn default() -> Self {
-        Self { open: NET_HTTP_DEFAULT_TIMEOUT, read: NET_HTTP_DEFAULT_TIMEOUT }
+        Self {
+            open: NET_HTTP_DEFAULT_TIMEOUT,
+            read: NET_HTTP_DEFAULT_TIMEOUT,
+        }
     }
 }
 
@@ -124,7 +131,13 @@ impl Request {
     /// `Accept`, `User-Agent`, and `Host` when built from a URI (`uri_host`).
     pub fn net_http(method: hyper::Method, target: String, uri_host: Option<String>, headers: Vec<(String, String)>) -> Self {
         let response_has_body = method != hyper::Method::HEAD;
-        let mut request = Self { method, target, headers, body: Vec::new(), decode_content: false };
+        let mut request = Self {
+            method,
+            target,
+            headers,
+            body: Vec::new(),
+            decode_content: false,
+        };
         if !request.has("accept-encoding") && !request.has("range") {
             request.decode_content = response_has_body;
             request.headers.push(("Accept-Encoding".into(), NET_HTTP_ACCEPT_ENCODING.into()));
@@ -164,7 +177,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin> Io for T {}
 /// Connects (within `open`), sends the request, and returns once the response head arrives
 /// (within `read`).
 pub async fn exchange(net: &Network, endpoint: &Endpoint, request: Request, timeouts: &Timeouts) -> Result<Response, HttpError> {
-    let io = timeout(timeouts.open, connect(net, endpoint)).await.map_err(|_| HttpError::OpenTimeout)??;
+    let io = timeout(timeouts.open, connect(net, endpoint))
+        .await
+        .map_err(|_| HttpError::OpenTimeout)??;
     let (mut sender, connection) = hyper::client::conn::http1::Builder::new()
         .title_case_headers(true)
         .handshake::<_, Full<Bytes>>(TokioIo::new(io))
@@ -178,16 +193,28 @@ pub async fn exchange(net: &Network, endpoint: &Endpoint, request: Request, time
     for (name, value) in &request.headers {
         builder = builder.header(name.as_str(), value.as_str());
     }
-    let http_request = builder.body(Full::new(Bytes::from(request.body))).map_err(|e| HttpError::Http(e.to_string()))?;
+    let http_request = builder
+        .body(Full::new(Bytes::from(request.body)))
+        .map_err(|e| HttpError::Http(e.to_string()))?;
     let response = timeout(timeouts.read, sender.send_request(http_request))
         .await
         .map_err(|_| HttpError::ReadTimeout)?
         .map_err(HttpError::from_hyper)?;
 
-    let reason = response.extensions().get::<hyper::ext::ReasonPhrase>().map(|r| String::from_utf8_lossy(r.as_bytes()).into_owned());
+    let reason = response
+        .extensions()
+        .get::<hyper::ext::ReasonPhrase>()
+        .map(|r| String::from_utf8_lossy(r.as_bytes()).into_owned());
     let (parts, body) = response.into_parts();
     let reason = reason.unwrap_or_else(|| parts.status.canonical_reason().unwrap_or("").to_string());
-    Ok(Response { status: parts.status.as_u16(), reason, headers: parts.headers, body, read_timeout: timeouts.read, decode_content: request.decode_content })
+    Ok(Response {
+        status: parts.status.as_u16(),
+        reason,
+        headers: parts.headers,
+        body,
+        read_timeout: timeouts.read,
+        decode_content: request.decode_content,
+    })
 }
 
 async fn connect(net: &Network, endpoint: &Endpoint) -> Result<Box<dyn Io>, HttpError> {
@@ -199,7 +226,10 @@ async fn connect(net: &Network, endpoint: &Endpoint) -> Result<Box<dyn Io>, Http
         return Ok(Box::new(tcp));
     }
     let server_name = ServerName::try_from(endpoint.bare_host().to_string()).map_err(|e| HttpError::Tls(e.to_string()))?;
-    let tls = tokio_rustls::TlsConnector::from(net.tls.clone()).connect(server_name, tcp).await.map_err(HttpError::from_io)?;
+    let tls = tokio_rustls::TlsConnector::from(net.tls.clone())
+        .connect(server_name, tcp)
+        .await
+        .map_err(HttpError::from_io)?;
     Ok(Box::new(tls))
 }
 
@@ -207,7 +237,11 @@ async fn connect(net: &Network, endpoint: &Endpoint) -> Result<Box<dyn Io>, Http
 async fn connect_resolving(net: &Network, endpoint: &Endpoint) -> Result<tokio::net::TcpStream, HttpError> {
     let addresses = match endpoint.bare_host().parse::<IpAddr>() {
         Ok(ip) => vec![ip],
-        Err(_) => net.resolver.lookup(endpoint.bare_host()).await.map_err(|e| HttpError::Unresolvable(e.to_string()))?,
+        Err(_) => net
+            .resolver
+            .lookup(endpoint.bare_host())
+            .await
+            .map_err(|e| HttpError::Unresolvable(e.to_string()))?,
     };
     let mut last_error = None;
     for ip in addresses {
@@ -243,8 +277,12 @@ pub enum Body {
 impl Response {
     /// `response[name]`: every value of the header, joined with ", ".
     pub fn header(&self, name: &str) -> Option<String> {
-        let values: Vec<String> =
-            self.headers.get_all(name).iter().map(|v| String::from_utf8_lossy(v.as_bytes()).into_owned()).collect();
+        let values: Vec<String> = self
+            .headers
+            .get_all(name)
+            .iter()
+            .map(|v| String::from_utf8_lossy(v.as_bytes()).into_owned())
+            .collect();
         if values.is_empty() { None } else { Some(values.join(", ")) }
     }
 
@@ -263,8 +301,14 @@ impl Response {
 
     /// `Net::HTTPHeader#content_length`: the first run of digits, or `HTTPHeaderSyntaxError`.
     pub fn content_length(&self) -> Result<Option<u64>, HttpError> {
-        let Some(header) = self.header("content-length") else { return Ok(None) };
-        let digits: String = header.chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit()).collect();
+        let Some(header) = self.header("content-length") else {
+            return Ok(None);
+        };
+        let digits: String = header
+            .chars()
+            .skip_while(|c| !c.is_ascii_digit())
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
         if digits.is_empty() {
             return Err(HttpError::Http("wrong Content-Length format".into()));
         }
@@ -277,7 +321,9 @@ impl Response {
         let mut inflater = self.inflater();
         let mut body = Vec::new();
         loop {
-            let frame = timeout(self.read_timeout, self.body.frame()).await.map_err(|_| HttpError::ReadTimeout)?;
+            let frame = timeout(self.read_timeout, self.body.frame())
+                .await
+                .map_err(|_| HttpError::ReadTimeout)?;
             let Some(frame) = frame else { break };
             let frame = frame.map_err(HttpError::from_hyper)?;
             let Ok(chunk) = frame.into_data() else { continue };
@@ -286,7 +332,9 @@ impl Response {
                 Some(inflater) => inflater.inflate(&chunk, room)?,
                 None => Some(chunk.to_vec()),
             };
-            let Some(chunk) = chunk.filter(|chunk| chunk.len() <= room) else { return Ok(Body::TooLarge) };
+            let Some(chunk) = chunk.filter(|chunk| chunk.len() <= room) else {
+                return Ok(Body::TooLarge);
+            };
             body.extend_from_slice(&chunk);
         }
         if let Some(inflater) = inflater {
@@ -330,7 +378,10 @@ enum Decoder {
 
 impl Inflater {
     fn new() -> Self {
-        Self { decoder: None, pending: Vec::new() }
+        Self {
+            decoder: None,
+            pending: Vec::new(),
+        }
     }
 
     /// The chunk inflated, or `None` once the output would pass `room` bytes.

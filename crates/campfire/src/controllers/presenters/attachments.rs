@@ -35,7 +35,11 @@ impl Upload {
     /// here (`params.permit(...).compact` / `avatar=` with nil or "" deletes, see [`Assignment`]).
     pub fn from_param(param: Option<&Param>) -> Option<Upload> {
         let file = param.and_then(Param::as_file)?;
-        Some(Upload { file: file.clone(), filename: file.original_filename.clone(), content_type: file.content_type.clone() })
+        Some(Upload {
+            file: file.clone(),
+            filename: file.original_filename.clone(),
+            content_type: file.content_type.clone(),
+        })
     }
 
     /// Uploads the file to storage for a blob whose row is saved next, off the async threads.
@@ -102,7 +106,9 @@ pub fn assign(tx: &mut Tx<'_>, record: Record, name: &str, assignment: Assignmen
             Ok(None)
         }
         Assignment::Create(staged) => attach(tx, record, name, staged).map(Some),
-        Assignment::Invalid => Err(campfire_db::Error::Other("Could not find or build blob: expected attachable".into())),
+        Assignment::Invalid => Err(campfire_db::Error::Other(
+            "Could not find or build blob: expected attachable".into(),
+        )),
     }
 }
 
@@ -116,11 +122,19 @@ pub struct Record {
 
 impl Record {
     pub fn user(id: i64) -> Self {
-        Self { record_type: "User", table: "users", id }
+        Self {
+            record_type: "User",
+            table: "users",
+            id,
+        }
     }
 
     pub fn account(id: i64) -> Self {
-        Self { record_type: "Account", table: "accounts", id }
+        Self {
+            record_type: "Account",
+            table: "accounts",
+            id,
+        }
     }
 }
 
@@ -130,7 +144,8 @@ pub fn attach(tx: &mut Tx<'_>, record: Record, name: &str, staged: Staged) -> ca
     let now = tx.now();
     let blob = staged.insert(tx.conn(), now.jiff()).map_err(storage_error)?;
     keep_after_commit(tx, staged);
-    campfire_storage::blob::insert_attachment(tx.conn(), name, record.record_type, record.id, blob.id, now.jiff()).map_err(storage_error)?;
+    campfire_storage::blob::insert_attachment(tx.conn(), name, record.record_type, record.id, blob.id, now.jiff())
+        .map_err(storage_error)?;
     super::accounts::touch(tx.conn(), record.table, record.id, tx.now())?;
     Ok(Pending { blob })
 }
@@ -146,9 +161,18 @@ pub fn destroy(tx: &mut Tx<'_>, record: Record, name: &str) -> campfire_db::Resu
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map(Some)
-        .or_else(|error| if error == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(error) })?;
-    let Some((attachment_id, blob_id)) = attachment else { return Ok(false) };
-    tx.conn().execute_cached("DELETE FROM active_storage_attachments WHERE id = ?1", [attachment_id])?;
+        .or_else(|error| {
+            if error == rusqlite::Error::QueryReturnedNoRows {
+                Ok(None)
+            } else {
+                Err(error)
+            }
+        })?;
+    let Some((attachment_id, blob_id)) = attachment else {
+        return Ok(false);
+    };
+    tx.conn()
+        .execute_cached("DELETE FROM active_storage_attachments WHERE id = ?1", [attachment_id])?;
     super::accounts::touch(tx.conn(), record.table, record.id, tx.now())?;
     tx.emit_after_commit(Event::PurgeBlob { blob_id });
     Ok(true)
@@ -158,7 +182,8 @@ pub fn destroy(tx: &mut Tx<'_>, record: Record, name: &str) -> campfire_db::Resu
 pub fn analyze_later(app: &App, pending: Option<Pending>) {
     let Some(Pending { blob }) = pending else { return };
     let job_app = app.clone();
-    app.jobs.perform_later("ActiveStorage::AnalyzeJob", async move { analyze(&job_app, blob.id).await });
+    app.jobs
+        .perform_later("ActiveStorage::AnalyzeJob", async move { analyze(&job_app, blob.id).await });
 }
 
 /// `ActiveStorage::AnalyzeJob`: `blob.analyze`, then `touch_attachment_records`. The file is
@@ -200,8 +225,12 @@ pub async fn processed_variant(app: &App, record: Record, name: &str, transforma
         .read(move |conn| attached_blob(conn, record.record_type, record.id, &name))
         .await
         .map_err(Error::internal)?;
-    let Some(blob) = blob.filter(Blob::is_variable) else { return Ok(None) };
-    crate::active_storage::processed_representation(app, blob, transformations).await.map(Some)
+    let Some(blob) = blob.filter(Blob::is_variable) else {
+        return Ok(None);
+    };
+    crate::active_storage::processed_representation(app, blob, transformations)
+        .await
+        .map(Some)
 }
 
 pub fn storage_error(error: campfire_storage::Error) -> campfire_db::Error {

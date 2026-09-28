@@ -34,7 +34,11 @@ pub fn with_query(path: &str, params: Vec<(&str, Param)>) -> String {
             }
         }
     }
-    if pairs.is_empty() { path.to_string() } else { format!("{path}?{}", pairs.join("&")) }
+    if pairs.is_empty() {
+        path.to_string()
+    } else {
+        format!("{path}?{}", pairs.join("&"))
+    }
 }
 
 /// `rooms_directs_path(user_ids: [ id ])`.
@@ -56,7 +60,10 @@ mod tests {
 
     #[test]
     fn builds_rails_query_strings() {
-        assert_eq!(rooms_directs_with_users(&[5, 6]), "/rooms/directs?user_ids%5B%5D=5&user_ids%5B%5D=6");
+        assert_eq!(
+            rooms_directs_with_users(&[5, 6]),
+            "/rooms/directs?user_ids%5B%5D=5&user_ids%5B%5D=6"
+        );
         assert_eq!(
             with_query("/x", vec![("z", Param::One("a b".into())), ("a", Param::One("1".into()))]),
             "/x?a=1&z=a+b"

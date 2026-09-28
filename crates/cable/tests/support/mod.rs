@@ -94,7 +94,10 @@ pub async fn start(config: Config) -> TestServer {
     let log = Log::default();
     let room_log = log.clone();
     let server = Server::builder(config, CookieAuth)
-        .channel("RoomChannel", move || RoomChannel { room: None, log: room_log.clone() })
+        .channel("RoomChannel", move || RoomChannel {
+            room: None,
+            log: room_log.clone(),
+        })
         .channel("HeartbeatChannel", || EmptyChannel)
         .channel("Turbo::StreamsChannel", || {
             StreamsChannel::with_test_verifier().guarded_by(|name| name.split_once(':').map(|(_, s)| s) == Some("messages"))
@@ -106,11 +109,19 @@ pub async fn start(config: Config) -> TestServer {
     let app = server.router::<()>("/cable");
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-    TestServer { server, url: format!("ws://{addr}/cable"), origin: format!("http://{addr}"), log }
+    TestServer {
+        server,
+        url: format!("ws://{addr}/cable"),
+        origin: format!("http://{addr}"),
+        log,
+    }
 }
 
 pub fn test_config() -> Config {
-    Config { assume_ssl: false, ..Config::default() }
+    Config {
+        assume_ssl: false,
+        ..Config::default()
+    }
 }
 
 trait TestVerifier {
@@ -120,9 +131,7 @@ trait TestVerifier {
 /// Signed names in tests are `signed(<name>)`.
 impl TestVerifier for StreamsChannel {
     fn with_test_verifier() -> Self {
-        StreamsChannel::with_verifier(|signed| {
-            signed.strip_prefix("signed(").and_then(|s| s.strip_suffix(')')).map(str::to_string)
-        })
+        StreamsChannel::with_verifier(|signed| signed.strip_prefix("signed(").and_then(|s| s.strip_suffix(')')).map(str::to_string))
     }
 }
 
@@ -142,12 +151,18 @@ impl TestServer {
         let mut request = self.url.as_str().into_client_request().unwrap();
         let headers = request.headers_mut();
         headers.insert("origin", HeaderValue::from_str(origin).unwrap());
-        headers.insert("sec-websocket-protocol", HeaderValue::from_static("actioncable-v1-json, actioncable-unsupported"));
+        headers.insert(
+            "sec-websocket-protocol",
+            HeaderValue::from_static("actioncable-v1-json, actioncable-unsupported"),
+        );
         if let Some(id) = user_id {
             headers.insert("cookie", HeaderValue::from_str(&format!("session_token={id}")).unwrap());
         }
         let (socket, response) = tokio_tungstenite::connect_async(request).await.expect("upgrade");
-        let protocol = response.headers().get("sec-websocket-protocol").map(|v| v.to_str().unwrap().to_string());
+        let protocol = response
+            .headers()
+            .get("sec-websocket-protocol")
+            .map(|v| v.to_str().unwrap().to_string());
         Client { socket, protocol }
     }
 }
@@ -174,7 +189,8 @@ impl Client {
     }
 
     pub async fn perform(&mut self, identifier: &str, data: Value) {
-        self.send(json!({ "command": "message", "identifier": identifier, "data": data.to_string() })).await;
+        self.send(json!({ "command": "message", "identifier": identifier, "data": data.to_string() }))
+            .await;
     }
 
     /// The next frame, as raw text, skipping pings.
@@ -188,7 +204,9 @@ impl Client {
     }
 
     pub async fn next_including_pings(&mut self) -> Frame {
-        let message = tokio::time::timeout(Duration::from_secs(5), self.socket.next()).await.expect("frame within 5s");
+        let message = tokio::time::timeout(Duration::from_secs(5), self.socket.next())
+            .await
+            .expect("frame within 5s");
         match message {
             Some(Ok(Message::Text(text))) => Frame::Text(text.to_string()),
             Some(Ok(Message::Close(frame))) => Frame::Close(frame.map(|f| (u16::from(f.code), f.reason.to_string()))),

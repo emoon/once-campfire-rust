@@ -52,7 +52,11 @@ impl Layout {
             })
             .await
             .map_err(Error::internal)?;
-        let last_room_visited_id = if user.is_some() { concerns::last_room_visited(c).await?.map(|room| room.id) } else { None };
+        let last_room_visited_id = if user.is_some() {
+            concerns::last_room_visited(c).await?.map(|room| room.id)
+        } else {
+            None
+        };
 
         Ok(Self {
             current_user: user.as_ref().map(|user| current_user(&secrets, user)),
@@ -143,11 +147,7 @@ pub fn account_summary(account: Option<&Account>, has_logo: bool) -> AccountSumm
 
 /// Renders a page in the application layout without the implicit render's template lookup: an
 /// explicit `render template:` answers HTML whatever the request's format.
-pub async fn page_in_any_format(
-    c: &mut Ctx,
-    status: StatusCode,
-    full: impl FnOnce(&ViewContext) -> askama::Result<String>,
-) -> Result {
+pub async fn page_in_any_format(c: &mut Ctx, status: StatusCode, full: impl FnOnce(&ViewContext) -> askama::Result<String>) -> Result {
     let layout = Layout::load(c).await?;
     let html = layout.render(c, full)?;
     Ok(layout.page(c, status, html))

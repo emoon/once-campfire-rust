@@ -16,7 +16,13 @@ async fn show_renders_the_room_and_remembers_it() {
     assert!(html.contains("<title>All Talk</title>"), "{html}");
     assert!(html.contains(r#"<meta name="current-room-id" content="486777696">"#));
     assert_eq!(html.matches(r#"data-controller="reply""#).count(), 40, "the last page");
-    assert!(reply.headers.get_all("set-cookie").iter().any(|c| c.to_str().unwrap().starts_with(&format!("last_room={ALL_TALK}"))));
+    assert!(
+        reply
+            .headers
+            .get_all("set-cookie")
+            .iter()
+            .any(|c| c.to_str().unwrap().starts_with(&format!("last_room={ALL_TALK}")))
+    );
     assert_eq!(reply.header("x-version"), Some("parity"));
 }
 
@@ -25,7 +31,12 @@ async fn show_at_a_message_pages_around_it() {
     let Some(app) = TestApp::boot().await else { return };
     let first = app
         .db()
-        .read(|conn| Ok(campfire_db::Message::for_room(conn, ALL_TALK)?.into_iter().min_by_key(|m| m.created_at).unwrap()))
+        .read(|conn| {
+            Ok(campfire_db::Message::for_room(conn, ALL_TALK)?
+                .into_iter()
+                .min_by_key(|m| m.created_at)
+                .unwrap())
+        })
         .await
         .unwrap();
     let reply = app.david().get(&format!("/rooms/{ALL_TALK}/@{}", first.id)).await;
@@ -64,7 +75,12 @@ async fn undeclared_actions() {
     assert_eq!(david.get(&format!("/rooms/{ALL_TALK}/edit")).await.status, StatusCode::NOT_FOUND);
     let direct = david.get(&format!("/rooms/directs/{DIRECT_DAVID_JASON}")).await;
     assert_eq!(direct.status, StatusCode::FOUND);
-    assert!(direct.header("location").unwrap().ends_with(&format!("/rooms/{DIRECT_DAVID_JASON}")));
+    assert!(
+        direct
+            .header("location")
+            .unwrap()
+            .ends_with(&format!("/rooms/{DIRECT_DAVID_JASON}"))
+    );
     let reply = david.write(Req::new(Method::DELETE, &format!("/rooms/opens/{HQ}"))).await;
     assert_eq!(reply.status, StatusCode::INTERNAL_SERVER_ERROR);
 }
@@ -77,7 +93,9 @@ async fn open_rooms_are_created_edited_and_updated() {
     assert_eq!(new.status, StatusCode::OK);
     assert!(new.text().contains("New chat room"));
 
-    let created = david.write(Req::new(Method::POST, "/rooms/opens").form(&[("room[name]", "Watercooler")])).await;
+    let created = david
+        .write(Req::new(Method::POST, "/rooms/opens").form(&[("room[name]", "Watercooler")]))
+        .await;
     assert_eq!(created.status, StatusCode::FOUND, "{}", created.text());
     let room_id: i64 = created.location().unwrap().rsplit('/').next().unwrap().parse().unwrap();
     let room = app.db().read(move |conn| Room::find(conn, room_id)).await.unwrap();
@@ -90,7 +108,12 @@ async fn open_rooms_are_created_edited_and_updated() {
     let shown = david.get(&format!("/rooms/opens/{room_id}")).await;
     assert_eq!(shown.location(), Some(format!("http://campfire.test/rooms/{room_id}").as_str()));
 
-    let updated = david.write(Req::new(Method::PATCH, &format!("/rooms/closeds/{room_id}")).form(&[("room[name]", "Private"), ("user_ids[]", &DAVID.to_string())])).await;
+    let updated = david
+        .write(
+            Req::new(Method::PATCH, &format!("/rooms/closeds/{room_id}"))
+                .form(&[("room[name]", "Private"), ("user_ids[]", &DAVID.to_string())]),
+        )
+        .await;
     assert_eq!(updated.status, StatusCode::FOUND, "{}", updated.text());
     let room = app.db().read(move |conn| Room::find(conn, room_id)).await.unwrap();
     assert_eq!((room.name.as_deref(), room.room_type), (Some("Private"), RoomType::Closed));
@@ -116,7 +139,14 @@ async fn closed_rooms_are_created_with_the_selected_users() {
         .await;
     assert_eq!(created.status, StatusCode::FOUND, "{}", created.text());
     let room_id: i64 = created.location().unwrap().rsplit('/').next().unwrap().parse().unwrap();
-    let mut members: Vec<i64> = app.db().read(move |conn| Membership::for_room(conn, room_id)).await.unwrap().iter().map(|m| m.user_id).collect();
+    let mut members: Vec<i64> = app
+        .db()
+        .read(move |conn| Membership::for_room(conn, room_id))
+        .await
+        .unwrap()
+        .iter()
+        .map(|m| m.user_id)
+        .collect();
     members.sort();
     assert_eq!(members, vec![DAVID, JASON]);
     assert_eq!(david.get(&format!("/rooms/closeds/{room_id}/edit")).await.status, StatusCode::OK);
@@ -138,9 +168,16 @@ async fn direct_rooms_are_found_or_created() {
     let Some(app) = TestApp::boot().await else { return };
     let mut david = app.david();
     assert_eq!(david.get("/rooms/directs/new").await.status, StatusCode::OK);
-    let existing = david.write(Req::new(Method::POST, "/rooms/directs").form(&[("user_ids[]", &JASON.to_string())])).await;
-    assert_eq!(existing.location(), Some(format!("http://campfire.test/rooms/{DIRECT_DAVID_JASON}").as_str()));
-    let created = david.write(Req::new(Method::POST, "/rooms/directs").form(&[("user_ids[]", &KEVIN.to_string())])).await;
+    let existing = david
+        .write(Req::new(Method::POST, "/rooms/directs").form(&[("user_ids[]", &JASON.to_string())]))
+        .await;
+    assert_eq!(
+        existing.location(),
+        Some(format!("http://campfire.test/rooms/{DIRECT_DAVID_JASON}").as_str())
+    );
+    let created = david
+        .write(Req::new(Method::POST, "/rooms/directs").form(&[("user_ids[]", &KEVIN.to_string())]))
+        .await;
     let room_id: i64 = created.location().unwrap().rsplit('/').next().unwrap().parse().unwrap();
     let room = app.db().read(move |conn| Room::find(conn, room_id)).await.unwrap();
     assert_eq!(room.room_type, RoomType::Direct);
@@ -156,15 +193,26 @@ async fn refresh_streams_messages_since_a_time() {
     let Some(app) = TestApp::boot().await else { return };
     let mut david = app.david();
     let reply = david
-        .send(Req::new(Method::GET, &format!("/rooms/{ALL_TALK}/refresh?since=0")).header("accept", "text/vnd.turbo-stream.html, text/html"))
+        .send(
+            Req::new(Method::GET, &format!("/rooms/{ALL_TALK}/refresh?since=0")).header("accept", "text/vnd.turbo-stream.html, text/html"),
+        )
         .await;
     assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
     assert_eq!(reply.content_type(), Some("text/vnd.turbo-stream.html; charset=utf-8"));
-    assert!(reply.text().starts_with(r#"<turbo-stream action="append" target="messages_rooms_closed_486777696">"#), "{}", reply.text());
+    assert!(
+        reply
+            .text()
+            .starts_with(r#"<turbo-stream action="append" target="messages_rooms_closed_486777696">"#),
+        "{}",
+        reply.text()
+    );
 
     let html_only = david.get(&format!("/rooms/{ALL_TALK}/refresh?since=0")).await;
     assert_eq!(html_only.status, StatusCode::NOT_ACCEPTABLE);
-    assert_eq!(david.get(&format!("/rooms/{DIRECT_KEVIN_BENDER}/refresh")).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        david.get(&format!("/rooms/{DIRECT_KEVIN_BENDER}/refresh")).await.status,
+        StatusCode::NOT_FOUND
+    );
 }
 
 #[tokio::test]
@@ -174,17 +222,36 @@ async fn involvement_is_shown_and_changed() {
     let shown = david.get(&format!("/rooms/{ALL_TALK}/involvement")).await;
     assert_eq!(shown.status, StatusCode::OK);
     assert!(shown.text().contains("turbo-frame"));
-    let updated = david.write(Req::new(Method::PATCH, &format!("/rooms/{ALL_TALK}/involvement")).form(&[("involvement", "invisible")])).await;
-    assert_eq!(updated.location(), Some(format!("http://campfire.test/rooms/{ALL_TALK}/involvement").as_str()));
-    let membership = app.db().read(|conn| Membership::find_by_room_and_user(conn, ALL_TALK, DAVID)).await.unwrap().unwrap();
+    let updated = david
+        .write(Req::new(Method::PATCH, &format!("/rooms/{ALL_TALK}/involvement")).form(&[("involvement", "invisible")]))
+        .await;
+    assert_eq!(
+        updated.location(),
+        Some(format!("http://campfire.test/rooms/{ALL_TALK}/involvement").as_str())
+    );
+    let membership = app
+        .db()
+        .read(|conn| Membership::find_by_room_and_user(conn, ALL_TALK, DAVID))
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(membership.involvement, Some(campfire_db::Involvement::Invisible));
-    let invalid = david.write(Req::new(Method::PATCH, &format!("/rooms/{ALL_TALK}/involvement")).form(&[("involvement", "loud")])).await;
+    let invalid = david
+        .write(Req::new(Method::PATCH, &format!("/rooms/{ALL_TALK}/involvement")).form(&[("involvement", "loud")]))
+        .await;
     assert_eq!(invalid.status, StatusCode::INTERNAL_SERVER_ERROR);
 
     // A missing (or blank) involvement is stored as nil, like the enum casts it.
-    let missing = david.write(Req::new(Method::PATCH, &format!("/rooms/{ALL_TALK}/involvement"))).await;
+    let missing = david
+        .write(Req::new(Method::PATCH, &format!("/rooms/{ALL_TALK}/involvement")))
+        .await;
     assert_eq!(missing.status, StatusCode::FOUND);
-    let membership = app.db().read(|conn| Membership::find_by_room_and_user(conn, ALL_TALK, DAVID)).await.unwrap().unwrap();
+    let membership = app
+        .db()
+        .read(|conn| Membership::find_by_room_and_user(conn, ALL_TALK, DAVID))
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(membership.involvement, None);
 }
 
@@ -201,7 +268,9 @@ async fn rooms_are_destroyed_by_administrators() {
 async fn cross_site_writes_are_refused() {
     let Some(app) = TestApp::boot().await else { return };
     let mut david = app.david();
-    let request = Req::new(Method::POST, "/rooms/opens").form(&[("room[name]", "x")]).header("sec-fetch-site", "cross-site");
+    let request = Req::new(Method::POST, "/rooms/opens")
+        .form(&[("room[name]", "x")])
+        .header("sec-fetch-site", "cross-site");
     assert_eq!(david.send(request).await.status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
@@ -210,7 +279,11 @@ async fn the_last_room_cookie_is_set_only_when_it_changes() {
     let Some(app) = TestApp::boot().await else { return };
     let mut david = app.david();
     let last_room = |reply: &Reply| {
-        reply.headers.get_all(axum::http::header::SET_COOKIE).iter().any(|c| c.to_str().unwrap().starts_with("last_room="))
+        reply
+            .headers
+            .get_all(axum::http::header::SET_COOKIE)
+            .iter()
+            .any(|c| c.to_str().unwrap().starts_with("last_room="))
     };
     assert!(last_room(&david.get(&format!("/rooms/{HQ}")).await));
     assert!(!last_room(&david.get(&format!("/rooms/{HQ}")).await), "the same room again");

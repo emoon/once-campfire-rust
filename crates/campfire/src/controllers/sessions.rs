@@ -12,8 +12,8 @@ use jiff::{SignedDuration, Timestamp};
 
 use super::presenters;
 use crate::app::AppCtx;
-use crate::controllers::presenters::page::framed_page;
 use crate::concerns::{self, Before, current_user};
+use crate::controllers::presenters::page::framed_page;
 
 /// `rate_limit to: 10, within: 3.minutes, only: :create`
 const RATE_LIMIT_TO: u64 = 10;
@@ -77,13 +77,22 @@ async fn render_new(c: &mut Ctx, status: StatusCode) -> Result {
     c.respond_to(&[&format::HTML])?;
     let email_address = c.param_str("email_address").map(str::to_string);
     let help_contact = c.app().db.read(presenters::accounts::help_contact).await.map_err(Error::internal)?;
-    framed_page!(c, status, |ctx| sessions::New { ctx, email_address: email_address.clone(), help_contact: help_contact.clone() }).await
+    framed_page!(c, status, |ctx| sessions::New {
+        ctx,
+        email_address: email_address.clone(),
+        help_contact: help_contact.clone()
+    })
+    .await
 }
 
 /// `Push::Subscription.destroy_by(endpoint: params[:push_subscription_endpoint], user_id: Current.user.id)`
 async fn remove_push_subscription(c: &mut Ctx) -> Result<()> {
-    let Some(endpoint) = c.param_str("push_subscription_endpoint").map(str::to_string) else { return Ok(()) };
-    let Some(user_id) = current_user(c).map(|user| user.id) else { return Ok(()) };
+    let Some(endpoint) = c.param_str("push_subscription_endpoint").map(str::to_string) else {
+        return Ok(());
+    };
+    let Some(user_id) = current_user(c).map(|user| user.id) else {
+        return Ok(());
+    };
     c.app()
         .db
         .write(move |tx| PushSubscription::destroy_by_endpoint(tx, user_id, &endpoint))

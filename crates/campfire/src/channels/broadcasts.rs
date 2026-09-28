@@ -83,7 +83,8 @@ impl Broadcasts {
 
     fn to(&self, streamables: &[String], action: Action, target: &str, html: Option<&str>, attributes: &[(&str, Option<&str>)]) {
         let streamables: Vec<&str> = streamables.iter().map(String::as_str).collect();
-        self.server.broadcast_action_to(&streamables, action, Target::Target(target), html, attributes);
+        self.server
+            .broadcast_action_to(&streamables, action, Target::Target(target), html, attributes);
     }
 
     // Message::Broadcasts (reference/app/models/message/broadcasts.rb)
@@ -93,7 +94,13 @@ impl Broadcasts {
     /// Webhook replies, and `Messages::ByBotsController`.
     pub fn message_create(&self, conn: &Connection, room: &Room, message: &Message, partials: &dyn Partials) -> campfire_db::Result<()> {
         let html = partials.message(message);
-        self.to(&Self::room_messages(room), Action::Append, &room_dom_id(room, MESSAGES), Some(&html), &[]);
+        self.to(
+            &Self::room_messages(room),
+            Action::Append,
+            &room_dom_id(room, MESSAGES),
+            Some(&html),
+            &[],
+        );
         self.unread_room(conn, room)
     }
 
@@ -105,14 +112,21 @@ impl Broadcasts {
             room_id: i64,
         }
         for membership in Membership::for_room(conn, room.id)? {
-            self.server.broadcast(&unread_rooms::stream_name_for(membership.user_id), &UnreadRoom { room_id: room.id });
+            self.server
+                .broadcast(&unread_rooms::stream_name_for(membership.user_id), &UnreadRoom { room_id: room.id });
         }
         Ok(())
     }
 
     /// `message.broadcast_remove`: MessagesController#destroy and `User#remove_banned_content`.
     pub fn message_remove(&self, room: &Room, message: &Message) {
-        self.to(&Self::room_messages(room), Action::Remove, &message_dom_id(message, None), None, &[]);
+        self.to(
+            &Self::room_messages(room),
+            Action::Remove,
+            &message_dom_id(message, None),
+            None,
+            &[],
+        );
     }
 
     /// MessagesController#update: replace `[message, :presentation]` with
@@ -134,7 +148,13 @@ impl Broadcasts {
 
     /// `broadcast_remove`: `dom_id(boost)`.
     pub fn boost_remove(&self, room: &Room, boost: &Boost) {
-        self.to(&Self::room_messages(room), Action::Remove, &dom_id("boost", boost.id, None), None, &[]);
+        self.to(
+            &Self::room_messages(room),
+            Action::Remove,
+            &dom_id("boost", boost.id, None),
+            None,
+            &[],
+        );
     }
 
     // The sidebar's room lists (users/sidebars/show.html.erb streams from `:rooms` and
@@ -185,7 +205,13 @@ impl Broadcasts {
     pub fn direct_room_create(&self, conn: &Connection, room: &Room, partials: &dyn Partials) -> campfire_db::Result<()> {
         for membership in room.memberships(conn)? {
             let html = partials.direct_room(&membership);
-            self.to(&Self::user_rooms(membership.user_id), Action::Prepend, "direct_rooms", Some(&html), &[]);
+            self.to(
+                &Self::user_rooms(membership.user_id),
+                Action::Prepend,
+                "direct_rooms",
+                Some(&html),
+                &[],
+            );
         }
         Ok(())
     }

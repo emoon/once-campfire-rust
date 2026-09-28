@@ -18,9 +18,18 @@ impl TypingNotificationsChannel {
     /// `broadcast_to @room, action:, user: current_user.slice(:id, :name)`.
     fn broadcast(&self, action: &'static str, sub: &Subscription<CableUser>) -> ChannelResult {
         // `@room` is only nil when `subscribed` failed, and Rails raises NoMethodError.
-        let room = self.room.as_ref().ok_or_else(|| ChannelError("undefined method 'to_gid_param' for nil".into()))?;
+        let room = self
+            .room
+            .as_ref()
+            .ok_or_else(|| ChannelError("undefined method 'to_gid_param' for nil".into()))?;
         let user = sub.current_user();
-        let payload = Payload { action, user: UserAttributes { id: user.id, name: &user.name } };
+        let payload = Payload {
+            action,
+            user: UserAttributes {
+                id: user.id,
+                name: &user.name,
+            },
+        };
         sub.broadcast_to(&[&room_gid(room).to_param()], &payload);
         Ok(())
     }

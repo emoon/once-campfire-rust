@@ -49,7 +49,9 @@ impl Server {
     }
 
     async fn start_with(vars: &[(&str, &str)], app: Router, acme: Option<AcmeOptions>, http: u16, https: u16) -> Self {
-        Self::try_start(vars, app, acme, http, https).await.expect("front server didn't start")
+        Self::try_start(vars, app, acme, http, https)
+            .await
+            .expect("front server didn't start")
     }
 
     /// `None` when the server stops before it's listening (a port was taken).
@@ -80,7 +82,12 @@ impl Server {
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
-        Some(Self { http, target, stop: Some(stop), done })
+        Some(Self {
+            http,
+            target,
+            stop: Some(stop),
+            done,
+        })
     }
 
     async fn stop(mut self) {
@@ -102,7 +109,11 @@ struct Reply {
 
 impl Reply {
     fn all(&self, name: &str) -> Vec<&str> {
-        self.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str()).collect()
+        self.headers
+            .iter()
+            .filter(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
+            .collect()
     }
 
     fn get(&self, name: &str) -> Option<&str> {
@@ -114,7 +125,10 @@ async fn exchange(port: u16, request: &str) -> Reply {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
     stream.write_all(request.as_bytes()).await.unwrap();
     let mut raw = Vec::new();
-    tokio::time::timeout(Duration::from_secs(10), stream.read_to_end(&mut raw)).await.unwrap().unwrap();
+    tokio::time::timeout(Duration::from_secs(10), stream.read_to_end(&mut raw))
+        .await
+        .unwrap()
+        .unwrap();
     parse(&raw)
 }
 
@@ -123,8 +137,9 @@ fn parse(raw: &[u8]) -> Reply {
     let head = std::str::from_utf8(&raw[..split]).unwrap();
     let mut lines = head.split("\r\n");
     let status = lines.next().unwrap().split(' ').nth(1).unwrap().parse().unwrap();
-    let headers: Vec<(String, String)> =
-        lines.map(|l| l.split_once(": ").map(|(n, v)| (n.to_ascii_lowercase(), v.to_string())).unwrap()).collect();
+    let headers: Vec<(String, String)> = lines
+        .map(|l| l.split_once(": ").map(|(n, v)| (n.to_ascii_lowercase(), v.to_string())).unwrap())
+        .collect();
     let mut body = raw[split + 4..].to_vec();
     if headers.iter().any(|(n, v)| n == "transfer-encoding" && v == "chunked") {
         body = dechunk(&body);
@@ -196,10 +211,27 @@ fn test_app() -> (Router, Arc<AtomicUsize>) {
                     .unwrap()
             }),
         )
-        .route("/page", get(|| async { Response::builder().header("content-type", "text/html; charset=utf-8").body(Body::from("<p>campfire</p>".repeat(200))).unwrap() }))
+        .route(
+            "/page",
+            get(|| async {
+                Response::builder()
+                    .header("content-type", "text/html; charset=utf-8")
+                    .body(Body::from("<p>campfire</p>".repeat(200)))
+                    .unwrap()
+            }),
+        )
         .route("/headers", get(echo_headers).post(echo_headers))
-        .route("/upload", post(|body: axum::body::Bytes| async move { format!("{} bytes", body.len()) }))
-        .route("/slow", get(|| async { tokio::time::sleep(Duration::from_secs(3)).await; "late" }))
+        .route(
+            "/upload",
+            post(|body: axum::body::Bytes| async move { format!("{} bytes", body.len()) }),
+        )
+        .route(
+            "/slow",
+            get(|| async {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                "late"
+            }),
+        )
         .route(
             "/cable",
             any(|ws: WebSocketUpgrade| async move {
@@ -219,7 +251,13 @@ async fn echo_headers(ConnectInfo(remote): ConnectInfo<SocketAddr>, request: Req
     let headers: &HeaderMap = request.headers();
     let get = |name| headers.get(name).and_then(|v| v.to_str().ok()).unwrap_or("-").to_string();
     if request.uri().query() == Some("h2") {
-        return format!("host={} cookie={} version={:?} uri={}", get("host"), get("cookie"), request.version(), request.uri());
+        return format!(
+            "host={} cookie={} version={:?} uri={}",
+            get("host"),
+            get("cookie"),
+            request.version(),
+            request.uri()
+        );
     }
     format!(
         "for={} host={} proto={} forwarded={} start={} peer={}",
@@ -252,15 +290,26 @@ async fn caches_public_responses() {
 
     // Another Accept-Encoding is another variant.
     let other = exchange(server.http, &get_request("/public", "Accept-Encoding: br\r\n")).await;
-    assert_eq!((other.get("x-cache"), other.body.as_slice()), (Some("miss"), b"render 1".as_slice()));
+    assert_eq!(
+        (other.get("x-cache"), other.body.as_slice()),
+        (Some("miss"), b"render 1".as_slice())
+    );
     let again = exchange(server.http, &get_request("/public", "Accept-Encoding: br\r\n")).await;
     assert_eq!((again.get("x-cache"), again.body.as_slice()), (Some("hit"), b"render 1".as_slice()));
 
-    let revalidated = exchange(server.http, &get_request("/public", "Accept-Encoding: identity\r\nIf-None-Match: \"v1\"\r\n")).await;
+    let revalidated = exchange(
+        server.http,
+        &get_request("/public", "Accept-Encoding: identity\r\nIf-None-Match: \"v1\"\r\n"),
+    )
+    .await;
     assert_eq!((revalidated.status, revalidated.get("x-cache")), (304, Some("hit")));
     assert!(revalidated.body.is_empty());
 
-    let ranged = exchange(server.http, &get_request("/public", "Accept-Encoding: identity\r\nRange: bytes=0-1\r\n")).await;
+    let ranged = exchange(
+        server.http,
+        &get_request("/public", "Accept-Encoding: identity\r\nRange: bytes=0-1\r\n"),
+    )
+    .await;
     assert_eq!(ranged.get("x-cache"), Some("bypass"), "ranges go to the app");
     assert_eq!(renders.load(Ordering::SeqCst), 3);
 
@@ -287,7 +336,11 @@ async fn caches_streamed_responses_of_declared_length() {
     let server = Server::start(&[], app).await;
     for (encoding, expected) in [("identity", "miss"), ("identity", "hit"), ("gzip", "miss"), ("gzip", "hit")] {
         let reply = exchange(server.http, &get_request("/streamed", &format!("Accept-Encoding: {encoding}\r\n"))).await;
-        assert_eq!((reply.get("x-cache"), reply.body.as_slice()), (Some(expected), b"streamed".as_slice()), "{encoding}");
+        assert_eq!(
+            (reply.get("x-cache"), reply.body.as_slice()),
+            (Some(expected), b"streamed".as_slice()),
+            "{encoding}"
+        );
     }
     server.stop().await;
 }
@@ -319,10 +372,17 @@ async fn compresses_what_the_app_left_unencoded() {
     let server = Server::start(&[], app).await;
     let zstd = exchange(server.http, &get_request("/page", "Accept-Encoding: zstd\r\n")).await;
     assert_eq!(zstd.get("content-encoding"), Some("zstd"));
-    assert_eq!(zstd::stream::decode_all(&zstd.body[..]).unwrap(), "<p>campfire</p>".repeat(200).as_bytes());
+    assert_eq!(
+        zstd::stream::decode_all(&zstd.body[..]).unwrap(),
+        "<p>campfire</p>".repeat(200).as_bytes()
+    );
     let plain = exchange(server.http, &get_request("/page", "")).await;
     assert_eq!(plain.get("content-encoding"), None);
-    let head = exchange(server.http, "HEAD /page HTTP/1.1\r\nHost: chat.test\r\nConnection: close\r\nAccept-Encoding: gzip\r\n\r\n").await;
+    let head = exchange(
+        server.http,
+        "HEAD /page HTTP/1.1\r\nHost: chat.test\r\nConnection: close\r\nAccept-Encoding: gzip\r\n\r\n",
+    )
+    .await;
     assert_eq!(head.get("content-encoding"), None);
     server.stop().await;
 }
@@ -331,7 +391,14 @@ async fn compresses_what_the_app_left_unencoded() {
 async fn forwards_client_addresses() {
     let (app, _) = test_app();
     let server = Server::start(&[], app).await;
-    let reply = exchange(server.http, &get_request("/headers", "X-Forwarded-For: 203.0.113.9\r\nX-Forwarded-Proto: https\r\nForwarded: for=1.2.3.4\r\n")).await;
+    let reply = exchange(
+        server.http,
+        &get_request(
+            "/headers",
+            "X-Forwarded-For: 203.0.113.9\r\nX-Forwarded-Proto: https\r\nForwarded: for=1.2.3.4\r\n",
+        ),
+    )
+    .await;
     assert_eq!(
         String::from_utf8(reply.body).unwrap(),
         "for=203.0.113.9, 127.0.0.1 host=chat.test proto=https forwarded=- start=true peer=127.0.0.1"
@@ -339,8 +406,15 @@ async fn forwards_client_addresses() {
 
     let (app, _) = test_app();
     let untrusting = Server::start(&[("FORWARD_HEADERS", "false")], app).await;
-    let reply = exchange(untrusting.http, &get_request("/headers", "X-Forwarded-For: 203.0.113.9\r\nX-Forwarded-Proto: https\r\n")).await;
-    assert_eq!(String::from_utf8(reply.body).unwrap(), "for=127.0.0.1 host=chat.test proto=http forwarded=- start=true peer=127.0.0.1");
+    let reply = exchange(
+        untrusting.http,
+        &get_request("/headers", "X-Forwarded-For: 203.0.113.9\r\nX-Forwarded-Proto: https\r\n"),
+    )
+    .await;
+    assert_eq!(
+        String::from_utf8(reply.body).unwrap(),
+        "for=127.0.0.1 host=chat.test proto=http forwarded=- start=true peer=127.0.0.1"
+    );
     server.stop().await;
     untrusting.stop().await;
 }
@@ -362,16 +436,26 @@ async fn the_target_port_is_loopback_only_and_limited() {
     let (app, _) = test_app();
     let server = Server::start(&[("HTTP_READ_TIMEOUT", "1"), ("MAX_REQUEST_BODY", "10")], app).await;
     if let Some(address) = non_loopback_address() {
-        assert!(TcpStream::connect((address, server.target)).await.is_err(), "reachable on {address}");
+        assert!(
+            TcpStream::connect((address, server.target)).await.is_err(),
+            "reachable on {address}"
+        );
     }
 
-    let large = exchange(server.target, "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 11\r\n\r\nhello world").await;
+    let large = exchange(
+        server.target,
+        "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 11\r\n\r\nhello world",
+    )
+    .await;
     assert_eq!(large.status, 413);
 
     let mut stream = TcpStream::connect(("127.0.0.1", server.target)).await.unwrap();
     stream.write_all(b"GET / HTTP/1.1\r\nHost: x\r\n").await.unwrap();
     let mut buffer = vec![0; 4096];
-    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer)).await.expect("closed by the read timeout").unwrap_or(0);
+    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer))
+        .await
+        .expect("closed by the read timeout")
+        .unwrap_or(0);
     assert!(n == 0 || buffer.starts_with(b"HTTP/1.1 408"));
     server.stop().await;
 }
@@ -387,11 +471,20 @@ fn non_loopback_address() -> Option<std::net::IpAddr> {
 async fn limits_request_bodies() {
     let (app, _) = test_app();
     let server = Server::start(&[("MAX_REQUEST_BODY", "10")], app).await;
-    let small = exchange(server.http, "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 5\r\n\r\nhello").await;
+    let small = exchange(
+        server.http,
+        "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 5\r\n\r\nhello",
+    )
+    .await;
     assert_eq!((small.status, small.body.as_slice()), (200, b"5 bytes".as_slice()));
-    let large = exchange(server.http, "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 11\r\n\r\nhello world").await;
+    let large = exchange(
+        server.http,
+        "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 11\r\n\r\nhello world",
+    )
+    .await;
     assert_eq!(large.status, 413);
-    let chunked = "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nhello \r\n5\r\nworld\r\n0\r\n\r\n";
+    let chunked =
+        "POST /upload HTTP/1.1\r\nHost: x\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nhello \r\n5\r\nworld\r\n0\r\n\r\n";
     assert_eq!(exchange(server.http, chunked).await.status, 413);
     server.stop().await;
 }
@@ -399,7 +492,11 @@ async fn limits_request_bodies() {
 #[tokio::test]
 async fn closes_idle_and_slow_connections() {
     let (app, _) = test_app();
-    let server = Server::start(&[("HTTP_IDLE_TIMEOUT", "1"), ("HTTP_READ_TIMEOUT", "1"), ("HTTP_WRITE_TIMEOUT", "2")], app).await;
+    let server = Server::start(
+        &[("HTTP_IDLE_TIMEOUT", "1"), ("HTTP_READ_TIMEOUT", "1"), ("HTTP_WRITE_TIMEOUT", "2")],
+        app,
+    )
+    .await;
 
     // Idle keep-alive connection.
     let mut stream = TcpStream::connect(("127.0.0.1", server.http)).await.unwrap();
@@ -408,20 +505,29 @@ async fn closes_idle_and_slow_connections() {
     let n = stream.read(&mut buffer).await.unwrap();
     assert!(n > 0 && buffer.starts_with(b"HTTP/1.1 200"));
     let started = std::time::Instant::now();
-    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer)).await.unwrap().unwrap_or(0);
+    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer))
+        .await
+        .unwrap()
+        .unwrap_or(0);
     assert_eq!(n, 0, "closed");
     assert!(started.elapsed() >= Duration::from_millis(800));
 
     // A request that never finishes its headers.
     let mut stream = TcpStream::connect(("127.0.0.1", server.http)).await.unwrap();
     stream.write_all(b"GET / HTTP/1.1\r\nHost: x\r\n").await.unwrap();
-    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer)).await.unwrap().unwrap_or(0);
+    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer))
+        .await
+        .unwrap()
+        .unwrap_or(0);
     assert!(n == 0 || buffer.starts_with(b"HTTP/1.1 408"), "closed");
 
     // A response that takes longer than the write timeout: no response at all.
     let mut stream = TcpStream::connect(("127.0.0.1", server.http)).await.unwrap();
     stream.write_all(b"GET /slow HTTP/1.1\r\nHost: x\r\n\r\n").await.unwrap();
-    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer)).await.unwrap().unwrap_or(0);
+    let n = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buffer))
+        .await
+        .unwrap()
+        .unwrap_or(0);
     assert_eq!(n, 0, "dropped without a response");
     server.stop().await;
 }
@@ -429,14 +535,27 @@ async fn closes_idle_and_slow_connections() {
 #[tokio::test]
 async fn websockets_pass_through_and_outlive_the_timeouts() {
     let (app, _) = test_app();
-    let server = Server::start(&[("HTTP_IDLE_TIMEOUT", "1"), ("HTTP_READ_TIMEOUT", "1"), ("HTTP_WRITE_TIMEOUT", "1")], app).await;
-    let (mut socket, response) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}/cable", server.http)).await.unwrap();
+    let server = Server::start(
+        &[("HTTP_IDLE_TIMEOUT", "1"), ("HTTP_READ_TIMEOUT", "1"), ("HTTP_WRITE_TIMEOUT", "1")],
+        app,
+    )
+    .await;
+    let (mut socket, response) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}/cable", server.http))
+        .await
+        .unwrap();
     assert_eq!(response.status(), 101);
     assert_eq!(response.headers()["x-cache"], "bypass");
     assert_eq!(response.headers()["vary"], "Accept-Encoding");
     tokio::time::sleep(Duration::from_millis(2500)).await;
-    socket.send(tokio_tungstenite::tungstenite::Message::Text("ping".into())).await.unwrap();
-    let reply = tokio::time::timeout(Duration::from_secs(5), socket.next()).await.unwrap().unwrap().unwrap();
+    socket
+        .send(tokio_tungstenite::tungstenite::Message::Text("ping".into()))
+        .await
+        .unwrap();
+    let reply = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
     assert_eq!(reply.into_text().unwrap().as_str(), "echo ping");
     drop(socket);
     server.stop().await;
@@ -452,7 +571,10 @@ async fn speaks_h2c_only_when_enabled() {
     // The app gets it as Thruster's HTTP/1.1 request: a Host, an origin-form path, one Cookie.
     let reply = h2_get(server.http, "/headers?h2").await.unwrap();
     let body = http_body_util::BodyExt::collect(reply.into_body()).await.unwrap().to_bytes();
-    assert_eq!(std::str::from_utf8(&body).unwrap(), format!("host=127.0.0.1:{} cookie=a=1; b=2 version=HTTP/1.1 uri=/headers?h2", server.http));
+    assert_eq!(
+        std::str::from_utf8(&body).unwrap(),
+        format!("host=127.0.0.1:{} cookie=a=1; b=2 version=HTTP/1.1 uri=/headers?h2", server.http)
+    );
     server.stop().await;
 
     let (app, _) = test_app();
@@ -466,7 +588,11 @@ async fn h2_get(port: u16, path: &str) -> Result<Response<hyper::body::Incoming>
     let (mut sender, connection) =
         hyper::client::conn::http2::handshake(hyper_util::rt::TokioExecutor::new(), hyper_util::rt::TokioIo::new(stream)).await?;
     tokio::spawn(connection);
-    let request = axum::http::Request::get(format!("http://127.0.0.1:{port}{path}")).header("cookie", "a=1").header("cookie", "b=2").body(Body::empty()).unwrap();
+    let request = axum::http::Request::get(format!("http://127.0.0.1:{port}{path}"))
+        .header("cookie", "a=1")
+        .header("cookie", "b=2")
+        .body(Body::empty())
+        .unwrap();
     sender.send_request(request).await
 }
 
@@ -533,7 +659,10 @@ async fn handshake(port: u16, domain: &str) -> (Option<Vec<u8>>, String) {
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     let stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
     let name = rustls::pki_types::ServerName::try_from(domain.to_string()).unwrap();
-    let tls = tokio_rustls::TlsConnector::from(Arc::new(config)).connect(name, stream).await.unwrap();
+    let tls = tokio_rustls::TlsConnector::from(Arc::new(config))
+        .connect(name, stream)
+        .await
+        .unwrap();
     let (_, connection) = tls.get_ref();
     let leaf = connection.peer_certificates().unwrap()[0].clone();
     let (_, parsed) = x509_parser::parse_x509_certificate(leaf.as_ref()).unwrap();
@@ -542,7 +671,9 @@ async fn handshake(port: u16, domain: &str) -> (Option<Vec<u8>>, String) {
 
 #[tokio::test]
 async fn acme_tls_alpn_certificate_cached_and_reused() {
-    let Some(root) = pebble() else { return eprintln!("skipped: PEBBLE_MINICA isn't set") };
+    let Some(root) = pebble() else {
+        return eprintln!("skipped: PEBBLE_MINICA isn't set");
+    };
     let storage = tempfile::tempdir().unwrap();
     let domain = "campfire.test";
     let (app, _) = test_app();
@@ -555,10 +686,17 @@ async fn acme_tls_alpn_certificate_cached_and_reused() {
     assert!(issuer.contains("Pebble"), "issued by Pebble: {issuer}");
     let cached = std::fs::read_to_string(storage.path().join(domain)).unwrap();
     assert!(cached.starts_with("-----BEGIN EC PRIVATE KEY-----") && cached.contains("-----BEGIN CERTIFICATE-----"));
-    assert!(std::fs::read_to_string(storage.path().join("acme_account+key")).unwrap().starts_with("-----BEGIN EC PRIVATE KEY-----"));
+    assert!(
+        std::fs::read_to_string(storage.path().join("acme_account+key"))
+            .unwrap()
+            .starts_with("-----BEGIN EC PRIVATE KEY-----")
+    );
 
     let redirect = exchange(5002, "GET /rooms?x=1 HTTP/1.1\r\nHost: campfire.test\r\nConnection: close\r\n\r\n").await;
-    assert_eq!((redirect.status, redirect.get("location")), (301, Some("https://campfire.test/rooms?x=1")));
+    assert_eq!(
+        (redirect.status, redirect.get("location")),
+        (301, Some("https://campfire.test/rooms?x=1"))
+    );
     let misdirected = exchange(5002, "GET / HTTP/1.1\r\nHost: other.test\r\nConnection: close\r\n\r\n").await;
     assert_eq!(misdirected.status, 421);
     server.stop().await;

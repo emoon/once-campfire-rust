@@ -28,5 +28,10 @@ pub fn verified_stream_name(secrets: &Secrets, signed: &str) -> Option<String> {
 }
 
 pub fn verifier(secrets: &Secrets) -> MessageVerifier {
-    MessageVerifier::new(secrets.key_generator.generate_key(SALT, 64), Digest::Sha256, Encoding::Strict, Serializer::Json)
+    MessageVerifier::new(
+        secrets.key_generator.generate_key(SALT, 64),
+        Digest::Sha256,
+        Encoding::Strict,
+        Serializer::Json,
+    )
 }

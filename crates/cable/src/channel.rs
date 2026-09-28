@@ -1,12 +1,12 @@
 //! `ActionCable::Channel::Base`: one instance per subscription, driven by the connection.
 use std::sync::Arc;
 
+use futures_util::stream::{AbortHandle, AbortRegistration};
 use serde::Serialize;
 use serde_json::{Map, Value};
-use futures_util::stream::{AbortHandle, AbortRegistration};
 
 use crate::pubsub::Subscriber;
-use crate::{json, naming, protocol, Server};
+use crate::{Server, json, naming, protocol};
 
 pub type Params = Map<String, Value>;
 
@@ -176,7 +176,8 @@ impl<U: Send + Sync + 'static> Subscription<U> {
 
     /// Sends `{"identifier":...,"message":...}` to this subscriber only.
     pub fn transmit<T: Serialize + ?Sized>(&mut self, message: &T) {
-        self.transmissions.push(protocol::message(&self.encoded_identifier, &json::encode(message)));
+        self.transmissions
+            .push(protocol::message(&self.encoded_identifier, &json::encode(message)));
     }
 }
 

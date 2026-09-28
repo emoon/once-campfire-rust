@@ -15,7 +15,10 @@ pub const DEFAULT_KEY_LENGTH: usize = 64;
 
 impl KeyGenerator {
     pub fn new(secret_key_base: &str) -> Self {
-        Self { secret: secret_key_base.to_string(), cache: Mutex::new(HashMap::new()) }
+        Self {
+            secret: secret_key_base.to_string(),
+            cache: Mutex::new(HashMap::new()),
+        }
     }
 
     pub fn generate_key(&self, salt: &str, length: usize) -> Vec<u8> {

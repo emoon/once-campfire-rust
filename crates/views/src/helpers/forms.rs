@@ -185,7 +185,11 @@ struct FormBuilder {
 impl FormBuilder {
     /// `Tags::Base#tag_name`; a model-less `form_with` names fields after the method alone.
     fn tag_name(&self, method: &str) -> String {
-        if self.object_name.is_empty() { method.to_string() } else { format!("{}[{method}]", self.object_name) }
+        if self.object_name.is_empty() {
+            method.to_string()
+        } else {
+            format!("{}[{method}]", self.object_name)
+        }
     }
 
     /// `Tags::Base#tag_id`: the sanitized object name and method joined by "_".
@@ -254,7 +258,13 @@ fn sanitize_object_name(name: &str) -> String {
     let replaced = name.replace("][", "_");
     let sanitized: String = replaced
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | ':' | '.') { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | ':' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     sanitized.strip_suffix('_').map(str::to_string).unwrap_or(sanitized)
 }
@@ -276,17 +286,33 @@ pub fn hidden_field_tag(name: &str, value: Option<&str>, options: Attrs) -> Html
 fn sanitize_to_id(name: &str) -> String {
     name.replace(']', "")
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | '.') { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
 /// `button_to(url, options) { content }`. `options` may carry `method` ("delete", "put",
 /// "patch", "post" or "get"), `form_class`, and the button's own attributes.
 pub fn button_to(url: &str, mut options: Attrs, content: &str) -> Html {
-    let method = options.remove("method").map(|value| value_to_string(&value)).unwrap_or_else(|| "post".into());
-    let form_class = options.remove("form_class").map(|value| value_to_string(&value)).unwrap_or_else(|| "button_to".into());
+    let method = options
+        .remove("method")
+        .map(|value| value_to_string(&value))
+        .unwrap_or_else(|| "post".into());
+    let form_class = options
+        .remove("form_class")
+        .map(|value| value_to_string(&value))
+        .unwrap_or_else(|| "button_to".into());
 
-    let method_field = if matches!(method.as_str(), "delete" | "patch" | "put") { method_tag(&method).0 } else { String::new() };
+    let method_field = if matches!(method.as_str(), "delete" | "patch" | "put") {
+        method_tag(&method).0
+    } else {
+        String::new()
+    };
     let form_method = if method == "get" { "get" } else { "post" };
 
     options.set("type", Some("submit".into()));

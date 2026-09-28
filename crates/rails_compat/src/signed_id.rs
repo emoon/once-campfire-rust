@@ -20,7 +20,10 @@ pub fn generate(secrets: &Secrets, model_name: &str, id: i64, purpose: Option<&s
 
 /// `find_signed`'s verification step: the id to look up, or `None`.
 pub fn verify(secrets: &Secrets, model_name: &str, signed_id: &str, purpose: Option<&str>, now: Timestamp) -> Option<i64> {
-    match verifier(secrets).verify(signed_id, Some(&combine_purposes(model_name, purpose)), now).ok()? {
+    match verifier(secrets)
+        .verify(signed_id, Some(&combine_purposes(model_name, purpose)), now)
+        .ok()?
+    {
         Value::Number(n) => n.as_i64(),
         // `find_by(id: "7")` casts the string.
         Value::String(s) => s.trim().parse().ok(),
@@ -30,7 +33,12 @@ pub fn verify(secrets: &Secrets, model_name: &str, signed_id: &str, purpose: Opt
 
 pub fn verifier(secrets: &Secrets) -> MessageVerifier {
     let secret = secrets.key_generator.generate_key(SALT, 64);
-    let fallback = MessageVerifier::new(secret.clone(), Digest::Sha1, Encoding::Strict, Serializer::JsonWithFallback { allow_marshal: true });
+    let fallback = MessageVerifier::new(
+        secret.clone(),
+        Digest::Sha1,
+        Encoding::Strict,
+        Serializer::JsonWithFallback { allow_marshal: true },
+    );
     MessageVerifier::new(secret, Digest::Sha256, Encoding::UrlSafe, Serializer::Json).fall_back_to(fallback)
 }
 

@@ -82,7 +82,13 @@ pub async fn serve_with(
             let response = tls::http_handler(&certs, &request);
             Box::pin(async move { response })
         });
-        servers.push(tokio::spawn(serve_plain(http, redirect, Protocol::Http1, options, shutdown_state.clone())));
+        servers.push(tokio::spawn(serve_plain(
+            http,
+            redirect,
+            Protocol::Http1,
+            options,
+            shutdown_state.clone(),
+        )));
         servers.push(tokio::spawn(serve_tls(https, tls, front, options, shutdown_state.clone())));
     } else {
         tracing::info!(http = %format!(":{}", config.http_port), "Server started");
@@ -101,14 +107,28 @@ pub async fn serve_with(
 /// TARGET_PORT for it): HTTP/1.1, no `Date`, no cache or compression. Unlike Puma it listens on
 /// TARGET_BIND (loopback) and keeps to the front's timeouts and body limit, since whoever reaches
 /// it can claim any `X-Forwarded-*`.
-async fn serve_upstream(config: &FrontConfig, app: Router, options: Options, shutdown: Shutdown) -> std::io::Result<tokio::task::JoinHandle<()>> {
+async fn serve_upstream(
+    config: &FrontConfig,
+    app: Router,
+    options: Options,
+    shutdown: Shutdown,
+) -> std::io::Result<tokio::task::JoinHandle<()>> {
     if config.target_port == config.http_port || (config.has_tls() && config.target_port == config.https_port) {
-        tracing::warn!(port = config.target_port, "TARGET_PORT is the front server's port; not listening on it separately");
+        tracing::warn!(
+            port = config.target_port,
+            "TARGET_PORT is the front server's port; not listening on it separately"
+        );
         return Ok(tokio::spawn(async {}));
     }
     let listener = tokio::net::TcpListener::bind((config.target_bind, config.target_port)).await?;
     let service = limited_app_service(app, config.max_request_body.max(0) as u64);
-    Ok(tokio::spawn(serve_plain(listener, service, Protocol::Http1, Options { date: false, ..options }, shutdown)))
+    Ok(tokio::spawn(serve_plain(
+        listener,
+        service,
+        Protocol::Http1,
+        Options { date: false, ..options },
+        shutdown,
+    )))
 }
 
 /// `app_service` behind MAX_REQUEST_BODY.
@@ -158,7 +178,9 @@ async fn serve_tls(listener: tokio::net::TcpListener, tls: Arc<tls::Tls>, servic
             // Go bounds the handshake by the connection's read deadline.
             let handshake = tls.accept(stream);
             let accepted = match options.read_timeout {
-                Some(timeout) => tokio::time::timeout(timeout, handshake).await.unwrap_or_else(|_| Err("TLS handshake timeout".into())),
+                Some(timeout) => tokio::time::timeout(timeout, handshake)
+                    .await
+                    .unwrap_or_else(|_| Err("TLS handshake timeout".into())),
                 None => handshake.await,
             };
             match accepted {

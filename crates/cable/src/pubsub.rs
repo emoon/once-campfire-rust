@@ -51,7 +51,10 @@ pub enum RecvError {
 
 impl Hub {
     pub fn new(capacity: usize) -> Arc<Self> {
-        Arc::new(Self { capacity, streams: Mutex::new(HashMap::new()) })
+        Arc::new(Self {
+            capacity,
+            streams: Mutex::new(HashMap::new()),
+        })
     }
 
     /// Publishes to every current subscriber of `broadcasting`. Returns how many received it.
@@ -83,11 +86,19 @@ impl Hub {
             Some(group) => group.sender.subscribe(),
             None => {
                 let (sender, receiver) = broadcast::channel(self.capacity);
-                groups.push(Group { identifier: identifier.clone(), sender });
+                groups.push(Group {
+                    identifier: identifier.clone(),
+                    sender,
+                });
                 receiver
             }
         };
-        Subscriber { hub: self.clone(), broadcasting: broadcasting.to_string(), identifier, receiver: Some(receiver) }
+        Subscriber {
+            hub: self.clone(),
+            broadcasting: broadcasting.to_string(),
+            identifier,
+            receiver: Some(receiver),
+        }
     }
 
     /// Number of broadcastings with at least one live subscriber channel.

@@ -40,7 +40,10 @@ impl PresenceChannel {
     /// NoMethodError) once the membership is gone.
     async fn membership(&self, sub: &Subscription<CableUser>) -> ChannelResult<Membership> {
         let (room_id, user_id) = self.ids(sub)?;
-        self.db.read(move |conn| Membership::find_by_room_and_user(conn, room_id, user_id)).await?.ok_or_else(nil_membership)
+        self.db
+            .read(move |conn| Membership::find_by_room_and_user(conn, room_id, user_id))
+            .await?
+            .ok_or_else(nil_membership)
     }
 
     async fn with_membership(
@@ -61,7 +64,10 @@ impl PresenceChannel {
 
     fn ids(&self, sub: &Subscription<CableUser>) -> ChannelResult<(i64, i64)> {
         // `@room` is only nil after a rejection, when these callbacks don't run.
-        let room = self.room.as_ref().ok_or_else(|| ChannelError("undefined method 'memberships' for nil".into()))?;
+        let room = self
+            .room
+            .as_ref()
+            .ok_or_else(|| ChannelError("undefined method 'memberships' for nil".into()))?;
         Ok((room.id, sub.current_user().id))
     }
 }

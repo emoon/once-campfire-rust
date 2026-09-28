@@ -45,7 +45,10 @@ path!(user_profile, "/users/me/profile");
 path!(edit_user_profile, "/users/me/profile/edit");
 path!(user_push_subscriptions, "/users/me/push_subscriptions");
 path!(user_push_subscription(id), "/users/me/push_subscriptions/{id}");
-path!(user_push_subscription_test_notifications(push_subscription_id), "/users/me/push_subscriptions/{push_subscription_id}/test_notifications");
+path!(
+    user_push_subscription_test_notifications(push_subscription_id),
+    "/users/me/push_subscriptions/{push_subscription_id}/test_notifications"
+);
 
 path!(autocompletable_users, "/autocompletable/users");
 
@@ -59,8 +62,14 @@ path!(room_message(room_id, id), "/rooms/{room_id}/messages/{id}");
 path!(edit_room_message(room_id, id), "/rooms/{room_id}/messages/{id}/edit");
 path!(room_bot_messages(room_id, bot_key), "/rooms/{room_id}/{bot_key}/messages");
 path!(room_bot_message(room_id, bot_key, id), "/rooms/{room_id}/{bot_key}/messages/{id}");
-path!(room_bot_message_boosts(room_id, bot_key, message_id), "/rooms/{room_id}/{bot_key}/messages/{message_id}/boosts");
-path!(room_bot_message_boost(room_id, bot_key, message_id, id), "/rooms/{room_id}/{bot_key}/messages/{message_id}/boosts/{id}");
+path!(
+    room_bot_message_boosts(room_id, bot_key, message_id),
+    "/rooms/{room_id}/{bot_key}/messages/{message_id}/boosts"
+);
+path!(
+    room_bot_message_boost(room_id, bot_key, message_id, id),
+    "/rooms/{room_id}/{bot_key}/messages/{message_id}/boosts/{id}"
+);
 path!(room_refresh(room_id), "/rooms/{room_id}/refresh");
 path!(room_settings(room_id), "/rooms/{room_id}/settings");
 path!(room_involvement(room_id), "/rooms/{room_id}/involvement");
@@ -101,7 +110,15 @@ pub fn fresh_user_avatar(avatar_token: impl Display, updated_at_number: impl Dis
 /// `direct :fresh_account_logo` — `v` is the account's `updated_at.to_fs(:number)`, when present.
 pub fn fresh_account_logo(v: Option<&str>, size: Option<&str>) -> String {
     let mut query = Vec::new();
-    if let Some(size) = size { query.push(format!("size={size}")); }
-    if let Some(v) = v { query.push(format!("v={v}")); }
-    if query.is_empty() { account_logo() } else { format!("{}?{}", account_logo(), query.join("&")) }
+    if let Some(size) = size {
+        query.push(format!("size={size}"));
+    }
+    if let Some(v) = v {
+        query.push(format!("v={v}"));
+    }
+    if query.is_empty() {
+        account_logo()
+    } else {
+        format!("{}?{}", account_logo(), query.join("&"))
+    }
 }

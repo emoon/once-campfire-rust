@@ -32,7 +32,10 @@ pub struct ParsedBody {
 
 impl ParsedBody {
     pub fn empty() -> Self {
-        Self { raw: Bytes::new(), params: Ok(ParamMap::new()) }
+        Self {
+            raw: Bytes::new(),
+            params: Ok(ParamMap::new()),
+        }
     }
 }
 
@@ -55,36 +58,42 @@ impl BodyError {
 
 /// Read and parse `body`. `original_method` is the method on the wire (Rack's `form_data?`
 /// treats a content-type-less POST as a form).
-pub async fn parse(
-    original_method: &Method,
-    headers: &HeaderMap,
-    body: Body,
-    limit: Option<usize>,
-) -> Result<ParsedBody, BodyError> {
-    let content_type = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).filter(|ct| !ct.is_empty());
+pub async fn parse(original_method: &Method, headers: &HeaderMap, body: Body, limit: Option<usize>) -> Result<ParsedBody, BodyError> {
+    let content_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .filter(|ct| !ct.is_empty());
     let media = media_type(content_type);
 
-    if matches!(media.as_deref(), Some("multipart/form-data" | "multipart/related" | "multipart/mixed"))
-        && let Some(boundary) = content_type.and_then(|ct| multer::parse_boundary(ct).ok()) {
-            return parse_multipart(body, boundary, limit).await;
-        }
+    if matches!(
+        media.as_deref(),
+        Some("multipart/form-data" | "multipart/related" | "multipart/mixed")
+    ) && let Some(boundary) = content_type.and_then(|ct| multer::parse_boundary(ct).ok())
+    {
+        return parse_multipart(body, boundary, limit).await;
+    }
 
     // Everything but multipart (whose files spool to disk) is read into memory, so it's bounded
     // while it's read, whatever the configured limit.
-    let raw = axum::body::to_bytes(body, limit.unwrap_or(usize::MAX).min(MAX_BUFFERED_BODY)).await.map_err(|e| {
-        if e.into_inner().downcast_ref::<http_body_util::LengthLimitError>().is_some() {
-            BodyError::TooLarge
-        } else {
-            BodyError::Read("unreadable body".into())
-        }
-    })?;
+    let raw = axum::body::to_bytes(body, limit.unwrap_or(usize::MAX).min(MAX_BUFFERED_BODY))
+        .await
+        .map_err(|e| {
+            if e.into_inner().downcast_ref::<http_body_util::LengthLimitError>().is_some() {
+                BodyError::TooLarge
+            } else {
+                BodyError::Read("unreadable body".into())
+            }
+        })?;
 
     let is_json = format::content_mime_type(content_type).ok().flatten() == Some(&format::JSON);
     let params = if is_json && !raw.is_empty() {
         params::from_json_body(&raw)
     } else if media.as_deref() == Some("application/x-www-form-urlencoded")
         || (content_type.is_none() && *original_method == Method::POST)
-        || matches!(media.as_deref(), Some("multipart/form-data" | "multipart/related" | "multipart/mixed"))
+        || matches!(
+            media.as_deref(),
+            Some("multipart/form-data" | "multipart/related" | "multipart/mixed")
+        )
     {
         params::form_pairs(&raw).and_then(params::from_pairs)
     } else {
@@ -211,11 +220,15 @@ impl Part {
             .iter()
             .map(|(k, v)| format!("{}: {}\r\n", k.as_str(), String::from_utf8_lossy(v.as_bytes())))
             .collect();
-        let content_type = headers.get(header::CONTENT_TYPE).map(|v| String::from_utf8_lossy(v.as_bytes()).into_owned());
+        let content_type = headers
+            .get(header::CONTENT_TYPE)
+            .map(|v| String::from_utf8_lossy(v.as_bytes()).into_owned());
         let mut part = match headers.get(header::CONTENT_DISPOSITION) {
             Some(disposition) => parse_disposition(&String::from_utf8_lossy(disposition.as_bytes())),
             None => Part {
-                name: headers.get("content-id").map(|v| String::from_utf8_lossy(v.as_bytes()).into_owned()),
+                name: headers
+                    .get("content-id")
+                    .map(|v| String::from_utf8_lossy(v.as_bytes()).into_owned()),
                 ..Part::default()
             },
         };
@@ -359,7 +372,10 @@ mod tests {
             ],
         );
         let mut headers = HeaderMap::new();
-        headers.insert(header::CONTENT_TYPE, format!("multipart/form-data; boundary={boundary}").parse().unwrap());
+        headers.insert(
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={boundary}").parse().unwrap(),
+        );
         let parsed = parse(&Method::POST, &headers, Body::from(body), None).await.unwrap();
         let params = parsed.params.unwrap();
         assert_eq!(params.str("_method"), Some("patch"));
@@ -376,7 +392,10 @@ mod tests {
 
     #[tokio::test]
     async fn multipart_size_limit() {
-        let body = multipart_body("B", &[(r#"Content-Disposition: form-data; name="f"; filename="x""#, &"x".repeat(1000))]);
+        let body = multipart_body(
+            "B",
+            &[(r#"Content-Disposition: form-data; name="f"; filename="x""#, &"x".repeat(1000))],
+        );
         let mut headers = HeaderMap::new();
         headers.insert(header::CONTENT_TYPE, "multipart/form-data; boundary=B".parse().unwrap());
         let result = parse(&Method::POST, &headers, Body::from(body), Some(100)).await;

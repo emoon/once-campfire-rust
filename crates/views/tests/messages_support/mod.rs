@@ -19,11 +19,18 @@ pub struct Golden {
 }
 
 pub fn golden(name: &str) -> Golden {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/golden/b").join(format!("{name}.json"));
-    let json: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path:?}: {e}")))
-        .expect("golden is JSON");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/b")
+        .join(format!("{name}.json"));
+    let json: Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path:?}: {e}"))).expect("golden is JSON");
     let assets = serde_json::from_value(json["context"]["assets"].clone()).unwrap_or_default();
-    Golden { name: name.to_string(), kind: json["kind"].as_str().unwrap().to_string(), json, assets }
+    Golden {
+        name: name.to_string(),
+        kind: json["kind"].as_str().unwrap().to_string(),
+        json,
+        assets,
+    }
 }
 
 impl Golden {
@@ -39,7 +46,10 @@ impl Golden {
     pub fn render(&self, render: impl FnOnce(&ViewContext) -> String) -> String {
         let context = &self.json["context"];
         let asset_path = |logical: &str| {
-            self.assets.get(logical).cloned().unwrap_or_else(|| panic!("{}: unknown asset {logical}", self.name))
+            self.assets
+                .get(logical)
+                .cloned()
+                .unwrap_or_else(|| panic!("{}: unknown asset {logical}", self.name))
         };
         let current_user = context["current_user"].as_object().map(|user| CurrentUser {
             id: user["id"].as_i64().unwrap(),
@@ -143,20 +153,30 @@ fn without_forgery_tokens(expected: Vec<String>) -> Vec<String> {
 /// rather than an absolute URL built from the request's host (README, Known differences).
 fn with_relative_copy_link(token: String) -> String {
     const ABSOLUTE: &str = "data-copy-to-clipboard-content-value=\"http";
-    let Some(start) = token.find(ABSOLUTE).filter(|_| token.contains("title=\"Copy link\"")) else { return token };
+    let Some(start) = token.find(ABSOLUTE).filter(|_| token.contains("title=\"Copy link\"")) else {
+        return token;
+    };
     let value_start = start + "data-copy-to-clipboard-content-value=\"".len();
     let value_end = value_start + token[value_start..].find('"').unwrap();
     let url = &token[value_start..value_end];
     let path = &url[url.find("://").unwrap() + 3..];
     let path = &path[path.find('/').unwrap()..];
-    format!("{}data-copy-to-clipboard-url-value=\"{path}\"{}", &token[..start], &token[value_end + 1..])
+    format!(
+        "{}data-copy-to-clipboard-url-value=\"{path}\"{}",
+        &token[..start],
+        &token[value_end + 1..]
+    )
 }
 
 fn assert_same(label: &str, expected: &[String], actual: &[String]) {
     if expected == actual {
         return;
     }
-    let index = expected.iter().zip(actual.iter()).position(|(e, a)| e != a).unwrap_or(expected.len().min(actual.len()));
+    let index = expected
+        .iter()
+        .zip(actual.iter())
+        .position(|(e, a)| e != a)
+        .unwrap_or(expected.len().min(actual.len()));
     let from = index.saturating_sub(4);
     let show = |tokens: &[String]| tokens[from.min(tokens.len())..(index + 6).min(tokens.len())].join("\n    ");
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/views-b-diff");
@@ -213,7 +233,11 @@ fn regions_named<'a>(tokens: &'a [String], names: &[&'static str]) -> Vec<Region
 /// The page's `yield :head`: everything in head after the importmap's module script.
 fn head_block(tokens: &[String]) -> Vec<String> {
     let head = element_children(tokens, |t| t == "<head>");
-    let start = head.iter().rposition(|t| t.starts_with("<script type=\"module\"")).map(|i| i + 3).unwrap_or(head.len());
+    let start = head
+        .iter()
+        .rposition(|t| t.starts_with("<script type=\"module\""))
+        .map(|i| i + 3)
+        .unwrap_or(head.len());
     head[start.min(head.len())..].to_vec()
 }
 
@@ -228,7 +252,9 @@ fn trim_whitespace(mut tokens: Vec<String>) -> Vec<String> {
 }
 
 fn element_children(tokens: &[String], is_start: impl Fn(&str) -> bool) -> Vec<String> {
-    let Some(start) = tokens.iter().position(|t| is_start(t)) else { return Vec::new() };
+    let Some(start) = tokens.iter().position(|t| is_start(t)) else {
+        return Vec::new();
+    };
     let name = tag_name(&tokens[start]);
     let mut depth = 0usize;
     for (offset, token) in tokens[start + 1..].iter().enumerate() {
@@ -245,10 +271,18 @@ fn element_children(tokens: &[String], is_start: impl Fn(&str) -> bool) -> Vec<S
 }
 
 fn tag_name(token: &str) -> String {
-    token.trim_start_matches("</").trim_start_matches('<').split([' ', '>']).next().unwrap_or_default().to_string()
+    token
+        .trim_start_matches("</")
+        .trim_start_matches('<')
+        .split([' ', '>'])
+        .next()
+        .unwrap_or_default()
+        .to_string()
 }
 
-const VOID: [&str; 14] = ["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "source", "track", "wbr"];
+const VOID: [&str; 14] = [
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "source", "track", "wbr",
+];
 const RAW_TEXT: [&str; 4] = ["script", "style", "textarea", "title"];
 
 /// Tokenizes well-formed HTML (our own output) into the canonical stream.
@@ -305,7 +339,14 @@ pub fn tokens(html: &str) -> Vec<String> {
                     let stop = html[i..].to_ascii_lowercase().find(&close).map(|e| i + e).unwrap_or(bytes.len());
                     let raw = &html[i..stop];
                     if !raw.is_empty() {
-                        push_text(&mut out, &if name == "script" || name == "style" { raw.to_string() } else { decode(raw) });
+                        push_text(
+                            &mut out,
+                            &if name == "script" || name == "style" {
+                                raw.to_string()
+                            } else {
+                                decode(raw)
+                            },
+                        );
                     }
                     i = stop;
                 } else if VOID.contains(&name.as_str()) {
@@ -356,7 +397,10 @@ fn collapse(text: &str) -> String {
 fn start_tag(html: &str, start: usize) -> (String, String, usize) {
     let bytes = html.as_bytes();
     let mut i = start + 1;
-    let name_end = html[i..].find(|c: char| c.is_whitespace() || c == '>' || c == '/').map(|e| i + e).unwrap();
+    let name_end = html[i..]
+        .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
+        .map(|e| i + e)
+        .unwrap();
     let name = html[i..name_end].to_ascii_lowercase();
     i = name_end;
     let mut attrs: Vec<(String, String)> = Vec::new();
@@ -368,7 +412,10 @@ fn start_tag(html: &str, start: usize) -> (String, String, usize) {
             i += 1;
             break;
         }
-        let key_end = html[i..].find(|c: char| c.is_whitespace() || c == '=' || c == '>').map(|e| i + e).unwrap();
+        let key_end = html[i..]
+            .find(|c: char| c.is_whitespace() || c == '=' || c == '>')
+            .map(|e| i + e)
+            .unwrap();
         let key = html[i..key_end].to_ascii_lowercase();
         i = key_end;
         while bytes[i].is_ascii_whitespace() {
@@ -429,7 +476,9 @@ fn decode(text: &str) -> String {
             "quot" => Some('"'),
             "apos" => Some('\''),
             "nbsp" => Some('\u{a0}'),
-            _ if entity.starts_with("#x") || entity.starts_with("#X") => u32::from_str_radix(&entity[2..], 16).ok().and_then(char::from_u32),
+            _ if entity.starts_with("#x") || entity.starts_with("#X") => {
+                u32::from_str_radix(&entity[2..], 16).ok().and_then(char::from_u32)
+            }
             _ if entity.starts_with('#') => entity[1..].parse().ok().and_then(char::from_u32),
             _ => None,
         };

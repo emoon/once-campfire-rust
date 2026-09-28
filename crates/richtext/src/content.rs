@@ -6,14 +6,12 @@
 
 use serde_json::Value;
 
-use crate::attachables::{
-    self, Attachable, Attachment, PlainTextRepresentation, RenderContext, attachment_from_node,
-};
+use crate::Error;
+use crate::attachables::{self, Attachable, Attachment, PlainTextRepresentation, RenderContext, attachment_from_node};
 use crate::dom::{Dom, NodeId};
 use crate::plain_text;
 use crate::ruby::{self, is_blank, presence, strip};
 use crate::sanitizer::{self, ATTACHMENT_ATTRIBUTES, SafeList};
-use crate::Error;
 
 pub const ATTACHMENT_TAG: &str = "action-text-attachment";
 
@@ -98,7 +96,10 @@ pub fn load_into(dom: &mut Dom, html: &str, ctx: &RenderContext) -> Result<NodeI
 }
 
 pub fn attachment_nodes(dom: &Dom, root: NodeId) -> Vec<NodeId> {
-    dom.descendants(root).into_iter().filter(|&n| dom.local_name(n) == Some(ATTACHMENT_TAG)).collect()
+    dom.descendants(root)
+        .into_iter()
+        .filter(|&n| dom.local_name(n) == Some(ATTACHMENT_TAG))
+        .collect()
 }
 
 // --- Trix attachments --------------------------------------------------------------------------
@@ -123,7 +124,11 @@ const TRIX_ATTRIBUTES: &[(&str, &str)] = &[
 /// carrying the attribute) becomes an `<action-text-attachment>`, or disappears if it has none of
 /// the attachment attributes.
 fn convert_trix_attachments(dom: &mut Dom, root: NodeId, ctx: &RenderContext) -> Result<(), Error> {
-    let nodes: Vec<NodeId> = dom.descendants(root).into_iter().filter(|&n| dom.has_attr(n, "data-trix-attachment")).collect();
+    let nodes: Vec<NodeId> = dom
+        .descendants(root)
+        .into_iter()
+        .filter(|&n| dom.has_attr(n, "data-trix-attachment"))
+        .collect();
     for node in nodes {
         let mut attributes: Vec<(&str, Value)> = Vec::new();
         for name in ["data-trix-attachment", "data-trix-attributes"] {
@@ -232,7 +237,10 @@ fn render_attachments(dom: &mut Dom, root: NodeId, ctx: &RenderContext, depth: u
         sanitize_content_attribute(dom, node)?;
         let attachment = attachment_from_node(dom, node, ctx)?;
         let full = node_with_full_attributes(dom, node, &attachment.attachable)?;
-        let attachment = Attachment { attachable: attachment.attachable, caption: presence(dom.attr(full, "caption")).map(str::to_string) };
+        let attachment = Attachment {
+            attachable: attachment.attachable,
+            caption: presence(dom.attr(full, "caption")).map(str::to_string),
+        };
         let html = render_attachment_html_at(&attachment, ctx, depth)?;
         dom.set_inner_html(full, &html).map_err(Error::Parse)?;
         let replacement = dom.to_html(full);
@@ -274,7 +282,11 @@ pub fn attachment_gallery_nodes(dom: &Dom, root: NodeId) -> Vec<NodeId> {
 
 fn render_attachment_galleries(dom: &mut Dom, root: NodeId, ctx: &RenderContext, depth: usize) -> Result<(), Error> {
     for gallery in attachment_gallery_nodes(dom, root) {
-        let members: Vec<NodeId> = dom.descendants(gallery).into_iter().filter(|&n| is_gallery_attachment(dom, n)).collect();
+        let members: Vec<NodeId> = dom
+            .descendants(gallery)
+            .into_iter()
+            .filter(|&n| is_gallery_attachment(dom, n))
+            .collect();
         let mut rendered = String::new();
         for member in &members {
             let attachment = attachment_from_node(dom, *member, ctx)?;
@@ -283,7 +295,11 @@ fn render_attachment_galleries(dom: &mut Dom, root: NodeId, ctx: &RenderContext,
             dom.set_inner_html(full, &html).map_err(Error::Parse)?;
             rendered.push_str(&dom.to_html(full));
         }
-        let html = format!("<div class=\"attachment-gallery attachment-gallery--{}\">\n  {}\n</div>", members.len(), rendered);
+        let html = format!(
+            "<div class=\"attachment-gallery attachment-gallery--{}\">\n  {}\n</div>",
+            members.len(),
+            rendered
+        );
         dom.replace_with_html(gallery, &html).map_err(Error::Parse)?;
     }
     Ok(())

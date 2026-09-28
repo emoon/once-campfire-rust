@@ -75,10 +75,8 @@ impl Webhook {
     }
 
     pub fn destroy(&self, tx: &Tx<'_>) -> Result<()> {
-        tx.conn().execute_cached(
-            r#"DELETE FROM "webhooks" WHERE "webhooks"."id" = ?"#,
-            [self.id],
-        )?;
+        tx.conn()
+            .execute_cached(r#"DELETE FROM "webhooks" WHERE "webhooks"."id" = ?"#, [self.id])?;
         Ok(())
     }
 
@@ -96,8 +94,7 @@ impl Webhook {
         let room = Room::find(conn, message.room_id)?;
         let recipient = User::find(conn, self.user_id)?;
         let html = message.body_html(conn)?;
-        let plain =
-            without_recipient_mentions(&message.plain_text_body(conn, rich_text)?, &recipient);
+        let plain = without_recipient_mentions(&message.plain_text_body(conn, rich_text)?, &recipient);
 
         // Hash order as written in `Webhook#payload`, encoded like `ActiveSupport::JSON`.
         let body = format!(
@@ -105,15 +102,10 @@ impl Webhook {
             creator.id,
             json_string(&creator.name),
             room.id,
-            room.name
-                .as_deref()
-                .map(json_string)
-                .unwrap_or_else(|| "null".into()),
+            room.name.as_deref().map(json_string).unwrap_or_else(|| "null".into()),
             json_string(room_bot_messages_path),
             message.id,
-            html.as_deref()
-                .map(json_string)
-                .unwrap_or_else(|| "null".into()),
+            html.as_deref().map(json_string).unwrap_or_else(|| "null".into()),
             json_string(&plain),
             json_string(message_path),
         );

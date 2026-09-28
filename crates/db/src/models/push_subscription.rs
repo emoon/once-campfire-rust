@@ -60,13 +60,7 @@ impl PushSubscription {
     }
 
     /// An unsaved subscription, for validation.
-    pub fn new(
-        user_id: i64,
-        endpoint: Option<&str>,
-        p256dh_key: Option<&str>,
-        auth_key: Option<&str>,
-        user_agent: Option<&str>,
-    ) -> Self {
+    pub fn new(user_id: i64, endpoint: Option<&str>, p256dh_key: Option<&str>, auth_key: Option<&str>, user_agent: Option<&str>) -> Self {
         Self {
             id: 0,
             user_id,
@@ -119,11 +113,7 @@ impl PushSubscription {
     }
 
     /// `create`: validates (see [`PushSubscription::validate`]) then inserts.
-    pub fn create(
-        tx: &mut Tx<'_>,
-        subscription: &PushSubscription,
-        resolve: &dyn Fn(&str) -> Option<String>,
-    ) -> Result<Self> {
+    pub fn create(tx: &mut Tx<'_>, subscription: &PushSubscription, resolve: &dyn Fn(&str) -> Option<String>) -> Result<Self> {
         subscription.validate(resolve).into_result()?;
         let now = tx.now();
         let id: i64 = tx.conn().query_row_cached(
@@ -140,10 +130,8 @@ impl PushSubscription {
     }
 
     pub fn destroy(&self, tx: &mut Tx<'_>) -> Result<()> {
-        tx.conn().execute_cached(
-            r#"DELETE FROM "push_subscriptions" WHERE "push_subscriptions"."id" = ?"#,
-            [self.id],
-        )?;
+        tx.conn()
+            .execute_cached(r#"DELETE FROM "push_subscriptions" WHERE "push_subscriptions"."id" = ?"#, [self.id])?;
         Ok(())
     }
 
@@ -156,10 +144,8 @@ impl PushSubscription {
             |r| r.get(0),
         )?;
         for id in ids {
-            tx.conn().execute_cached(
-                r#"DELETE FROM "push_subscriptions" WHERE "push_subscriptions"."id" = ?"#,
-                [id],
-            )?;
+            tx.conn()
+                .execute_cached(r#"DELETE FROM "push_subscriptions" WHERE "push_subscriptions"."id" = ?"#, [id])?;
         }
         Ok(())
     }
@@ -180,12 +166,8 @@ impl PushSubscription {
         match EndpointUri::parse(endpoint) {
             None => errors.add("endpoint", "is not a valid URL"),
             Some(uri) if uri.scheme != "https" => errors.add("endpoint", "must use HTTPS"),
-            Some(uri) if uri.port != Some(443) => {
-                errors.add("endpoint", "must use the default HTTPS port")
-            }
-            Some(uri) if !permitted_endpoint_host(&uri.host) => {
-                errors.add("endpoint", "is not a permitted push service")
-            }
+            Some(uri) if uri.port != Some(443) => errors.add("endpoint", "must use the default HTTPS port"),
+            Some(uri) if !permitted_endpoint_host(&uri.host) => errors.add("endpoint", "is not a permitted push service"),
             Some(_) if self.resolved_endpoint_ip(resolve).is_none() => {
                 errors.add("endpoint", "resolves to a private or invalid IP address")
             }
@@ -209,22 +191,14 @@ impl PushSubscription {
     /// `build_payload`: direct rooms show the sender; others the room and "Sender: body".
     /// Unlike Rails, a long title or body is cut short (with an ellipsis) so the notification
     /// still fits a push message.
-    pub fn payload_for(
-        conn: &Connection,
-        rich_text: &dyn RichText,
-        room: &Room,
-        message: &Message,
-    ) -> Result<PushPayload> {
+    pub fn payload_for(conn: &Connection, rich_text: &dyn RichText, room: &Room, message: &Message) -> Result<PushPayload> {
         let creator = message.creator(conn)?;
         let body = message.plain_text_body(conn, rich_text)?;
         let path = format!("/rooms/{}", room.id);
         let (title, body) = if room.direct() {
             (creator.name, body)
         } else {
-            (
-                room.name.clone().unwrap_or_default(),
-                format!("{}: {body}", creator.name),
-            )
+            (room.name.clone().unwrap_or_default(), format!("{}: {body}", creator.name))
         };
         Ok(PushPayload {
             title: truncate_json_string(title, MAX_PAYLOAD_TITLE_BYTES),
@@ -234,12 +208,7 @@ impl PushSubscription {
     }
 
     /// `push_subscriptions_for_users_involved_in_everything`
-    pub fn for_users_involved_in_everything(
-        conn: &Connection,
-        room_id: i64,
-        creator_id: i64,
-        now: Timestamp,
-    ) -> Result<Vec<Self>> {
+    pub fn for_users_involved_in_everything(conn: &Connection, room_id: i64, creator_id: i64, now: Timestamp) -> Result<Vec<Self>> {
         query_all(
             conn,
             r#"SELECT "push_subscriptions".* FROM "push_subscriptions" INNER JOIN "users" ON "users"."id" = "push_subscriptions"."user_id" INNER JOIN "memberships" ON "memberships"."user_id" = "users"."id" WHERE ("memberships"."connected_at" IS NULL OR "memberships"."connected_at" < ?) AND "memberships"."room_id" = ? AND "memberships"."user_id" != ? AND "memberships"."involvement" = 'everything'"#,
@@ -263,22 +232,10 @@ impl PushSubscription {
             r#"SELECT "push_subscriptions".* FROM "push_subscriptions" INNER JOIN "users" ON "users"."id" = "push_subscriptions"."user_id" INNER JOIN "memberships" ON "memberships"."user_id" = "users"."id" WHERE ("memberships"."connected_at" IS NULL OR "memberships"."connected_at" < ?) AND "memberships"."room_id" = ? AND "memberships"."user_id" != ? AND "memberships"."involvement" = 'mentions' AND "push_subscriptions"."user_id" IN ({})"#,
             placeholders(mentionee_ids.len())
         );
-        let mut values: Vec<rusqlite::types::Value> = vec![
-            Membership::connection_cutoff(now).to_db().into(),
-            room_id.into(),
-            creator_id.into(),
-        ];
-        values.extend(
-            mentionee_ids
-                .iter()
-                .map(|id| rusqlite::types::Value::from(*id)),
-        );
-        query_all(
-            conn,
-            &sql,
-            rusqlite::params_from_iter(values),
-            Self::from_row,
-        )
+        let mut values: Vec<rusqlite::types::Value> =
+            vec![Membership::connection_cutoff(now).to_db().into(), room_id.into(), creator_id.into()];
+        values.extend(mentionee_ids.iter().map(|id| rusqlite::types::Value::from(*id)));
+        query_all(conn, &sql, rusqlite::params_from_iter(values), Self::from_row)
     }
 
     /// `Room::MessagePusher#push`: the payload, and the subscriptions it goes to (everything
@@ -291,15 +248,9 @@ impl PushSubscription {
     ) -> Result<(PushPayload, Vec<Self>, Vec<Self>)> {
         let room = Room::find(conn, message.room_id)?;
         let payload = Self::payload_for(conn, rich_text, &room, message)?;
-        let everything =
-            Self::for_users_involved_in_everything(conn, room.id, message.creator_id, now)?;
-        let mentionee_ids: Vec<i64> = message
-            .mentionees(conn, rich_text)?
-            .iter()
-            .map(|u: &User| u.id)
-            .collect();
-        let mentions =
-            Self::for_mentioned_users(conn, room.id, message.creator_id, &mentionee_ids, now)?;
+        let everything = Self::for_users_involved_in_everything(conn, room.id, message.creator_id, now)?;
+        let mentionee_ids: Vec<i64> = message.mentionees(conn, rich_text)?.iter().map(|u: &User| u.id).collect();
+        let mentions = Self::for_mentioned_users(conn, room.id, message.creator_id, &mentionee_ids, now)?;
         Ok((payload, everything, mentions))
     }
 }
@@ -357,10 +308,7 @@ impl EndpointUri {
         let (scheme, rest) = endpoint.split_once("://")?;
         let scheme = scheme.to_ascii_lowercase();
         let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
-        let authority = authority
-            .rsplit_once('@')
-            .map(|(_, h)| h)
-            .unwrap_or(authority);
+        let authority = authority.rsplit_once('@').map(|(_, h)| h).unwrap_or(authority);
         let (host, port) = match authority.rsplit_once(':') {
             _ if authority.ends_with(']') => (authority.to_string(), None),
             Some((host, port)) => (host.to_string(), Some(port.parse::<u16>().ok()?)),

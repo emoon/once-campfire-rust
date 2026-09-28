@@ -98,36 +98,81 @@ fn script(tokens: &BTreeMap<String, String>) -> Vec<(String, Step)> {
         ("connect B", Connect("B", Some("B"))),
         ("connect without a cookie", Connect("X", None)),
         ("A heartbeat", Send("A", subscribe(&json!({ "channel": "HeartbeatChannel" })))),
-        ("A base channel", Send("A", subscribe(&json!({ "channel": "ApplicationCable::Channel" })))),
+        (
+            "A base channel",
+            Send("A", subscribe(&json!({ "channel": "ApplicationCable::Channel" }))),
+        ),
         ("A reads", Send("A", subscribe(&reads))),
         ("A unreads", Send("A", subscribe(&unreads))),
         ("A presence", Send("A", subscribe(&presence))),
-        ("A presence in a room A isn't in", Send("A", subscribe(&json!({ "channel": "PresenceChannel", "room_id": closed_id })))),
-        ("A presence with a non-numeric room", Send("A", subscribe(&json!({ "channel": "PresenceChannel", "room_id": "abc" })))),
-        ("A presence with a numeric string room", Send("A", subscribe(&json!({ "channel": "PresenceChannel", "room_id": room_id.to_string() })))),
+        (
+            "A presence in a room A isn't in",
+            Send("A", subscribe(&json!({ "channel": "PresenceChannel", "room_id": closed_id }))),
+        ),
+        (
+            "A presence with a non-numeric room",
+            Send("A", subscribe(&json!({ "channel": "PresenceChannel", "room_id": "abc" }))),
+        ),
+        (
+            "A presence with a numeric string room",
+            Send(
+                "A",
+                subscribe(&json!({ "channel": "PresenceChannel", "room_id": room_id.to_string() })),
+            ),
+        ),
         ("A room", Send("A", subscribe(&room))),
-        ("A room A isn't in", Send("A", subscribe(&json!({ "channel": "RoomChannel", "room_id": closed_id })))),
+        (
+            "A room A isn't in",
+            Send("A", subscribe(&json!({ "channel": "RoomChannel", "room_id": closed_id }))),
+        ),
         ("A room without an id", Send("A", subscribe(&json!({ "channel": "RoomChannel" })))),
         ("A typing", Send("A", subscribe(&typing))),
         ("B typing", Send("B", subscribe(&typing))),
         ("A starts typing", Send("A", perform(&typing, json!({ "action": "start" })))),
-        ("B stops typing", Send("B", perform(&typing, json!({ "action": "stop", "extra": 1 })))),
-        ("A performs an unknown typing action", Send("A", perform(&typing, json!({ "action": "dance" })))),
+        (
+            "B stops typing",
+            Send("B", perform(&typing, json!({ "action": "stop", "extra": 1 }))),
+        ),
+        (
+            "A performs an unknown typing action",
+            Send("A", perform(&typing, json!({ "action": "dance" }))),
+        ),
         ("A room messages", Send("A", subscribe(&messages))),
         (
             "A room messages for a room A isn't in",
-            Send("A", subscribe(&json!({ "channel": "RoomMessagesChannel", "signed_stream_name": t("CLOSED_MESSAGES_SIGNED") }))),
+            Send(
+                "A",
+                subscribe(&json!({ "channel": "RoomMessagesChannel", "signed_stream_name": t("CLOSED_MESSAGES_SIGNED") })),
+            ),
         ),
-        ("A room messages without a name", Send("A", subscribe(&json!({ "channel": "RoomMessagesChannel" })))),
-        ("A room messages with a forged name", Send("A", subscribe(&json!({ "channel": "RoomMessagesChannel", "signed_stream_name": forged })))),
-        ("A room messages with the rooms name", Send("A", subscribe(&json!({ "channel": "RoomMessagesChannel", "signed_stream_name": t("ROOMS_SIGNED") })))),
+        (
+            "A room messages without a name",
+            Send("A", subscribe(&json!({ "channel": "RoomMessagesChannel" }))),
+        ),
+        (
+            "A room messages with a forged name",
+            Send(
+                "A",
+                subscribe(&json!({ "channel": "RoomMessagesChannel", "signed_stream_name": forged })),
+            ),
+        ),
+        (
+            "A room messages with the rooms name",
+            Send(
+                "A",
+                subscribe(&json!({ "channel": "RoomMessagesChannel", "signed_stream_name": t("ROOMS_SIGNED") })),
+            ),
+        ),
         ("A turbo rooms", Send("A", subscribe(&rooms))),
         ("A turbo own rooms", Send("A", subscribe(&turbo(t("A_ROOMS_SIGNED"))))),
         ("A turbo guarded room messages", Send("A", subscribe(&guarded))),
         ("A turbo forged", Send("A", subscribe(&turbo(forged.clone())))),
         ("A presence present", Send("A", perform(&presence, json!({ "action": "present" })))),
         ("A presence refresh", Send("A", perform(&presence, json!({ "action": "refresh" })))),
-        ("A unreads subscribed again", Send("A", perform(&unreads, json!({ "action": "subscribed" })))),
+        (
+            "A unreads subscribed again",
+            Send("A", perform(&unreads, json!({ "action": "subscribed" }))),
+        ),
         ("unread fanout", Trigger("unread", vec!["MESSAGE_ID"])),
         ("message removed", Trigger("remove_message", vec!["MESSAGE_ID"])),
         ("B presence", Send("B", subscribe(&presence))),
@@ -175,7 +220,10 @@ async fn run_script(target: &Target) -> Vec<Exchange> {
                 let mut request = target.url.as_str().into_client_request().unwrap();
                 let headers = request.headers_mut();
                 headers.insert("origin", target.origin.parse().unwrap());
-                headers.insert("sec-websocket-protocol", "actioncable-v1-json, actioncable-unsupported".parse().unwrap());
+                headers.insert(
+                    "sec-websocket-protocol",
+                    "actioncable-v1-json, actioncable-unsupported".parse().unwrap(),
+                );
                 if let Some(cookie) = cookie {
                     headers.insert("cookie", target.fixtures.cookies[cookie].parse().unwrap());
                 }
@@ -252,7 +300,11 @@ async fn trigger(target: &Target, event: &str, args: &[String]) {
             })
             .await
             .unwrap(),
-        "revoke" => app.db.write(move |tx| Room::find(tx.conn(), ids[0])?.revoke_from(tx, &[ids[1]])).await.unwrap(),
+        "revoke" => app
+            .db
+            .write(move |tx| Room::find(tx.conn(), ids[0])?.revoke_from(tx, &[ids[1]]))
+            .await
+            .unwrap(),
         "deactivate" => app.db.write(move |tx| User::find(tx.conn(), ids[0])?.deactivate(tx)).await.unwrap(),
         other => panic!("unknown trigger {other}"),
     }
@@ -260,7 +312,11 @@ async fn trigger(target: &Target, event: &str, args: &[String]) {
 
 fn reference_secret_key_base() -> String {
     let env = std::fs::read_to_string(repo_root().join("parity/.env.reference")).unwrap();
-    env.lines().find_map(|line| line.strip_prefix("SECRET_KEY_BASE=")).expect("SECRET_KEY_BASE").trim().to_string()
+    env.lines()
+        .find_map(|line| line.strip_prefix("SECRET_KEY_BASE="))
+        .expect("SECRET_KEY_BASE")
+        .trim()
+        .to_string()
 }
 
 #[derive(Default)]
@@ -290,7 +346,10 @@ fn sql_value(value: &Value) -> rusqlite::types::Value {
 /// A fresh database holding the reference's rows, and our channels over it.
 async fn start_rust(fixtures: &Fixtures, dir: &Path) -> Target {
     let sink = Arc::new(CableSink::default());
-    let env = campfire_db::Env { sink: sink.clone(), ..campfire_db::Env::default() };
+    let env = campfire_db::Env {
+        sink: sink.clone(),
+        ..campfire_db::Env::default()
+    };
     let mut config = campfire_db::Config::new(dir.join("production.sqlite3"));
     config.readers = 2;
     let db = Database::open(config, env).unwrap();
@@ -299,7 +358,11 @@ async fn start_rust(fixtures: &Fixtures, dir: &Path) -> Target {
         for table in ["users", "rooms", "memberships", "sessions", "messages"] {
             for row in &rows[table] {
                 let columns: Vec<String> = row.keys().map(|c| format!("\"{c}\"")).collect();
-                let sql = format!("INSERT INTO {table} ({}) VALUES ({})", columns.join(", "), vec!["?"; columns.len()].join(", "));
+                let sql = format!(
+                    "INSERT INTO {table} ({}) VALUES ({})",
+                    columns.join(", "),
+                    vec!["?"; columns.len()].join(", ")
+                );
                 tx.conn().execute(&sql, rusqlite::params_from_iter(row.values().map(sql_value)))?;
             }
         }
@@ -316,7 +379,13 @@ async fn start_rust(fixtures: &Fixtures, dir: &Path) -> Target {
         clock: Arc::new(campfire_kit::SystemClock),
     };
     // The reference runs with DISABLE_SSL, so without assume_ssl.
-    let server = channels::server(deps, Config { assume_ssl: false, ..Config::default() });
+    let server = channels::server(
+        deps,
+        Config {
+            assume_ssl: false,
+            ..Config::default()
+        },
+    );
     let _ = sink.server.set(server.clone());
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -327,7 +396,10 @@ async fn start_rust(fixtures: &Fixtures, dir: &Path) -> Target {
         url: format!("ws://{addr}/cable"),
         origin: format!("http://{addr}"),
         fixtures: fixtures.clone(),
-        rust: Some(RustApp { db, broadcasts: Broadcasts::new(server) }),
+        rust: Some(RustApp {
+            db,
+            broadcasts: Broadcasts::new(server),
+        }),
         reference_port: None,
         quiet: Duration::from_millis(100),
     }
@@ -343,7 +415,11 @@ fn sorted(steps: &[Exchange]) -> Vec<Exchange> {
         .iter()
         .map(|exchange| Exchange {
             step: exchange.step.clone(),
-            frames: exchange.frames.iter().map(|(socket, frames)| (socket.clone(), sort(frames))).collect(),
+            frames: exchange
+                .frames
+                .iter()
+                .map(|(socket, frames)| (socket.clone(), sort(frames)))
+                .collect(),
         })
         .collect()
 }

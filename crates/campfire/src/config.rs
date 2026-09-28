@@ -84,7 +84,8 @@ impl StoragePaths {
 
     /// Where `prepare-backup` writes the snapshot: `storage/backups/<database file name>`.
     pub fn backup_file(&self) -> PathBuf {
-        self.backups.join(self.database.file_name().unwrap_or_else(|| "production.sqlite3".as_ref()))
+        self.backups
+            .join(self.database.file_name().unwrap_or_else(|| "production.sqlite3".as_ref()))
     }
 }
 
@@ -104,7 +105,9 @@ impl Config {
         };
         let environment = present("RAILS_ENV").unwrap_or_else(|| "production".into());
 
-        let storage_root = present("CAMPFIRE_STORAGE_PATH").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("storage"));
+        let storage_root = present("CAMPFIRE_STORAGE_PATH")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("storage"));
         let mut storage = StoragePaths::new(storage_root, &environment);
         if let Some(database) = present("CAMPFIRE_DATABASE_PATH") {
             storage.database = database.into();
@@ -129,22 +132,29 @@ impl Config {
             vapid_private_key: present("VAPID_PRIVATE_KEY"),
             vapid_subject: present("VAPID_SUBJECT").unwrap_or_else(|| default_vapid_subject(present("TLS_DOMAIN"))),
             disable_ssl: present("DISABLE_SSL").is_some(),
-            app_version: present("APP_VERSION").or_else(|| present("GIT_REVISION")).unwrap_or_else(|| "0".into()),
+            app_version: present("APP_VERSION")
+                .or_else(|| present("GIT_REVISION"))
+                .unwrap_or_else(|| "0".into()),
             git_revision: get("GIT_REVISION"),
             environment,
             storage,
             db_readers: number("RAILS_MAX_THREADS", 5)?.max(1),
             job_concurrency: number("JOB_CONCURRENCY", 2)?.max(1),
             log_level: present("RAILS_LOG_LEVEL").unwrap_or_else(|| "info".into()),
-            fragment_cache_bytes: number("CAMPFIRE_FRAGMENT_CACHE_MB", campfire_views::fragment_cache::DEFAULT_MAX_BYTES >> 20)?
-                .saturating_mul(1 << 20),
+            fragment_cache_bytes: number(
+                "CAMPFIRE_FRAGMENT_CACHE_MB",
+                campfire_views::fragment_cache::DEFAULT_MAX_BYTES >> 20,
+            )?
+            .saturating_mul(1 << 20),
         })
     }
 }
 
 /// The install's own HTTPS URL when it has a TLS domain; the project's otherwise.
 fn default_vapid_subject(tls_domains: Option<String>) -> String {
-    let domain = tls_domains.as_deref().and_then(|domains| domains.split(',').map(str::trim).find(|domain| !domain.is_empty()));
+    let domain = tls_domains
+        .as_deref()
+        .and_then(|domains| domains.split(',').map(str::trim).find(|domain| !domain.is_empty()));
     match domain {
         Some(domain) => format!("https://{domain}"),
         None => "https://github.com/basecamp/once-campfire-rust".into(),
@@ -187,7 +197,9 @@ mod tests {
 
     #[test]
     fn fragment_cache_size_in_megabytes() {
-        let bytes = config(&[("SECRET_KEY_BASE", "abc"), ("CAMPFIRE_FRAGMENT_CACHE_MB", "64")]).unwrap().fragment_cache_bytes;
+        let bytes = config(&[("SECRET_KEY_BASE", "abc"), ("CAMPFIRE_FRAGMENT_CACHE_MB", "64")])
+            .unwrap()
+            .fragment_cache_bytes;
         assert_eq!(bytes, 64 * 1024 * 1024);
         assert!(config(&[("SECRET_KEY_BASE", "abc"), ("CAMPFIRE_FRAGMENT_CACHE_MB", "lots")]).is_err());
     }
@@ -214,8 +226,14 @@ mod tests {
     #[test]
     fn vapid_subject_defaults_to_the_tls_domain() {
         let subject = |vars: &[(&str, &str)]| config(&[&[("SECRET_KEY_BASE", "abc")], vars].concat()).unwrap().vapid_subject;
-        assert_eq!(subject(&[("VAPID_SUBJECT", "mailto:ops@example.com"), ("TLS_DOMAIN", "chat.example.com")]), "mailto:ops@example.com");
-        assert_eq!(subject(&[("TLS_DOMAIN", " , chat.example.com,other.example.com")]), "https://chat.example.com");
+        assert_eq!(
+            subject(&[("VAPID_SUBJECT", "mailto:ops@example.com"), ("TLS_DOMAIN", "chat.example.com")]),
+            "mailto:ops@example.com"
+        );
+        assert_eq!(
+            subject(&[("TLS_DOMAIN", " , chat.example.com,other.example.com")]),
+            "https://chat.example.com"
+        );
         assert_eq!(subject(&[("VAPID_SUBJECT", " ")]), "https://github.com/basecamp/once-campfire-rust");
     }
 

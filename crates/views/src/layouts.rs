@@ -81,5 +81,10 @@ pub struct FrameLayout<'a> {
 /// Renders a page's `head` and `content` blocks in the Turbo-Frame layout:
 /// `frame(ctx, page.as_head(), page.as_content())`.
 pub fn frame(ctx: &crate::ViewContext, head: impl Template, content: impl Template) -> askama::Result<String> {
-    FrameLayout { ctx, head: h::raw(head.render()?), content: h::raw(content.render()?) }.render()
+    FrameLayout {
+        ctx,
+        head: h::raw(head.render()?),
+        content: h::raw(content.render()?),
+    }
+    .render()
 }

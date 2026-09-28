@@ -12,7 +12,7 @@ use serde::Deserialize;
 
 use crate::ViewContext;
 use crate::fragment_cache;
-use support::{epoch_ms, iso8601, RubyNumber};
+use support::{RubyNumber, epoch_ms, iso8601};
 
 /// What the message views show of a user: `avatar_tag` and the author heading.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -88,7 +88,9 @@ pub struct MessageView {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MessageContent {
     /// The presentation filters' output after `auto_link`, from the richtext crate.
-    Text { html: String },
+    Text {
+        html: String,
+    },
     Sound(SoundView),
     Attachment(AttachmentView),
     /// Rendering raised past `message_presentation`'s own rescue (or `plain_text_body` raised):
@@ -159,7 +161,11 @@ pub struct BoostView {
 /// and build a [`MessageView`] only on a miss.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MessageItem {
-    Fragment { client_message_id: String, room_id: i64, html: fragment_cache::Fragment },
+    Fragment {
+        client_message_id: String,
+        room_id: i64,
+        html: fragment_cache::Fragment,
+    },
     View(Box<MessageView>),
 }
 

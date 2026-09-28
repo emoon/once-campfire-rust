@@ -19,7 +19,10 @@ impl AttachableResolver for NoRecords {
 }
 
 fn ctx() -> RenderContext<'static> {
-    RenderContext { resolver: &NoRecords, request_host: Some("once.campfire.test".into()) }
+    RenderContext {
+        resolver: &NoRecords,
+        request_host: Some("once.campfire.test".into()),
+    }
 }
 
 fn presentation(body: &str) -> String {
@@ -45,7 +48,11 @@ fn parsed_markup(html: &str) -> Vec<String> {
 
 fn assert_quick(started: Instant, what: &str) {
     // Generous enough for a debug build; release takes a few milliseconds.
-    let bound = if cfg!(debug_assertions) { Duration::from_secs(5) } else { Duration::from_secs(1) };
+    let bound = if cfg!(debug_assertions) {
+        Duration::from_secs(5)
+    } else {
+        Duration::from_secs(1)
+    };
     assert!(started.elapsed() < bound, "{what} took {:?}", started.elapsed());
 }
 
@@ -93,14 +100,19 @@ fn many_bare_domains_autolink_in_linear_time() {
     let started = Instant::now();
     let html = presentation(&body);
     assert_quick(started, "autolinking 64 KB of bare domains");
-    assert_eq!(html.matches("<a target=\"_blank\" href=\"http://www.a.com\">").count(), 64 * 1024 / 16);
+    assert_eq!(
+        html.matches("<a target=\"_blank\" href=\"http://www.a.com\">").count(),
+        64 * 1024 / 16
+    );
 }
 
 /// Content attachments nested `levels` deep, each saying which level it is.
 fn nested_content_attachments(levels: usize, padding: &str) -> String {
     let mut body = String::new();
     for level in (1..=levels).rev() {
-        let content = format!("<p>level {level}{padding}</p>{body}").replace('&', "&amp;").replace('"', "&quot;");
+        let content = format!("<p>level {level}{padding}</p>{body}")
+            .replace('&', "&amp;")
+            .replace('"', "&quot;");
         body = format!("<action-text-attachment content-type=\"text/html\" content=\"{content}\"></action-text-attachment>");
     }
     body
@@ -140,14 +152,20 @@ const DELETED_MENTION: &str = r#"<p>Hi <action-text-attachment sgid="eyJfcmFpbHM
 
 #[test]
 fn a_mention_of_a_deleted_user_leaves_the_rest_of_the_message() {
-    let ctx = RenderContext { resolver: &DeletedUsers, request_host: None };
+    let ctx = RenderContext {
+        resolver: &DeletedUsers,
+        request_host: None,
+    };
     let html = message_presentation(DELETED_MENTION, &ctx).unwrap();
     assert!(html.contains("Hi") && html.contains('☒') && html.contains("welcome"), "{html}");
 }
 
 #[test]
 fn a_mention_of_a_deleted_user_leaves_the_editor() {
-    let ctx = RenderContext { resolver: &DeletedUsers, request_host: None };
+    let ctx = RenderContext {
+        resolver: &DeletedUsers,
+        request_host: None,
+    };
     let value = editable_value(DELETED_MENTION, &ctx).unwrap().unwrap();
     assert!(!value.contains("action-text-attachment") && value.contains("welcome"), "{value}");
 }

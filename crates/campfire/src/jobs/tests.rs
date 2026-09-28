@@ -34,7 +34,10 @@ fn reporting(performed: UnboundedSender<Event>, gate: Option<Arc<Notify>>) -> im
 }
 
 async fn next_performed(performed: &mut mpsc::UnboundedReceiver<Event>) -> Event {
-    tokio::time::timeout(Duration::from_secs(5), performed.recv()).await.expect("a job was performed").unwrap()
+    tokio::time::timeout(Duration::from_secs(5), performed.recv())
+        .await
+        .expect("a job was performed")
+        .unwrap()
 }
 
 fn webhook(message_id: i64) -> Event {
@@ -95,7 +98,11 @@ async fn a_busy_or_full_kind_doesnt_hold_up_the_others() {
     }
     jobs.emit(Event::PurgeBlob { blob_id: 7 });
     assert_eq!(next_performed(&mut performed_rx).await, Event::PurgeBlob { blob_id: 7 });
-    assert!(logs.text().contains("job queue is full, dropping job job=\"Bot::WebhookJob\""), "{}", logs.text());
+    assert!(
+        logs.text().contains("job queue is full, dropping job job=\"Bot::WebhookJob\""),
+        "{}",
+        logs.text()
+    );
 
     for _ in 0..3 {
         slow_bot.notify_one();

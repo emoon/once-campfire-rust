@@ -63,9 +63,16 @@ fn list_depth(dom: &Dom, node: NodeId) -> usize {
 }
 
 fn bullet_for_li(dom: &Dom, node: NodeId) -> String {
-    let list = dom.ancestors(node).into_iter().map(|a| dom.name(a).into_owned()).find(|n| is_list(n));
+    let list = dom
+        .ancestors(node)
+        .into_iter()
+        .map(|a| dom.name(a).into_owned())
+        .find(|n| is_list(n));
     if list.as_deref() == Some("ol") {
-        let index = dom.parent(node).map(|p| dom.element_children(p).iter().position(|&c| c == node).unwrap_or(0)).unwrap_or(0);
+        let index = dom
+            .parent(node)
+            .map(|p| dom.element_children(p).iter().position(|&c| c == node).unwrap_or(0))
+            .unwrap_or(0);
         format!("{}.", index + 1)
     } else {
         "•".to_string()

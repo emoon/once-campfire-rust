@@ -85,26 +85,15 @@ fn parse_ipaddr(text: &str) -> Option<IpAddr> {
         Some((address, prefix)) => (address, Some(prefix.parse::<u32>().ok()?)),
         None => (text, None),
     };
-    let address = address
-        .strip_prefix('[')
-        .and_then(|a| a.strip_suffix(']'))
-        .unwrap_or(address);
+    let address = address.strip_prefix('[').and_then(|a| a.strip_suffix(']')).unwrap_or(address);
     let ip: IpAddr = address.parse().ok()?;
     Some(match (ip, prefix) {
         (IpAddr::V4(v4), Some(bits)) if bits <= 32 => {
-            let mask = if bits == 0 {
-                0
-            } else {
-                u32::MAX << (32 - bits)
-            };
+            let mask = if bits == 0 { 0 } else { u32::MAX << (32 - bits) };
             IpAddr::V4((u32::from(v4) & mask).into())
         }
         (IpAddr::V6(v6), Some(bits)) if bits <= 128 => {
-            let mask = if bits == 0 {
-                0
-            } else {
-                u128::MAX << (128 - bits)
-            };
+            let mask = if bits == 0 { 0 } else { u128::MAX << (128 - bits) };
             IpAddr::V6((u128::from(v6) & mask).into())
         }
         (_, Some(_)) => return None,
@@ -128,34 +117,25 @@ fn mapped_v4(ip: IpAddr) -> Option<u32> {
 fn is_loopback(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => u32::from(v4) & 0xff00_0000 == 0x7f00_0000,
-        IpAddr::V6(v6) => {
-            u128::from(v6) == 1 || mapped_v4(ip).is_some_and(|a| a & 0xff00_0000 == 0x7f00_0000)
-        }
+        IpAddr::V6(v6) => u128::from(v6) == 1 || mapped_v4(ip).is_some_and(|a| a & 0xff00_0000 == 0x7f00_0000),
     }
 }
 
 fn private_v4(a: u32) -> bool {
-    a & 0xff00_0000 == 0x0a00_0000
-        || a & 0xfff0_0000 == 0xac10_0000
-        || a & 0xffff_0000 == 0xc0a8_0000
+    a & 0xff00_0000 == 0x0a00_0000 || a & 0xfff0_0000 == 0xac10_0000 || a & 0xffff_0000 == 0xc0a8_0000
 }
 
 fn is_private(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => private_v4(u32::from(v4)),
-        IpAddr::V6(v6) => {
-            u128::from(v6) >> 121 == 0xfc >> 1 || mapped_v4(ip).is_some_and(private_v4)
-        }
+        IpAddr::V6(v6) => u128::from(v6) >> 121 == 0xfc >> 1 || mapped_v4(ip).is_some_and(private_v4),
     }
 }
 
 fn is_link_local(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => u32::from(v4) & 0xffff_0000 == 0xa9fe_0000,
-        IpAddr::V6(v6) => {
-            u128::from(v6) >> 118 == 0xfe80 >> 6
-                || mapped_v4(ip).is_some_and(|a| a & 0xffff_0000 == 0xa9fe_0000)
-        }
+        IpAddr::V6(v6) => u128::from(v6) >> 118 == 0xfe80 >> 6 || mapped_v4(ip).is_some_and(|a| a & 0xffff_0000 == 0xa9fe_0000),
     }
 }
 
@@ -188,11 +168,7 @@ mod tests {
             "::ffff:10.0.0.1",
             "::ffff:127.0.0.1",
         ] {
-            assert_eq!(
-                messages(ip),
-                ["cannot be a private or internal IP address"],
-                "{ip}"
-            );
+            assert_eq!(messages(ip), ["cannot be a private or internal IP address"], "{ip}");
         }
     }
 

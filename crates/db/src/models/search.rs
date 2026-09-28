@@ -45,11 +45,7 @@ impl Search {
     }
 
     pub fn count_for_user(conn: &Connection, user_id: i64) -> Result<i64> {
-        sql::count(
-            conn,
-            r#"SELECT COUNT(*) FROM "searches" WHERE "searches"."user_id" = ?"#,
-            [user_id],
-        )
+        sql::count(conn, r#"SELECT COUNT(*) FROM "searches" WHERE "searches"."user_id" = ?"#, [user_id])
     }
 
     /// `user.searches.record(query)`: `find_or_create_by(query:).touch`. Creating trims the
@@ -125,9 +121,7 @@ fn trim_recent_searches(tx: &Tx<'_>, user_id: i64) -> Result<()> {
     } else {
         values.extend(keep);
     }
-    let doomed: Vec<i64> = query_all(tx.conn(), &sql, rusqlite::params_from_iter(values), |r| {
-        r.get(0)
-    })?;
+    let doomed: Vec<i64> = query_all(tx.conn(), &sql, rusqlite::params_from_iter(values), |r| r.get(0))?;
     for id in doomed {
         tx.conn()
             .execute_cached(r#"DELETE FROM "searches" WHERE "searches"."id" = ?"#, [id])?;

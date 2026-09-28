@@ -92,8 +92,16 @@ pub async fn boot(config: Config) -> anyhow::Result<Booted> {
         Arc::new(ActiveStorageVerifier(rails_compat::app_verifier(&secrets, "ActiveStorage"))),
     ));
 
-    let cable_config = campfire_cable::Config { assume_ssl: !config.disable_ssl, ..campfire_cable::Config::default() };
-    let deps = channels::Deps { db: db.clone(), secrets: secrets.clone(), crypto: crypto.clone(), clock: clock.clone() };
+    let cable_config = campfire_cable::Config {
+        assume_ssl: !config.disable_ssl,
+        ..campfire_cable::Config::default()
+    };
+    let deps = channels::Deps {
+        db: db.clone(),
+        secrets: secrets.clone(),
+        crypto: crypto.clone(),
+        clock: clock.clone(),
+    };
     let cable = channels::server(deps, cable_config);
 
     let mut kit_config = KitConfig::production(config.disable_ssl);
@@ -176,9 +184,10 @@ fn static_response(request: &axum::extract::Request) -> Option<axum::response::R
     *response.status_mut() = axum::http::StatusCode::from_u16(served.status).unwrap_or(axum::http::StatusCode::OK);
     response.extensions_mut().insert(campfire_kit::deflater::StaticFile);
     for (name, value) in served.headers {
-        if let (Ok(name), Ok(value)) =
-            (axum::http::HeaderName::from_bytes(name.as_bytes()), axum::http::HeaderValue::from_str(&value))
-        {
+        if let (Ok(name), Ok(value)) = (
+            axum::http::HeaderName::from_bytes(name.as_bytes()),
+            axum::http::HeaderValue::from_str(&value),
+        ) {
             response.headers_mut().append(name, value);
         }
     }
@@ -189,7 +198,11 @@ fn static_response(request: &axum::extract::Request) -> Option<axum::response::R
 fn error_pages() -> ErrorPages {
     ErrorPages::new([404, 422, 500, 502].into_iter().filter_map(|status| {
         let path = format!("/{status}.html");
-        let request = campfire_assets::StaticRequest { method: "GET", path: &path, ..Default::default() };
+        let request = campfire_assets::StaticRequest {
+            method: "GET",
+            path: &path,
+            ..Default::default()
+        };
         campfire_assets::serve(&request).map(|page| (status, page.body.into_owned().into()))
     }))
 }
@@ -258,9 +271,14 @@ fn init_logging(config: &Config) {
         _ => "info",
     };
     // The front server logs on its own terms, as Thruster did: requests at info, more with DEBUG.
-    let front = if campfire_kit::front::FrontConfig::from_env().debug { "debug" } else { "info" };
+    let front = if campfire_kit::front::FrontConfig::from_env().debug {
+        "debug"
+    } else {
+        "info"
+    };
     let default = format!("{level},thruster={front},campfire_kit::front={front}");
-    let filter = tracing_subscriber::EnvFilter::try_from_env("CAMPFIRE_LOG").unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(default));
+    let filter =
+        tracing_subscriber::EnvFilter::try_from_env("CAMPFIRE_LOG").unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(default));
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 

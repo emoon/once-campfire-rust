@@ -1,8 +1,8 @@
 //! `MessagesHelper#message_presentation` and `Messages::AttachmentPresentation`
 //! (`reference/app/helpers/messages_helper.rb`, `reference/app/helpers/messages/attachment_presentation.rb`).
 
-use crate::helpers::escape;
 use crate::ViewContext;
+use crate::helpers::escape;
 
 use super::support::RubyNumber;
 use super::{AttachmentPreview, AttachmentView, MessageContent, MessageView, SoundView};
@@ -27,7 +27,9 @@ fn sound_presentation(sound: &SoundView) -> String {
     let content = match (&sound.image, &sound.text) {
         (Some(image), _) => format!(
             r#"<img width="{}" height="{}" class="align--middle" src="{}" />"#,
-            image.width, image.height, escape(&image.src)
+            image.width,
+            image.height,
+            escape(&image.src)
         ),
         (None, Some(text)) => escape(text),
         (None, None) => String::new(),

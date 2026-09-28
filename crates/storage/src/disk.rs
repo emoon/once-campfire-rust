@@ -41,7 +41,10 @@ pub struct DiskToken {
 impl DiskService {
     /// Campfire's `local` service: `root: Rails.root.join("storage", "files")` (config/storage.yml).
     pub fn new(root: impl Into<PathBuf>, name: impl Into<String>) -> Self {
-        Self { root: root.into(), name: name.into() }
+        Self {
+            root: root.into(),
+            name: name.into(),
+        }
     }
 
     pub fn name(&self) -> &str {
@@ -89,7 +92,11 @@ impl DiskService {
         for entry in entries.flatten() {
             if entry.file_name().to_string_lossy().starts_with(stem) {
                 let path = entry.path();
-                if path.is_dir() { fs::remove_dir_all(path)? } else { fs::remove_file(path)? }
+                if path.is_dir() {
+                    fs::remove_dir_all(path)?
+                } else {
+                    fs::remove_file(path)?
+                }
             }
         }
         Ok(())
@@ -118,7 +125,11 @@ impl DiskService {
             ("service_name".into(), self.name.as_str().into()),
         ]);
         let encoded_key = verifier.generate(&payload.encode(), "blob_key", expires_at);
-        format!("/rails/active_storage/disk/{}/{}", escape_segment(&encoded_key), escape_path(&sanitized))
+        format!(
+            "/rails/active_storage/disk/{}/{}",
+            escape_segment(&encoded_key),
+            escape_path(&sanitized)
+        )
     }
 
     /// The path of `url_for_direct_upload`.
@@ -190,5 +201,9 @@ fn folder_for(key: &str) -> String {
 }
 
 fn not_found(e: io::Error) -> Error {
-    if e.kind() == io::ErrorKind::NotFound { Error::FileNotFound } else { e.into() }
+    if e.kind() == io::ErrorKind::NotFound {
+        Error::FileNotFound
+    } else {
+        e.into()
+    }
 }

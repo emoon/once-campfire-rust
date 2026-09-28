@@ -7,9 +7,9 @@ use campfire_db::{Boost, Message};
 use crate::controllers::presenters::test_support::*;
 
 const PNG: &[u8] = &[
-    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 4, 0, 0, 0, 3, 8, 2, 0, 0, 0, 59, 150, 57, 145, 0, 0,
-    0, 16, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 0, 71, 12, 56, 57, 0, 245, 49, 11, 245, 53, 123, 251, 130, 0, 0, 0, 0,
-    73, 69, 78, 68, 174, 66, 96, 130,
+    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 4, 0, 0, 0, 3, 8, 2, 0, 0, 0, 59, 150, 57, 145, 0, 0, 0, 16, 73,
+    68, 65, 84, 120, 156, 99, 248, 207, 192, 0, 71, 12, 56, 57, 0, 245, 49, 11, 245, 53, 123, 251, 130, 0, 0, 0, 0, 73, 69, 78, 68, 174,
+    66, 96, 130,
 ];
 
 const TURBO_STREAM_ACCEPT: &str = "text/vnd.turbo-stream.html, text/html, application/xhtml+xml";
@@ -39,10 +39,18 @@ async fn index_pages_with_conditional_gets() {
         .await;
     assert_eq!(cached.status, StatusCode::NOT_MODIFIED);
 
-    let after_last = david.get(&format!("/rooms/{ALL_TALK}/messages?after={}", messages.last().unwrap().id)).await;
+    let after_last = david
+        .get(&format!("/rooms/{ALL_TALK}/messages?after={}", messages.last().unwrap().id))
+        .await;
     assert_eq!(after_last.status, StatusCode::NO_CONTENT);
-    assert_eq!(david.get(&format!("/rooms/{ALL_TALK}/messages?before=0")).await.status, StatusCode::NOT_FOUND);
-    assert_eq!(david.get(&format!("/rooms/{DIRECT_KEVIN_BENDER}/messages")).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        david.get(&format!("/rooms/{ALL_TALK}/messages?before=0")).await.status,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        david.get(&format!("/rooms/{DIRECT_KEVIN_BENDER}/messages")).await.status,
+        StatusCode::NOT_FOUND
+    );
     assert_eq!(david.get("/messages").await.status, StatusCode::NOT_FOUND);
 }
 
@@ -54,12 +62,21 @@ async fn create_appends_the_message_as_a_turbo_stream() {
         .write(
             Req::new(Method::POST, &format!("/rooms/{ALL_TALK}/messages"))
                 .header("accept", TURBO_STREAM_ACCEPT)
-                .form(&[("message[body]", "<p>Hello <strong>there</strong></p>"), ("message[client_message_id]", "abc-123")]),
+                .form(&[
+                    ("message[body]", "<p>Hello <strong>there</strong></p>"),
+                    ("message[client_message_id]", "abc-123"),
+                ]),
         )
         .await;
     assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
     assert_eq!(reply.content_type(), Some("text/vnd.turbo-stream.html; charset=utf-8"));
-    assert!(reply.text().contains(r#"<turbo-stream action="append" target="messages_rooms_closed_486777696">"#), "{}", reply.text());
+    assert!(
+        reply
+            .text()
+            .contains(r#"<turbo-stream action="append" target="messages_rooms_closed_486777696">"#),
+        "{}",
+        reply.text()
+    );
     assert!(reply.text().contains(r#"id="message_abc-123""#));
     assert!(reply.text().contains("Hello <strong>there</strong>"));
 
@@ -78,9 +95,13 @@ async fn create_in_a_room_you_left_renders_room_not_found() {
     assert!(reply.text().contains("This room was deleted."));
     assert!(reply.text().contains("<html"), "in the application layout");
 
-    let missing = david.write(Req::new(Method::POST, &format!("/rooms/{ALL_TALK}/messages")).form(&[("body", "hi")])).await;
+    let missing = david
+        .write(Req::new(Method::POST, &format!("/rooms/{ALL_TALK}/messages")).form(&[("body", "hi")]))
+        .await;
     assert_eq!(missing.status, StatusCode::BAD_REQUEST);
-    let html = david.write(Req::new(Method::POST, &format!("/rooms/{ALL_TALK}/messages")).form(&[("message[body]", "hi")])).await;
+    let html = david
+        .write(Req::new(Method::POST, &format!("/rooms/{ALL_TALK}/messages")).form(&[("message[body]", "hi")]))
+        .await;
     assert_eq!(html.status, StatusCode::NOT_ACCEPTABLE, "only a turbo stream template");
 }
 
@@ -92,12 +113,23 @@ async fn uploads_attach_and_process_the_file() {
         .write(
             Req::new(Method::POST, &format!("/rooms/{ALL_TALK}/messages"))
                 .header("accept", "*/*")
-                .multipart(&[("message[client_message_id]", "upload-1")], ("message[attachment]", "red.png", "image/png", PNG)),
+                .multipart(
+                    &[("message[client_message_id]", "upload-1")],
+                    ("message[attachment]", "red.png", "image/png", PNG),
+                ),
         )
         .await;
     assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
-    assert!(reply.text().contains("/rails/active_storage/representations/redirect/"), "{}", reply.text());
-    assert!(reply.text().contains(r#"width="4" height="3""#), "analyzed dimensions: {}", reply.text());
+    assert!(
+        reply.text().contains("/rails/active_storage/representations/redirect/"),
+        "{}",
+        reply.text()
+    );
+    assert!(
+        reply.text().contains(r#"width="4" height="3""#),
+        "analyzed dimensions: {}",
+        reply.text()
+    );
 
     let message = messages_in(&app, ALL_TALK).await.pop().unwrap();
     assert_eq!(message.client_message_id, "upload-1");
@@ -105,7 +137,13 @@ async fn uploads_attach_and_process_the_file() {
     assert_eq!(blob.filename, "red.png");
     let variants: i64 = app
         .db()
-        .read(move |conn| Ok(conn.query_row("SELECT count(*) FROM active_storage_variant_records WHERE blob_id = ?", [blob.id], |r| r.get(0))?))
+        .read(move |conn| {
+            Ok(conn.query_row(
+                "SELECT count(*) FROM active_storage_variant_records WHERE blob_id = ?",
+                [blob.id],
+                |r| r.get(0),
+            )?)
+        })
         .await
         .unwrap();
     assert_eq!(variants, 1, "the :thumb variant is processed");
@@ -114,7 +152,12 @@ async fn uploads_attach_and_process_the_file() {
 #[tokio::test]
 async fn show_edit_update_and_destroy() {
     let Some(app) = TestApp::boot().await else { return };
-    let message = messages_in(&app, ALL_TALK).await.into_iter().rev().find(|m| m.creator_id == DAVID).unwrap();
+    let message = messages_in(&app, ALL_TALK)
+        .await
+        .into_iter()
+        .rev()
+        .find(|m| m.creator_id == DAVID)
+        .unwrap();
     let mut david = app.david();
     let path = format!("/rooms/{ALL_TALK}/messages/{}", message.id);
 
@@ -130,19 +173,41 @@ async fn show_edit_update_and_destroy() {
     assert_eq!(edit.status, StatusCode::OK);
     assert!(edit.text().contains("<lexxy-editor"));
 
-    let updated = david.write(Req::new(Method::PATCH, &path).form(&[("message[body]", "<p>Edited</p>")])).await;
+    let updated = david
+        .write(Req::new(Method::PATCH, &path).form(&[("message[body]", "<p>Edited</p>")]))
+        .await;
     assert_eq!(updated.status, StatusCode::FOUND, "{}", updated.text());
     assert_eq!(updated.location(), Some(format!("http://campfire.test{path}").as_str()));
-    let body = app.db().read(move |conn| Message::find(conn, message.id)?.body_html(conn)).await.unwrap();
+    let body = app
+        .db()
+        .read(move |conn| Message::find(conn, message.id)?.body_html(conn))
+        .await
+        .unwrap();
     assert_eq!(body.as_deref(), Some("<p>Edited</p>"));
 
-    let json = david.write(Req::new(Method::PATCH, &format!("{path}.json")).form(&[("message[body]", "x")])).await;
+    let json = david
+        .write(Req::new(Method::PATCH, &format!("{path}.json")).form(&[("message[body]", "x")]))
+        .await;
     assert_eq!(json.status, StatusCode::INTERNAL_SERVER_ERROR, "no messages/show.json");
 
-    let destroyed = david.write(Req::new(Method::DELETE, &path).header("accept", TURBO_STREAM_ACCEPT)).await;
+    let destroyed = david
+        .write(Req::new(Method::DELETE, &path).header("accept", TURBO_STREAM_ACCEPT))
+        .await;
     assert_eq!(destroyed.status, StatusCode::OK);
-    assert_eq!(destroyed.text().trim(), format!(r#"<turbo-stream action="remove" target="message_{}"></turbo-stream>"#, message.client_message_id));
-    assert!(app.db().read(move |conn| Message::find_by_id(conn, message.id)).await.unwrap().is_none());
+    assert_eq!(
+        destroyed.text().trim(),
+        format!(
+            r#"<turbo-stream action="remove" target="message_{}"></turbo-stream>"#,
+            message.client_message_id
+        )
+    );
+    assert!(
+        app.db()
+            .read(move |conn| Message::find_by_id(conn, message.id))
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert_eq!(david.get(&path).await.status, StatusCode::NOT_FOUND);
 }
 
@@ -158,14 +223,23 @@ async fn boosts_are_listed_created_and_removed() {
 
     let created = david.write(Req::new(Method::POST, &path).form(&[("boost[content]", "🔥")])).await;
     assert_eq!(created.location(), Some(format!("http://campfire.test{path}").as_str()));
-    let boost = app.db().read(move |conn| Boost::for_message(conn, message.id)).await.unwrap().pop().unwrap();
+    let boost = app
+        .db()
+        .read(move |conn| Boost::for_message(conn, message.id))
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
     assert_eq!((boost.content.as_str(), boost.booster_id), ("🔥", DAVID));
 
     let destroyed = david.write(Req::new(Method::DELETE, &format!("{path}/{}", boost.id))).await;
     assert_eq!(destroyed.status, StatusCode::NO_CONTENT);
     let again = david.write(Req::new(Method::DELETE, &format!("{path}/{}", boost.id))).await;
     assert_eq!(again.status, StatusCode::NOT_FOUND);
-    assert_eq!(david.get(&format!("/messages/{}/boosts", i64::MAX)).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        david.get(&format!("/messages/{}/boosts", i64::MAX)).await.status,
+        StatusCode::NOT_FOUND
+    );
 }
 
 /// Message fragments and the bot API's JSON are cached for every request, so a request with a
@@ -204,21 +278,34 @@ async fn the_bot_api() {
     let page = index.json();
     assert_eq!(page.as_array().unwrap().len(), 40);
     let first_id = page[0]["id"].as_i64().unwrap();
-    assert_eq!(index.header("link"), Some(format!("<http://campfire.test{base}?before={first_id}>; rel=\"next\"").as_str()));
+    assert_eq!(
+        index.header("link"),
+        Some(format!("<http://campfire.test{base}?before={first_id}>; rel=\"next\"").as_str())
+    );
     let keys: Vec<&str> = page[0].as_object().unwrap().keys().map(String::as_str).collect();
     assert_eq!(keys, ["id", "created_at", "body", "creator", "room", "url"]);
 
     let created = bot.send(Req::new(Method::POST, &base).body("Beep boop")).await;
     assert_eq!(created.status, StatusCode::CREATED, "{}", created.text());
     let message = messages_in(&app, ALL_TALK).await.pop().unwrap();
-    assert_eq!(created.location(), Some(format!("http://campfire.test/messages/{}", message.id).as_str()));
+    assert_eq!(
+        created.location(),
+        Some(format!("http://campfire.test/messages/{}", message.id).as_str())
+    );
     assert_eq!(message.creator_id, BENDER);
 
-    assert_eq!(bot.send(Req::new(Method::POST, &base).body("  \n")).await.status, StatusCode::UNPROCESSABLE_ENTITY);
-    let upload = bot.send(Req::new(Method::POST, &base).multipart(&[], ("attachment", "red.png", "image/png", PNG))).await;
+    assert_eq!(
+        bot.send(Req::new(Method::POST, &base).body("  \n")).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    let upload = bot
+        .send(Req::new(Method::POST, &base).multipart(&[], ("attachment", "red.png", "image/png", PNG)))
+        .await;
     assert_eq!(upload.status, StatusCode::CREATED);
 
-    let updated = bot.send(Req::new(Method::PUT, &format!("{base}/{}", message.id)).body("Beep edited")).await;
+    let updated = bot
+        .send(Req::new(Method::PUT, &format!("{base}/{}", message.id)).body("Beep edited"))
+        .await;
     assert_eq!(updated.status, StatusCode::OK, "{}", updated.text());
     assert_eq!(updated.json()["body"]["plain_text"], "Beep edited");
 
@@ -226,7 +313,12 @@ async fn the_bot_api() {
     // `update!(attachment:)`; a second one replaces the first; "" removes it.
     let attached = |app: &TestApp, id: i64| {
         let db = app.db().clone();
-        async move { db.read(move |conn| Message::find(conn, id)?.attachment(conn)).await.unwrap().map(|(_, blob)| blob) }
+        async move {
+            db.read(move |conn| Message::find(conn, id)?.attachment(conn))
+                .await
+                .unwrap()
+                .map(|(_, blob)| blob)
+        }
     };
     let put_file = |name: &'static str| {
         Req::new(Method::PUT, &format!("{base}/{}", message.id)).multipart(&[], ("attachment", name, "image/png", PNG))
@@ -240,25 +332,40 @@ async fn the_bot_api() {
     let second = attached(&app, message.id).await.expect("replaced");
     assert_eq!(second.filename, "again.png");
     assert_ne!(first.id, second.id);
-    let removed = bot.send(Req::new(Method::PUT, &format!("{base}/{}", message.id)).form(&[("attachment", "")])).await;
+    let removed = bot
+        .send(Req::new(Method::PUT, &format!("{base}/{}", message.id)).form(&[("attachment", "")]))
+        .await;
     assert_eq!(removed.status, StatusCode::OK, "{}", removed.text());
     assert!(attached(&app, message.id).await.is_none());
 
-    let boost = bot.send(Req::new(Method::POST, &format!("{base}/{}/boosts", message.id)).body("🤖")).await;
+    let boost = bot
+        .send(Req::new(Method::POST, &format!("{base}/{}/boosts", message.id)).body("🤖"))
+        .await;
     assert_eq!(boost.status, StatusCode::CREATED, "{}", boost.text());
     assert_eq!(boost.json()["content"], "🤖");
     let boost_id = boost.json()["id"].as_i64().unwrap();
-    let removed = bot.send(Req::new(Method::DELETE, &format!("{base}/{}/boosts/{boost_id}", message.id))).await;
+    let removed = bot
+        .send(Req::new(Method::DELETE, &format!("{base}/{}/boosts/{boost_id}", message.id)))
+        .await;
     assert_eq!(removed.status, StatusCode::NO_CONTENT);
-    let missing = bot.send(Req::new(Method::DELETE, &format!("{base}/{}/boosts/{boost_id}", message.id))).await;
+    let missing = bot
+        .send(Req::new(Method::DELETE, &format!("{base}/{}/boosts/{boost_id}", message.id)))
+        .await;
     assert_eq!(missing.status, StatusCode::NOT_FOUND);
 
     let destroyed = bot.send(Req::new(Method::DELETE, &format!("{base}/{}", message.id))).await;
     assert_eq!(destroyed.status, StatusCode::NO_CONTENT);
 
     // Rooms the bot isn't in, other people's messages, and bad keys.
-    assert_eq!(bot.get(&format!("/rooms/{DIRECT_DAVID_JASON}/{BENDER_KEY}/messages")).await.status, StatusCode::NOT_FOUND);
-    let not_mine = messages_in(&app, ALL_TALK).await.into_iter().find(|m| m.creator_id == DAVID).unwrap();
+    assert_eq!(
+        bot.get(&format!("/rooms/{DIRECT_DAVID_JASON}/{BENDER_KEY}/messages")).await.status,
+        StatusCode::NOT_FOUND
+    );
+    let not_mine = messages_in(&app, ALL_TALK)
+        .await
+        .into_iter()
+        .find(|m| m.creator_id == DAVID)
+        .unwrap();
     let forbidden = bot.send(Req::new(Method::DELETE, &format!("{base}/{}", not_mine.id))).await;
     assert_eq!(forbidden.status, StatusCode::FORBIDDEN);
     let bad_key = bot.get(&format!("/rooms/{ALL_TALK}/1-nope/messages")).await;

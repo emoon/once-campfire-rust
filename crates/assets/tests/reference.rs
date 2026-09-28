@@ -7,11 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 fn fixture(name: &str) -> String {
-    std::fs::read_to_string(format!(
-        "{}/tests/reference/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
+    std::fs::read_to_string(format!("{}/tests/reference/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
 }
 
 fn json_fixture(name: &str) -> Value {
@@ -19,10 +15,7 @@ fn json_fixture(name: &str) -> Value {
 }
 
 fn sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// The logical paths in `overrides/`.
@@ -30,7 +23,10 @@ fn override_files() -> Vec<String> {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("overrides");
     let mut files = Vec::new();
     collect_files(&dir, &mut files);
-    files.into_iter().map(|file| file.strip_prefix(&dir).unwrap().to_string_lossy().into_owned()).collect()
+    files
+        .into_iter()
+        .map(|file| file.strip_prefix(&dir).unwrap().to_string_lossy().into_owned())
+        .collect()
 }
 
 /// Each overridden logical path, with the reference's digested path and ours.
@@ -51,7 +47,10 @@ fn overridden() -> BTreeMap<String, (String, String)> {
 /// Logical paths the overrides add, which the reference doesn't have at all.
 fn added() -> Vec<String> {
     let reference = json_fixture("manifest.json");
-    override_files().into_iter().filter(|logical| reference.get(logical).is_none()).collect()
+    override_files()
+        .into_iter()
+        .filter(|logical| reference.get(logical).is_none())
+        .collect()
 }
 
 fn collect_files(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
@@ -67,7 +66,9 @@ fn collect_files(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
 
 /// `text` with our digested paths for overridden files replaced by the reference's.
 fn as_reference(text: &str) -> String {
-    overridden().values().fold(text.to_string(), |text, (theirs, ours)| text.replace(ours.as_str(), theirs))
+    overridden()
+        .values()
+        .fold(text.to_string(), |text, (theirs, ours)| text.replace(ours.as_str(), theirs))
 }
 
 fn get(path: &str) -> campfire_assets::StaticResponse {
@@ -85,12 +86,7 @@ fn manifest_matches_the_reference_precompile() {
         .as_object()
         .unwrap()
         .iter()
-        .map(|(logical, entry)| {
-            (
-                logical.clone(),
-                entry["digested_path"].as_str().unwrap().to_string(),
-            )
-        })
+        .map(|(logical, entry)| (logical.clone(), entry["digested_path"].as_str().unwrap().to_string()))
         .collect();
     let added = added();
     let ours: BTreeMap<String, String> = campfire_assets::manifest()
@@ -99,14 +95,8 @@ fn manifest_matches_the_reference_precompile() {
         .map(|(l, d)| (l.to_string(), as_reference(d)))
         .collect();
 
-    let missing: Vec<_> = reference
-        .iter()
-        .filter(|(l, d)| ours.get(*l) != Some(d))
-        .collect();
-    let extra: Vec<_> = ours
-        .keys()
-        .filter(|l| !reference.contains_key(*l))
-        .collect();
+    let missing: Vec<_> = reference.iter().filter(|(l, d)| ours.get(*l) != Some(d)).collect();
+    let extra: Vec<_> = ours.keys().filter(|l| !reference.contains_key(*l)).collect();
     assert!(
         missing.is_empty() && extra.is_empty(),
         "differs from reference: {missing:?}, extra: {extra:?}"
@@ -140,10 +130,7 @@ fn compiled_files_are_byte_identical_to_the_reference_precompile() {
             mismatched.push(digested_path.clone());
         }
     }
-    assert!(
-        mismatched.is_empty(),
-        "compiled output differs for {mismatched:?}"
-    );
+    assert!(mismatched.is_empty(), "compiled output differs for {mismatched:?}");
     assert_eq!(
         reference.as_object().unwrap().len() + added().len(),
         campfire_assets::manifest().len()
@@ -189,15 +176,11 @@ fn public_files_are_served_like_action_dispatch_static() {
 
         // The probe's fallthrough app answers 404 with x-cascade: pass.
         if expected_status == 404 && expected_headers.get("x-cascade").is_some() {
-            assert!(
-                campfire_assets::serve(&request).is_none(),
-                "{label} should fall through"
-            );
+            assert!(campfire_assets::serve(&request).is_none(), "{label} should fall through");
             continue;
         }
 
-        let response =
-            campfire_assets::serve(&request).unwrap_or_else(|| panic!("{label} not served"));
+        let response = campfire_assets::serve(&request).unwrap_or_else(|| panic!("{label} not served"));
         assert_eq!(response.status as u64, expected_status, "{label}");
 
         let ours: BTreeMap<String, String> = response
@@ -215,21 +198,13 @@ fn public_files_are_served_like_action_dispatch_static() {
         // machine's readdir order, so its length and bytes can't match; an overridden file's
         // length, ETag and bytes are its own.
         if request.path == "/assets/.manifest.json" || override_of.is_some() {
-            assert_eq!(
-                ours.get("content-type"),
-                theirs.get("content-type"),
-                "{label}"
-            );
+            assert_eq!(ours.get("content-type"), theirs.get("content-type"), "{label}");
             continue;
         }
 
         assert_eq!(ours, theirs, "{label}");
         if request.method == "GET" {
-            assert_eq!(
-                sha256(&response.body),
-                case["body_sha256"].as_str().unwrap(),
-                "{label}"
-            );
+            assert_eq!(sha256(&response.body), case["body_sha256"].as_str().unwrap(), "{label}");
         }
     }
 }
@@ -276,8 +251,6 @@ fn multiple_ranges_are_multipart() {
     // Rack sets multipart/byteranges, then Static overwrites it with the file's type.
     assert_eq!(response.header("content-type"), Some("audio/mpeg"));
     let body = String::from_utf8_lossy(&response.body);
-    assert!(
-        body.starts_with("\r\n--AaB03x\r\ncontent-type: audio/mpeg\r\ncontent-range: bytes 0-1/")
-    );
+    assert!(body.starts_with("\r\n--AaB03x\r\ncontent-type: audio/mpeg\r\ncontent-range: bytes 0-1/"));
     assert!(body.ends_with("\r\n--AaB03x--\r\n"));
 }

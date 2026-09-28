@@ -50,13 +50,21 @@ pub async fn start() -> TestApp {
     let dir = tempfile::tempdir().unwrap();
     let sink = Arc::new(CableSink::default());
     let clock = TestClock::new();
-    let env = campfire_db::Env { clock: Arc::new(clock.clone()), sink: sink.clone(), rich_text: Arc::new(BasicRichText), bcrypt_cost: 4 };
+    let env = campfire_db::Env {
+        clock: Arc::new(clock.clone()),
+        sink: sink.clone(),
+        rich_text: Arc::new(BasicRichText),
+        bcrypt_cost: 4,
+    };
     let mut config = campfire_db::Config::new(dir.path().join("test.sqlite3"));
     config.readers = 2;
     config.environment = "test".into();
     let db = Database::open(config, env).unwrap();
     db.write(|tx| {
-        let options = fixtures::Options { now: tx.now(), bcrypt_cost: 4 };
+        let options = fixtures::Options {
+            now: tx.now(),
+            bcrypt_cost: 4,
+        };
         fixtures::load(tx.conn(), &fixtures::reference_dir(), &options).map(|_| ())
     })
     .await
@@ -69,7 +77,13 @@ pub async fn start() -> TestApp {
         crypto: Arc::new(RailsCrypto::new(secrets.clone())),
         clock: Arc::new(SystemClock),
     };
-    let server = channels::server(deps, Config { assume_ssl: false, ..Config::default() });
+    let server = channels::server(
+        deps,
+        Config {
+            assume_ssl: false,
+            ..Config::default()
+        },
+    );
     let _ = sink.server.set(server.clone());
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -97,13 +111,20 @@ impl TestApp {
     /// A session cookie for the fixture user (`cookies.signed[:session_token]`).
     pub async fn cookie_for(&self, user: &str) -> String {
         let user_id = id(user);
-        let session = self.db.write(move |tx| Session::start(tx, user_id, Some("test"), Some("8.8.8.8"))).await.unwrap();
+        let session = self
+            .db
+            .write(move |tx| Session::start(tx, user_id, Some("test"), Some("8.8.8.8")))
+            .await
+            .unwrap();
         self.cookie_with_token(&session.token)
     }
 
     pub fn cookie_with_token(&self, token: &str) -> String {
         let signed = RailsCrypto::new(self.secrets.clone()).sign_cookie("session_token", token, None);
-        format!("session_token={}", signed.replace('+', "%2B").replace('/', "%2F").replace('=', "%3D"))
+        format!(
+            "session_token={}",
+            signed.replace('+', "%2B").replace('/', "%2F").replace('=', "%3D")
+        )
     }
 
     /// Connects as the fixture user and reads the welcome.
@@ -118,7 +139,10 @@ impl TestApp {
         let mut request = self.url.as_str().into_client_request().unwrap();
         let headers = request.headers_mut();
         headers.insert("origin", self.origin.parse().unwrap());
-        headers.insert("sec-websocket-protocol", "actioncable-v1-json, actioncable-unsupported".parse().unwrap());
+        headers.insert(
+            "sec-websocket-protocol",
+            "actioncable-v1-json, actioncable-unsupported".parse().unwrap(),
+        );
         if let Some(cookie) = cookie {
             headers.insert("cookie", cookie.parse().unwrap());
         }
@@ -137,7 +161,10 @@ impl TestApp {
 
     pub async fn membership(&self, room: &str, user: &str) -> Option<Membership> {
         let (room_id, user_id) = (id(room), id(user));
-        self.db.read(move |conn| Membership::find_by_room_and_user(conn, room_id, user_id)).await.unwrap()
+        self.db
+            .read(move |conn| Membership::find_by_room_and_user(conn, room_id, user_id))
+            .await
+            .unwrap()
     }
 
     pub async fn message(&self, label: &str) -> Message {
@@ -190,7 +217,11 @@ pub fn rejection(identifier: &str) -> String {
 
 /// The frame a broadcast of `message` (already ActiveSupport-JSON-encoded) arrives in.
 pub fn delivery(identifier: &str, encoded_message: &str) -> String {
-    format!(r#"{{"identifier":{},"message":{}}}"#, campfire_cable::json::encode(identifier), encoded_message)
+    format!(
+        r#"{{"identifier":{},"message":{}}}"#,
+        campfire_cable::json::encode(identifier),
+        encoded_message
+    )
 }
 
 pub struct Client {
@@ -220,11 +251,19 @@ impl Client {
     }
 
     pub async fn confirm(&mut self, identifier: &str) {
-        assert_eq!(self.subscribe_reply(identifier).await, confirmation(identifier), "subscribing to {identifier}");
+        assert_eq!(
+            self.subscribe_reply(identifier).await,
+            confirmation(identifier),
+            "subscribing to {identifier}"
+        );
     }
 
     pub async fn reject(&mut self, identifier: &str) {
-        assert_eq!(self.subscribe_reply(identifier).await, rejection(identifier), "subscribing to {identifier}");
+        assert_eq!(
+            self.subscribe_reply(identifier).await,
+            rejection(identifier),
+            "subscribing to {identifier}"
+        );
     }
 
     pub async fn unsubscribe(&mut self, identifier: &str) {
@@ -232,13 +271,16 @@ impl Client {
     }
 
     pub async fn perform(&mut self, identifier: &str, data: Value) {
-        self.send(json!({ "command": "message", "identifier": identifier, "data": data.to_string() })).await;
+        self.send(json!({ "command": "message", "identifier": identifier, "data": data.to_string() }))
+            .await;
     }
 
     /// The next frame, skipping pings.
     pub async fn next(&mut self) -> Frame {
         loop {
-            let message = tokio::time::timeout(Duration::from_secs(5), self.socket.next()).await.expect("a frame within 5s");
+            let message = tokio::time::timeout(Duration::from_secs(5), self.socket.next())
+                .await
+                .expect("a frame within 5s");
             return match message {
                 Some(Ok(WsMessage::Text(text))) if text.starts_with(r#"{"type":"ping""#) => continue,
                 Some(Ok(WsMessage::Text(text))) => Frame::Text(text.to_string()),

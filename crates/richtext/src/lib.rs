@@ -120,9 +120,10 @@ pub fn mentioned_users(body: &str, ctx: &RenderContext) -> Result<Vec<MentionUse
     let mut users: Vec<MentionUser> = Vec::new();
     for node in attachment_nodes(&content.dom, content.root) {
         if let attachables::Attachable::User(user) = attachables::action_text_attachable_from_node(&content.dom, node, ctx)
-            && !users.iter().any(|u| u.id == user.id) {
-                users.push(user);
-            }
+            && !users.iter().any(|u| u.id == user.id)
+        {
+            users.push(user);
+        }
     }
     Ok(users)
 }
@@ -130,5 +131,8 @@ pub fn mentioned_users(body: &str, ctx: &RenderContext) -> Result<Vec<MentionUse
 /// `Webhook#without_recipient_mentions`: the plain body with the bot's own "@Name" removed and
 /// leading and trailing Unicode whitespace trimmed.
 pub fn without_recipient_mentions(plain_text: &str, recipient_name: &str) -> String {
-    plain_text.replace(&format!("@{recipient_name}"), "").trim_matches(char::is_whitespace).to_string()
+    plain_text
+        .replace(&format!("@{recipient_name}"), "")
+        .trim_matches(char::is_whitespace)
+        .to_string()
 }

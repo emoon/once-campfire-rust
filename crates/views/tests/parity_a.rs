@@ -6,8 +6,8 @@
 mod support;
 
 use askama::Template;
-use campfire_views::*;
 use campfire_views::helpers as h;
+use campfire_views::*;
 use support::dom::{diff, normalize_html};
 use support::facts::*;
 
@@ -35,12 +35,25 @@ fn sessions_new() {
     for (name, email, alert) in [
         ("sessions_new", None, None),
         ("sessions_new_email", Some("x@y.com"), None),
-        ("sessions_new_rejected", Some("david@37signals.com"), Some("Too many requests or unauthorized.")),
+        (
+            "sessions_new_rejected",
+            Some("david@37signals.com"),
+            Some("Too many requests or unauthorized."),
+        ),
         ("sessions_new_with_logo", None, None),
     ] {
-        let request = Request { flash_alert: alert.map(Into::into), ..Default::default() };
+        let request = Request {
+            flash_alert: alert.map(Into::into),
+            ..Default::default()
+        };
         let html = with_context(name, request, |ctx| {
-            sessions::New { ctx, email_address: email.map(Into::into), help_contact: help_contact(name) }.render().unwrap()
+            sessions::New {
+                ctx,
+                email_address: email.map(Into::into),
+                help_contact: help_contact(name),
+            }
+            .render()
+            .unwrap()
         });
         assert_parity(name, "html", html);
     }
@@ -49,7 +62,9 @@ fn sessions_new() {
 #[test]
 fn sessions_incompatible_browser() {
     for name in ["incompatible_browser", "incompatible_browser_apple_messages"] {
-        let html = with_context(name, Request::default(), |ctx| sessions::IncompatibleBrowser { ctx }.render().unwrap());
+        let html = with_context(name, Request::default(), |ctx| {
+            sessions::IncompatibleBrowser { ctx }.render().unwrap()
+        });
         assert_parity(name, "html", html);
     }
 }
@@ -58,7 +73,12 @@ fn sessions_incompatible_browser() {
 fn sessions_transfer() {
     let name = "sessions_transfer";
     let html = with_context(name, Request::default(), |ctx| {
-        sessions::TransferShow { ctx, action: case(name)["path"].as_str().unwrap().into() }.render().unwrap()
+        sessions::TransferShow {
+            ctx,
+            action: case(name)["path"].as_str().unwrap().into(),
+        }
+        .render()
+        .unwrap()
     });
     assert_parity(name, "html", html);
 }
@@ -104,13 +124,22 @@ fn accounts_edit() {
         ("account_edit_with_logo", None),
         ("account_edit_with_logo_member", None),
     ] {
-        let request = Request { flash_notice: notice.map(Into::into), ..Default::default() };
+        let request = Request {
+            flash_notice: notice.map(Into::into),
+            ..Default::default()
+        };
         let html = with_context(name, request, |ctx| {
             // AccountsController#account_users
             let visible: Vec<_> = ordered_users(name)
                 .into_iter()
                 .filter(|user| !user.bot())
-                .filter(|user| if ctx.can_administer() { user.active() || user.banned() } else { user.active() })
+                .filter(|user| {
+                    if ctx.can_administer() {
+                        user.active() || user.banned()
+                    } else {
+                        user.active()
+                    }
+                })
                 .collect();
             let (administrators, members) = visible.into_iter().partition(|user| user.administrator());
             accounts::Edit {
@@ -142,11 +171,12 @@ fn bots(name: &str) -> Vec<accounts::Bot> {
                 .unwrap()
                 .iter()
                 .filter(|m| m["user_id"].as_i64() == Some(user.id))
-                .filter_map(|m| {
-                    facts["rooms"].as_object().unwrap().values().find(|room| room["id"] == m["room_id"])
-                })
+                .filter_map(|m| facts["rooms"].as_object().unwrap().values().find(|room| room["id"] == m["room_id"]))
                 .filter(|room| room["type"] != "Rooms::Direct")
-                .map(|room| accounts::BotRoom { id: room["id"].as_i64().unwrap(), name: room["name"].as_str().unwrap().into() })
+                .map(|room| accounts::BotRoom {
+                    id: room["id"].as_i64().unwrap(),
+                    name: room["name"].as_str().unwrap().into(),
+                })
                 .collect();
             rooms.sort_by_key(|room| room.name.to_lowercase());
             accounts::Bot { user, bot_key, rooms }
@@ -161,12 +191,19 @@ fn user_by_email_or_name(case_name: &str, name: &str) -> &'static serde_json::Va
 #[test]
 fn accounts_bots() {
     let name = "bots_index";
-    let html = with_context(name, Request::default(), |ctx| accounts::BotsIndex { ctx, bots: bots(name) }.render().unwrap());
+    let html = with_context(name, Request::default(), |ctx| {
+        accounts::BotsIndex { ctx, bots: bots(name) }.render().unwrap()
+    });
     assert_parity(name, "html", html);
 
     let name = "bots_new";
     let html = with_context(name, Request::default(), |ctx| {
-        accounts::BotsNew { ctx, bot: accounts::BotForm::default() }.render().unwrap()
+        accounts::BotsNew {
+            ctx,
+            bot: accounts::BotForm::default(),
+        }
+        .render()
+        .unwrap()
     });
     assert_parity(name, "html", html);
 
@@ -209,7 +246,12 @@ fn accounts_bots() {
 fn accounts_custom_styles() {
     for name in ["custom_styles_edit", "custom_styles_layout"] {
         let html = with_context(name, Request::default(), |ctx| {
-            accounts::CustomStylesEdit { ctx, custom_styles: str_of(&account_fact(name, "custom_styles")) }.render().unwrap()
+            accounts::CustomStylesEdit {
+                ctx,
+                custom_styles: str_of(&account_fact(name, "custom_styles")),
+            }
+            .render()
+            .unwrap()
         });
         assert_parity(name, "html", html);
     }
@@ -224,7 +266,10 @@ fn named(name: &str, user_name: &str) -> users::UserSummary {
 }
 
 fn mention_user(name: &str, user_name: &str) -> users::MentionUser {
-    users::MentionUser { user: named(name, user_name), attachable_sgid: user(name, user_name)["attachable_sgid"].as_str().unwrap().into() }
+    users::MentionUser {
+        user: named(name, user_name),
+        attachable_sgid: user(name, user_name)["attachable_sgid"].as_str().unwrap().into(),
+    }
 }
 
 #[test]
@@ -238,9 +283,13 @@ fn first_runs_show() {
 fn users_new() {
     let name = "users_new";
     let html = with_context(name, Request::default(), |ctx| {
-        users::New { ctx, join_code: account_fact(name, "join_code").as_str().unwrap().into(), help_contact: help_contact(name) }
-            .render()
-            .unwrap()
+        users::New {
+            ctx,
+            join_code: account_fact(name, "join_code").as_str().unwrap().into(),
+            help_contact: help_contact(name),
+        }
+        .render()
+        .unwrap()
     });
     assert_parity(name, "html", html);
 }
@@ -256,9 +305,13 @@ fn users_show() {
         ("users_show_banned", "Spam Ham"),
     ] {
         let html = with_context(name, Request::default(), |ctx| {
-            users::Show { ctx, user: named(name, shown), transfer_id: user(name, shown)["transfer_id"].as_str().unwrap().into() }
-                .render()
-                .unwrap()
+            users::Show {
+                ctx,
+                user: named(name, shown),
+                transfer_id: user(name, shown)["transfer_id"].as_str().unwrap().into(),
+            }
+            .render()
+            .unwrap()
         });
         assert_parity(name, "html", html);
     }
@@ -280,7 +333,18 @@ fn profile_memberships(list: &serde_json::Value) -> Vec<users::ProfileMembership
 
 #[test]
 fn users_profiles_show() {
-    for ua in ["chrome_mac", "chrome_windows", "safari_mac", "safari_ios", "chrome_android", "firefox_mac", "firefox_android", "edge_windows", "kevin", "with_avatar"] {
+    for ua in [
+        "chrome_mac",
+        "chrome_windows",
+        "safari_mac",
+        "safari_ios",
+        "chrome_android",
+        "firefox_mac",
+        "firefox_android",
+        "edge_windows",
+        "kevin",
+        "with_avatar",
+    ] {
         let name = format!("profile_{ua}");
         let name = name.as_str();
         let html = with_context(name, Request::default(), |ctx| {
@@ -338,13 +402,23 @@ fn sidebar<'a>(name: &str, ctx: &'a campfire_views::ViewContext<'a>) -> users::S
                 room_id: d["room_id"].as_i64().unwrap(),
                 unread: d["unread"].as_bool().unwrap(),
                 updated_at_epoch: d["updated_at_epoch"].as_str().unwrap().into(),
-                members: d["member_names"].as_array().unwrap().iter().map(|n| named(name, n.as_str().unwrap())).collect(),
+                members: d["member_names"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|n| named(name, n.as_str().unwrap()))
+                    .collect(),
                 membership_id: d["room_id"].as_i64().unwrap(),
                 membership_updated_at: jiff::Timestamp::UNIX_EPOCH,
             })
             .map(users::SidebarDirectItem::from)
             .collect(),
-        direct_placeholder_users: sidebar["placeholders"].as_array().unwrap().iter().map(|n| named(name, n.as_str().unwrap())).collect(),
+        direct_placeholder_users: sidebar["placeholders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| named(name, n.as_str().unwrap()))
+            .collect(),
         other_memberships: sidebar["shared"]
             .as_array()
             .unwrap()
@@ -378,13 +452,23 @@ fn users_sidebars_show() {
 fn autocompletable_users() {
     let name = "autocompletable_users";
     let html = with_context(name, Request::default(), |ctx| {
-        let users = data(name)["autocompletable"].as_array().unwrap().iter().map(|n| mention_user(name, n.as_str().unwrap())).collect();
+        let users = data(name)["autocompletable"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| mention_user(name, n.as_str().unwrap()))
+            .collect();
         autocompletable::UsersIndex { ctx, users }.render().unwrap()
     });
     assert_parity(name, "html", html);
 
     let name = "autocompletable_users_json";
-    let users: Vec<_> = data(name)["autocompletable"].as_array().unwrap().iter().map(|n| mention_user(name, n.as_str().unwrap())).collect();
+    let users: Vec<_> = data(name)["autocompletable"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| mention_user(name, n.as_str().unwrap()))
+        .collect();
     let json = autocompletable::users_index_json(&users, facts()["base_url"].as_str().unwrap());
     assert_eq!(json, golden(name, "json"));
 }
@@ -393,7 +477,12 @@ fn autocompletable_users() {
 fn users_avatars_show() {
     for (name, shown) in [("avatar_david", "David"), ("avatar_three_initials", "Anna Bea Cole")] {
         let user = user(name, shown);
-        let svg = users::AvatarSvg { user_id: user["id"].as_i64().unwrap(), initials: user["initials"].as_str().unwrap().into() }.render().unwrap();
+        let svg = users::AvatarSvg {
+            user_id: user["id"].as_i64().unwrap(),
+            initials: user["initials"].as_str().unwrap().into(),
+        }
+        .render()
+        .unwrap();
         assert_parity(name, "svg", svg.clone());
         assert_eq!(svg, golden(name, "svg"), "{name}: bytes differ");
     }
@@ -440,7 +529,12 @@ fn pwa_manifest_is_valid_json_whatever_the_account_is_called() {
 fn welcome_show() {
     let name = "welcome";
     let html = with_context(name, Request::default(), |ctx| {
-        welcome::Show { ctx, current_user_name: ctx.current_user.as_ref().unwrap().name.clone() }.render().unwrap()
+        welcome::Show {
+            ctx,
+            current_user_name: ctx.current_user.as_ref().unwrap().name.clone(),
+        }
+        .render()
+        .unwrap()
     });
     assert_parity(name, "html", html);
 }
@@ -449,8 +543,19 @@ fn welcome_show() {
 fn accounts_users_index_turbo_stream() {
     let name = "account_users_page_2";
     let html = with_context(name, Request::default(), |ctx| {
-        let users = case(name)["page_users"].as_array().unwrap().iter().map(|n| named(name, n.as_str().unwrap())).collect();
-        accounts::UsersIndexTurboStream { ctx, users, next_page: None }.render().unwrap()
+        let users = case(name)["page_users"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| named(name, n.as_str().unwrap()))
+            .collect();
+        accounts::UsersIndexTurboStream {
+            ctx,
+            users,
+            next_page: None,
+        }
+        .render()
+        .unwrap()
     });
     assert_parity(name, "turbo_stream.html", html);
 }
@@ -474,15 +579,38 @@ fn pwa_partials() {
 #[test]
 fn users_partials() {
     let name = "autocompletables_template";
-    let html = with_context(name, Request::default(), |ctx| users::AutocompletableTemplate { ctx }.render().unwrap());
+    let html = with_context(name, Request::default(), |ctx| {
+        users::AutocompletableTemplate { ctx }.render().unwrap()
+    });
     assert_parity(name, "html", html);
 
     let name = "mention";
-    let html = with_context(name, Request::default(), |ctx| users::Mention { ctx, user: mention_user(name, "JZ") }.render().unwrap());
+    let html = with_context(name, Request::default(), |ctx| {
+        users::Mention {
+            ctx,
+            user: mention_user(name, "JZ"),
+        }
+        .render()
+        .unwrap()
+    });
     assert_parity(name, "html", html);
 
     let name = "ban_button_banned";
-    let html = with_context(name, Request { partial: true, ..Default::default() }, |ctx| users::BanButton { ctx, user: named(name, "Spam Ham") }.render().unwrap());
+    let html = with_context(
+        name,
+        Request {
+            partial: true,
+            ..Default::default()
+        },
+        |ctx| {
+            users::BanButton {
+                ctx,
+                user: named(name, "Spam Ham"),
+            }
+            .render()
+            .unwrap()
+        },
+    );
     assert_parity(name, "html", html);
 
     for (name, room_name, unread) in [("shared_room_unread", "HQ", true), ("shared_room", "All Talk", false)] {
@@ -518,7 +646,11 @@ fn application_layout_wrapper_matches_extended_pages() {
     let name = "users_show_self";
     with_context(name, Request::default(), |ctx| {
         let transfer_id = user(name, "David")["transfer_id"].as_str().unwrap().to_string();
-        let page = users::Show { ctx, user: named(name, "David"), transfer_id };
+        let page = users::Show {
+            ctx,
+            user: named(name, "David"),
+            transfer_id,
+        };
         let wrapped = layouts::Application {
             page_title: Some("David".into()),
             nav: h::raw(page.as_nav().render().unwrap()),

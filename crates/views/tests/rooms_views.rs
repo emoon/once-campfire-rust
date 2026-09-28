@@ -87,7 +87,14 @@ fn involvement() {
     for name in ["rooms_involvements_show", "rooms_involvements_show_direct"] {
         let g = golden(name);
         let involvement: InvolvementView = g.input();
-        g.assert_content(&g.render(|ctx| rooms::InvolvementShow { ctx, involvement: &involvement }.render().unwrap()));
+        g.assert_content(&g.render(|ctx| {
+            rooms::InvolvementShow {
+                ctx,
+                involvement: &involvement,
+            }
+            .render()
+            .unwrap()
+        }));
     }
 }
 
@@ -102,6 +109,9 @@ fn refresh_stream() {
 fn display_names() {
     let names = |n: &[&str]| n.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     assert_eq!(rooms::room_display_name(Some("HQ"), false, &[], None), "HQ");
-    assert_eq!(rooms::room_display_name(None, true, &names(&["Jason", "JZ"]), Some("David")), "Jason and JZ");
+    assert_eq!(
+        rooms::room_display_name(None, true, &names(&["Jason", "JZ"]), Some("David")),
+        "Jason and JZ"
+    );
     assert_eq!(rooms::room_display_name(None, true, &[], Some("David")), "David");
 }

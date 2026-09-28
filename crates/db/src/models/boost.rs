@@ -60,12 +60,7 @@ impl Boost {
     }
 
     /// `message.boosts.find_by!(id:, booster:)`
-    pub fn find_by_message_and_booster(
-        conn: &Connection,
-        message_id: i64,
-        id: i64,
-        booster_id: i64,
-    ) -> Result<Self> {
+    pub fn find_by_message_and_booster(conn: &Connection, message_id: i64, id: i64, booster_id: i64) -> Result<Self> {
         query_one(
             conn,
             r#"SELECT "boosts".* FROM "boosts" WHERE "boosts"."message_id" = ? AND "boosts"."id" = ? AND "boosts"."booster_id" = ? LIMIT 1"#,
@@ -76,12 +71,7 @@ impl Boost {
     }
 
     /// `message.boosts.create!(content:, booster:)`: touches the message (and so the room).
-    pub fn create(
-        tx: &mut Tx<'_>,
-        message_id: i64,
-        booster_id: i64,
-        content: &str,
-    ) -> Result<Self> {
+    pub fn create(tx: &mut Tx<'_>, message_id: i64, booster_id: i64, content: &str) -> Result<Self> {
         let now = tx.now();
         let id: i64 = tx.conn().query_row_cached(
             r#"INSERT INTO "boosts" ("booster_id", "content", "created_at", "message_id", "updated_at") VALUES (?, ?, ?, ?, ?) RETURNING "id""#,

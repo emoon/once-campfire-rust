@@ -45,7 +45,10 @@ pub fn translation_button(ctx: &ViewContext, key: &str) -> Html {
     let details = attrs()
         .class("position-relative")
         .data("controller", "popup")
-        .data("action", "keydown.esc->popup#close toggle->popup#toggle click@document->popup#closeOnClickOutside")
+        .data(
+            "action",
+            "keydown.esc->popup#close toggle->popup#toggle click@document->popup#closeOnClickOutside",
+        )
         .data("popup_orientation_top_class", "popup-orientation-top");
     Safe(content_tag("details", &details, &format!("{}{}", summary.0, menu.0)).0)
 }

@@ -88,7 +88,11 @@ impl Storage {
 
     fn stage(&self, blob: NewBlob, reader: impl std::io::Read) -> Result<Staged> {
         let checksum = blob.checksum.clone();
-        let staged = Staged { blob, service: self.service.clone(), kept: false };
+        let staged = Staged {
+            blob,
+            service: self.service.clone(),
+            kept: false,
+        };
         self.service.upload(&staged.blob.key, reader, Some(&checksum))?;
         Ok(staged)
     }
@@ -100,7 +104,11 @@ impl Storage {
             .suffix(blob.filename.extension_with_delimiter())
             .tempfile()?;
         std::fs::copy(self.service.path_for(&blob.key), file.path()).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound { Error::FileNotFound } else { e.into() }
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Error::FileNotFound
+            } else {
+                e.into()
+            }
         })?;
         if let Some(checksum) = &blob.checksum
             && &checksum_file(file.path())? != checksum
@@ -176,8 +184,17 @@ impl Storage {
     /// The record half of `VariantWithRecord#processed`: the variant record, its image blob and
     /// attachment. `None` when another request recorded the variant first; that one is then
     /// [`Self::existing_variant`], and `image` should be dropped.
-    pub fn record_variant(&self, conn: &Connection, blob: &Blob, variation: &Variation, image: &Staged, now: jiff::Timestamp) -> Result<Option<Blob>> {
-        let Some(record_id) = blob::insert_variant_record(conn, blob.id, &variation.digest())? else { return Ok(None) };
+    pub fn record_variant(
+        &self,
+        conn: &Connection,
+        blob: &Blob,
+        variation: &Variation,
+        image: &Staged,
+        now: jiff::Timestamp,
+    ) -> Result<Option<Blob>> {
+        let Some(record_id) = blob::insert_variant_record(conn, blob.id, &variation.digest())? else {
+            return Ok(None);
+        };
         let image = image.insert(conn, now)?;
         blob::insert_attachment(conn, "image", "ActiveStorage::VariantRecord", record_id, image.id, now)?;
         Ok(Some(image))

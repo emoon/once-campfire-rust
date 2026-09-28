@@ -37,7 +37,9 @@ impl Serializer {
 
     pub(crate) fn load(&self, bytes: &[u8]) -> Result<Value, Error> {
         match self {
-            Serializer::Null => String::from_utf8(bytes.to_vec()).map(Value::String).map_err(|_| Error::InvalidMessage),
+            Serializer::Null => String::from_utf8(bytes.to_vec())
+                .map(Value::String)
+                .map_err(|_| Error::InvalidMessage),
             // JSON.load("") is nil.
             Serializer::Json if bytes.is_empty() => Ok(Value::Null),
             Serializer::Json => json::parse(bytes).ok_or(Error::InvalidMessage),
@@ -74,13 +76,23 @@ pub fn iso8601_millis(time: Timestamp) -> String {
     format!("{}.{millis:03}Z", seconds.strftime("%Y-%m-%dT%H:%M:%S"))
 }
 
-pub(crate) fn serialize_with_metadata(serializer: Serializer, value: &Value, purpose: Option<&str>, expires_at: Option<Timestamp>) -> Vec<u8> {
+pub(crate) fn serialize_with_metadata(
+    serializer: Serializer,
+    value: &Value,
+    purpose: Option<&str>,
+    expires_at: Option<Timestamp>,
+) -> Vec<u8> {
     serialize_dumped_with_metadata(serializer, &serializer.dump(value), purpose, expires_at)
 }
 
 /// Like [`serialize_with_metadata`] for a value the caller already dumped with `serializer`
 /// (so the caller controls key order and escaping).
-pub(crate) fn serialize_dumped_with_metadata(serializer: Serializer, dumped: &[u8], purpose: Option<&str>, expires_at: Option<Timestamp>) -> Vec<u8> {
+pub(crate) fn serialize_dumped_with_metadata(
+    serializer: Serializer,
+    dumped: &[u8],
+    purpose: Option<&str>,
+    expires_at: Option<Timestamp>,
+) -> Vec<u8> {
     if purpose.is_none() && expires_at.is_none() {
         return dumped.to_vec();
     }

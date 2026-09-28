@@ -38,7 +38,10 @@ pub async fn show(c: &mut Ctx) -> Result {
         })
         .await
         .map_err(db_error)?;
-    page::bare(c, StatusCode::OK, &format::TURBO_STREAM, |ctx| RefreshShow { ctx, refresh: &refresh }.render()).await
+    page::bare(c, StatusCode::OK, &format::TURBO_STREAM, |ctx| {
+        RefreshShow { ctx, refresh: &refresh }.render()
+    })
+    .await
 }
 
 /// `Time.at(0, params[:since].to_i, :millisecond)`
@@ -53,7 +56,10 @@ fn set_last_updated_at(c: &Ctx) -> Result<Timestamp> {
         },
     };
     // Outside the representable range (a crafted `since`), the nearest end of it.
-    let since = jiff::Timestamp::from_microsecond(since.saturating_mul(1000))
-        .unwrap_or(if since < 0 { jiff::Timestamp::MIN } else { jiff::Timestamp::MAX });
+    let since = jiff::Timestamp::from_microsecond(since.saturating_mul(1000)).unwrap_or(if since < 0 {
+        jiff::Timestamp::MIN
+    } else {
+        jiff::Timestamp::MAX
+    });
     Ok(Timestamp::from_jiff(since))
 }

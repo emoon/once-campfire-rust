@@ -52,7 +52,13 @@ pub struct FileBody {
 
 impl Response {
     pub fn new(status: StatusCode) -> Self {
-        Self { status, headers: HeaderMap::new(), body: Body::Empty, cached_fragments: Vec::new(), page_parts: None }
+        Self {
+            status,
+            headers: HeaderMap::new(),
+            body: Body::Empty,
+            cached_fragments: Vec::new(),
+            page_parts: None,
+        }
     }
 
     pub fn with_body(status: StatusCode, content_type: &str, body: impl Into<Bytes>) -> Self {
@@ -77,7 +83,8 @@ impl Response {
     /// Set (replace) a header. Panics on an invalid header value, which is a programming error.
     pub fn header(mut self, name: impl TryInto<HeaderName>, value: &str) -> Self {
         let name = name.try_into().unwrap_or_else(|_| panic!("invalid header name"));
-        self.headers.insert(name, HeaderValue::from_str(value).expect("invalid header value"));
+        self.headers
+            .insert(name, HeaderValue::from_str(value).expect("invalid header value"));
         self
     }
 
@@ -190,7 +197,11 @@ impl Default for SendOptions {
 
 impl SendOptions {
     pub fn inline(content_type: &str) -> Self {
-        Self { content_type: Some(content_type.into()), disposition: Some("inline".into()), ..Self::default() }
+        Self {
+            content_type: Some(content_type.into()),
+            disposition: Some("inline".into()),
+            ..Self::default()
+        }
     }
 }
 
@@ -207,7 +218,10 @@ pub(crate) fn send(options: &SendOptions, range_header: Option<&str>, body: Send
     });
     let mut response = Response::new(options.status).content_type(&content_type);
     if let Some(disposition) = &options.disposition {
-        response = response.header(header::CONTENT_DISPOSITION, &content_disposition(disposition, options.filename.as_deref()));
+        response = response.header(
+            header::CONTENT_DISPOSITION,
+            &content_disposition(disposition, options.filename.as_deref()),
+        );
     }
     response = response.header("content-transfer-encoding", "binary");
 
@@ -221,8 +235,7 @@ pub(crate) fn send(options: &SendOptions, range_header: Option<&str>, body: Send
 
     match range {
         Some(RangeResult::Unsatisfiable) => {
-            let mut response = Response::new(StatusCode::RANGE_NOT_SATISFIABLE)
-                .header(header::CONTENT_RANGE, &format!("bytes */{total}"));
+            let mut response = Response::new(StatusCode::RANGE_NOT_SATISFIABLE).header(header::CONTENT_RANGE, &format!("bytes */{total}"));
             response.body = Body::Empty;
             response
         }
@@ -270,14 +283,26 @@ enum RangeResult {
 
 /// `Rack::Utils.get_byte_ranges`, for the single-range case.
 fn parse_range(header: &str, size: u64) -> RangeResult {
-    let Some(spec) = header.trim().strip_prefix("bytes=") else { return RangeResult::Ignore };
+    let Some(spec) = header.trim().strip_prefix("bytes=") else {
+        return RangeResult::Ignore;
+    };
     let ranges: Vec<&str> = spec.split(',').map(str::trim).collect();
     if ranges.len() != 1 {
         return RangeResult::Ignore;
     }
-    let Some((first, last)) = ranges[0].split_once('-') else { return RangeResult::Ignore };
-    let parse = |s: &str| if s.is_empty() { Some(None) } else { s.parse::<u64>().ok().map(Some) };
-    let (Some(first), Some(last)) = (parse(first.trim()), parse(last.trim())) else { return RangeResult::Ignore };
+    let Some((first, last)) = ranges[0].split_once('-') else {
+        return RangeResult::Ignore;
+    };
+    let parse = |s: &str| {
+        if s.is_empty() {
+            Some(None)
+        } else {
+            s.parse::<u64>().ok().map(Some)
+        }
+    };
+    let (Some(first), Some(last)) = (parse(first.trim()), parse(last.trim())) else {
+        return RangeResult::Ignore;
+    };
     let (start, end) = match (first, last) {
         (None, None) => return RangeResult::Ignore,
         (None, Some(suffix)) => {
@@ -294,7 +319,11 @@ fn parse_range(header: &str, size: u64) -> RangeResult {
             (start, end.min(size.saturating_sub(1)))
         }
     };
-    if size == 0 || start >= size { RangeResult::Unsatisfiable } else { RangeResult::Range(start, end) }
+    if size == 0 || start >= size {
+        RangeResult::Unsatisfiable
+    } else {
+        RangeResult::Range(start, end)
+    }
 }
 
 /// `Cache-Control` directives set by `expires_in`, `fresh_when(public:)`, `no_store` and friends,
@@ -405,11 +434,24 @@ mod tests {
 
     #[test]
     fn cache_control_normalization() {
-        let cc = CacheControl { max_age: Some(300), public: true, stale_while_revalidate: Some(604800), ..Default::default() };
+        let cc = CacheControl {
+            max_age: Some(300),
+            public: true,
+            stale_while_revalidate: Some(604800),
+            ..Default::default()
+        };
         assert_eq!(cc.to_header().unwrap(), "max-age=300, public, stale-while-revalidate=604800");
-        let cc = CacheControl { max_age: Some(0), must_revalidate: true, ..Default::default() };
+        let cc = CacheControl {
+            max_age: Some(0),
+            must_revalidate: true,
+            ..Default::default()
+        };
         assert_eq!(cc.to_header().unwrap(), "max-age=0, private, must-revalidate");
-        let cc = CacheControl { no_store: true, max_age: Some(5), ..Default::default() };
+        let cc = CacheControl {
+            no_store: true,
+            max_age: Some(5),
+            ..Default::default()
+        };
         assert_eq!(cc.to_header().unwrap(), "no-store");
         assert_eq!(CacheControl::default().to_header(), None);
     }

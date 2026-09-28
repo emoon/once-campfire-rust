@@ -104,20 +104,37 @@ impl Handler {
             response.headers_mut().remove(header::SET_COOKIE);
         }
         response.headers_mut().insert("x-cache", HeaderValue::from_static("miss"));
-        let Some(lifetime) = lifetime else { return (response, HeaderMerge::Replace) };
+        let Some(lifetime) = lifetime else {
+            return (response, HeaderMerge::Replace);
+        };
 
         variant.set_response_headers(response.headers());
         let (status, mut headers) = (response.status(), response.headers().clone());
         headers.remove("x-cache");
         let (cache, variant) = (self.cache.clone(), variant.variant_headers());
-        let store = move |body: Bytes| cache.set(key, CachedResponse { status, headers, body, variant }, now + lifetime, now);
+        let store = move |body: Bytes| {
+            cache.set(
+                key,
+                CachedResponse {
+                    status,
+                    headers,
+                    body,
+                    variant,
+                },
+                now + lifetime,
+                now,
+            )
+        };
         if head || hyper::body::Body::is_end_stream(response.body()) {
             // A HEAD response has no body to record (the connection never reads one), and neither
             // has an empty one (it's never polled).
             store(Bytes::new());
             return (response, HeaderMerge::Replace);
         }
-        let declared = response.headers().get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()?.parse().ok());
+        let declared = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok()?.parse().ok());
         let (parts, body) = response.into_parts();
         let body = RecordingBody {
             inner: body,
@@ -135,7 +152,9 @@ impl Handler {
     /// `http.MaxBytesHandler` enforces (an oversized body never reaches the app and gets an empty
     /// 413), the `X-Forwarded-*` headers `httputil.ReverseProxy` sets, then the app.
     async fn proxy(&self, request: Request<Body>, conn: ConnInfo) -> Response<Body> {
-        let Ok(mut request) = within_limit(request, self.max_request_body).await else { return too_large() };
+        let Ok(mut request) = within_limit(request, self.max_request_body).await else {
+            return too_large();
+        };
         as_proxied_http1(&mut request);
         set_forwarded_headers(&mut request, &conn, self.forward_headers);
         request.extensions_mut().insert(ConnectInfo(conn.remote));
@@ -165,7 +184,11 @@ fn suppress_bodiless_headers(response: &mut Response<Body>) {
 /// has it.
 fn hit(cached: &CachedResponse, request: &Request<Body>) -> Response<Body> {
     let not_modified = cache::was_not_modified(cached, request);
-    let mut response = Response::new(if not_modified { Body::empty() } else { Body::from(cached.body.clone()) });
+    let mut response = Response::new(if not_modified {
+        Body::empty()
+    } else {
+        Body::from(cached.body.clone())
+    });
     *response.status_mut() = if not_modified { StatusCode::NOT_MODIFIED } else { cached.status };
     *response.headers_mut() = cached.headers.clone();
     response.headers_mut().insert("x-cache", HeaderValue::from_static("hit"));
@@ -243,7 +266,9 @@ impl hyper::body::Body for RecordingBody {
 fn set_request_start(request: &mut Request<Body>) {
     if request.headers().get("x-request-start").is_none_or(|v| v.is_empty()) {
         let millis = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
-        request.headers_mut().insert("x-request-start", HeaderValue::from_str(&format!("t={millis}")).unwrap());
+        request
+            .headers_mut()
+            .insert("x-request-start", HeaderValue::from_str(&format!("t={millis}")).unwrap());
     }
 }
 
@@ -263,7 +288,13 @@ fn as_proxied_http1(request: &mut Request<Body>) {
     if let Some(path) = request.uri().path_and_query().and_then(|p| p.as_str().parse().ok()) {
         *request.uri_mut() = path;
     }
-    let cookies: Vec<String> = request.headers().get_all(header::COOKIE).iter().filter_map(|v| v.to_str().ok()).map(str::to_string).collect();
+    let cookies: Vec<String> = request
+        .headers()
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .map(str::to_string)
+        .collect();
     if cookies.len() > 1
         && let Ok(joined) = HeaderValue::from_str(&cookies.join("; "))
     {
@@ -277,14 +308,28 @@ fn as_proxied_http1(request: &mut Request<Body>) {
 /// without it they're replaced. `Forwarded` never reaches the app (`Rewrite` drops it).
 fn set_forwarded_headers(request: &mut Request<Body>, conn: &ConnInfo, forward_headers: bool) {
     let headers = request.headers();
-    let join = |name| headers.get_all(name).iter().filter_map(|v| v.to_str().ok()).collect::<Vec<_>>().join(", ");
+    let join = |name| {
+        headers
+            .get_all(name)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     let prior_for = if forward_headers { join("x-forwarded-for") } else { String::new() };
     let incoming_host = headers.get("x-forwarded-host").filter(|v| !v.is_empty()).cloned();
     let incoming_proto = headers.get("x-forwarded-proto").filter(|v| !v.is_empty()).cloned();
-    let host = headers.get(header::HOST).cloned().or_else(|| request.uri().authority().and_then(|a| HeaderValue::from_str(a.as_str()).ok()));
+    let host = headers
+        .get(header::HOST)
+        .cloned()
+        .or_else(|| request.uri().authority().and_then(|a| HeaderValue::from_str(a.as_str()).ok()));
 
     let client = conn.remote.ip().to_canonical().to_string();
-    let forwarded_for = if prior_for.is_empty() { client } else { format!("{prior_for}, {client}") };
+    let forwarded_for = if prior_for.is_empty() {
+        client
+    } else {
+        format!("{prior_for}, {client}")
+    };
     let headers = request.headers_mut();
     headers.remove(header::FORWARDED);
     if let Ok(value) = HeaderValue::from_str(&forwarded_for) {
@@ -294,7 +339,10 @@ fn set_forwarded_headers(request: &mut Request<Body>, conn: &ConnInfo, forward_h
         Some(host) => headers.insert("x-forwarded-host", host),
         None => headers.insert("x-forwarded-host", HeaderValue::from_static("")),
     };
-    headers.insert("x-forwarded-proto", HeaderValue::from_static(if conn.tls { "https" } else { "http" }));
+    headers.insert(
+        "x-forwarded-proto",
+        HeaderValue::from_static(if conn.tls { "https" } else { "http" }),
+    );
     if forward_headers {
         if let Some(host) = incoming_host {
             headers.insert("x-forwarded-host", host);
@@ -307,7 +355,11 @@ fn set_forwarded_headers(request: &mut Request<Body>, conn: &ConnInfo, forward_h
 
 /// MAX_REQUEST_BODY, 0 for none.
 pub(super) async fn within_limit(request: Request<Body>, limit: u64) -> Result<Request<Body>, ()> {
-    if limit == 0 { Ok(request) } else { limit_body(request, limit).await }
+    if limit == 0 {
+        Ok(request)
+    } else {
+        limit_body(request, limit).await
+    }
 }
 
 /// The empty 413 for a body over MAX_REQUEST_BODY.
@@ -320,7 +372,11 @@ pub(super) fn too_large() -> Response<Body> {
 /// `http.MaxBytesHandler`: a body over the limit fails the proxied request with 413 before the
 /// app sees it (Puma reads the whole body before calling Rails).
 async fn limit_body(request: Request<Body>, limit: u64) -> Result<Request<Body>, ()> {
-    let declared = request.headers().get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<u64>().ok());
+    let declared = request
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok());
     if declared.is_some_and(|length| length > limit) {
         return Err(());
     }
@@ -356,7 +412,14 @@ struct RequestLog {
 
 impl RequestLog {
     fn new(request: &Request<Body>, conn: &ConnInfo) -> Self {
-        let header = |name| request.headers().get(name).and_then(|v: &HeaderValue| v.to_str().ok()).unwrap_or("").to_string();
+        let header = |name| {
+            request
+                .headers()
+                .get(name)
+                .and_then(|v: &HeaderValue| v.to_str().ok())
+                .unwrap_or("")
+                .to_string()
+        };
         let forwarded_for = header("x-forwarded-for");
         Self {
             started: Instant::now(),
@@ -368,19 +431,48 @@ impl RequestLog {
                 axum::http::Version::HTTP_10 => "HTTP/1.0",
                 _ => "HTTP/1.1",
             },
-            req_content_length: header("content-length").parse().unwrap_or(if request.body().is_end_stream() { 0 } else { -1 }),
+            req_content_length: header("content-length")
+                .parse()
+                .unwrap_or(if request.body().is_end_stream() { 0 } else { -1 }),
             req_content_type: header("content-type"),
-            remote_addr: if forwarded_for.is_empty() { conn.remote.to_string() } else { forwarded_for },
+            remote_addr: if forwarded_for.is_empty() {
+                conn.remote.to_string()
+            } else {
+                forwarded_for
+            },
             user_agent: header("user-agent"),
         }
     }
 
     fn attach(self, response: Response<Body>) -> Response<Body> {
-        let status = if response.status() == StatusCode::SWITCHING_PROTOCOLS { 101 } else { response.status().as_u16() };
-        let header = |name| response.headers().get(name).and_then(|v: &HeaderValue| v.to_str().ok()).unwrap_or("").to_string();
-        let entry = LogEntry { request: self, status, resp_content_type: header("content-type"), cache: header("x-cache"), bytes: 0 };
+        let status = if response.status() == StatusCode::SWITCHING_PROTOCOLS {
+            101
+        } else {
+            response.status().as_u16()
+        };
+        let header = |name| {
+            response
+                .headers()
+                .get(name)
+                .and_then(|v: &HeaderValue| v.to_str().ok())
+                .unwrap_or("")
+                .to_string()
+        };
+        let entry = LogEntry {
+            request: self,
+            status,
+            resp_content_type: header("content-type"),
+            cache: header("x-cache"),
+            bytes: 0,
+        };
         let (parts, body) = response.into_parts();
-        Response::from_parts(parts, Body::new(LoggedBody { inner: body, entry: Some(entry) }))
+        Response::from_parts(
+            parts,
+            Body::new(LoggedBody {
+                inner: body,
+                entry: Some(entry),
+            }),
+        )
     }
 }
 

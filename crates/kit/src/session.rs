@@ -27,7 +27,11 @@ pub struct SessionConfig {
 
 impl Default for SessionConfig {
     fn default() -> Self {
-        Self { key: SESSION_KEY.into(), expire_after_years: Some(EXPIRE_AFTER_YEARS), httponly: true }
+        Self {
+            key: SESSION_KEY.into(),
+            expire_after_years: Some(EXPIRE_AFTER_YEARS),
+            httponly: true,
+        }
     }
 }
 
@@ -44,7 +48,13 @@ pub struct Session {
 
 impl Session {
     pub fn new(config: SessionConfig) -> Self {
-        Self { config, loaded: false, changed: false, data: Map::new(), cookie_data: None }
+        Self {
+            config,
+            loaded: false,
+            changed: false,
+            data: Map::new(),
+            cookie_data: None,
+        }
     }
 
     pub fn is_loaded(&self) -> bool {
@@ -127,7 +137,12 @@ impl Session {
         if !self.changed {
             return Ok(());
         }
-        let data: Map<String, Value> = self.data.iter().filter(|(_, v)| !v.is_null()).map(|(k, v)| (k.clone(), v.clone())).collect();
+        let data: Map<String, Value> = self
+            .data
+            .iter()
+            .filter(|(_, v)| !v.is_null())
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         if data.keys().all(|key| key == "session_id") {
             jar.delete(&self.config.key);
             return Ok(());
@@ -159,13 +174,20 @@ impl Flash {
     /// `FlashHash.from_session_value`: everything loaded is marked for discard at the end of this
     /// request, minus what the previous request had already discarded.
     pub fn from_session_value(value: Option<&Value>) -> Self {
-        let Some(Value::Object(stored)) = value else { return Self::default() };
-        let discarded: Vec<&str> =
-            stored.get("discard").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+        let Some(Value::Object(stored)) = value else {
+            return Self::default();
+        };
+        let discarded: Vec<&str> = stored
+            .get("discard")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
         let flashes: Vec<(String, Value)> = match stored.get("flashes") {
-            Some(Value::Object(flashes)) => {
-                flashes.iter().filter(|(k, _)| !discarded.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect()
-            }
+            Some(Value::Object(flashes)) => flashes
+                .iter()
+                .filter(|(k, _)| !discarded.contains(&k.as_str()))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
             _ => vec![],
         };
         let discard = flashes.iter().map(|(k, _)| k.clone()).collect();
@@ -174,9 +196,17 @@ impl Flash {
 
     /// `FlashHash#to_session_value`: `None` when nothing survives.
     pub fn to_session_value(&self) -> Option<Value> {
-        let keep: Map<String, Value> =
-            self.flashes.iter().filter(|(k, _)| !self.discard.contains(k)).map(|(k, v)| (k.clone(), v.clone())).collect();
-        if keep.is_empty() { None } else { Some(serde_json::json!({ "discard": [], "flashes": keep })) }
+        let keep: Map<String, Value> = self
+            .flashes
+            .iter()
+            .filter(|(k, _)| !self.discard.contains(k))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        if keep.is_empty() {
+            None
+        } else {
+            Some(serde_json::json!({ "discard": [], "flashes": keep }))
+        }
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {

@@ -13,16 +13,57 @@ use crate::dom::{Dom, NodeId, ParseError};
 
 /// `Rails::HTML::Concern::Scrubber::SafeList::DEFAULT_ALLOWED_TAGS`
 pub const DEFAULT_ALLOWED_TAGS: &[&str] = &[
-    "a", "abbr", "acronym", "address", "b", "big", "blockquote", "br", "cite", "code", "dd", "del", "dfn", "div",
-    "dl", "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "ins", "kbd", "li", "mark", "ol", "p",
-    "pre", "samp", "small", "span", "strong", "sub", "sup", "time", "tt", "ul", "var",
+    "a",
+    "abbr",
+    "acronym",
+    "address",
+    "b",
+    "big",
+    "blockquote",
+    "br",
+    "cite",
+    "code",
+    "dd",
+    "del",
+    "dfn",
+    "div",
+    "dl",
+    "dt",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "i",
+    "img",
+    "ins",
+    "kbd",
+    "li",
+    "mark",
+    "ol",
+    "p",
+    "pre",
+    "samp",
+    "small",
+    "span",
+    "strong",
+    "sub",
+    "sup",
+    "time",
+    "tt",
+    "ul",
+    "var",
 ];
 
 /// `Rails::HTML::Concern::Scrubber::SafeList::DEFAULT_ALLOWED_ATTRIBUTES` without `name`, which let
 /// a message clobber the page's DOM globals (`<img name="body">` shadows `document.body`). Nothing
 /// Campfire's composer writes has one.
-pub const DEFAULT_ALLOWED_ATTRIBUTES: &[&str] =
-    &["abbr", "alt", "cite", "class", "datetime", "height", "href", "lang", "src", "title", "width", "xml:lang"];
+pub const DEFAULT_ALLOWED_ATTRIBUTES: &[&str] = &[
+    "abbr", "alt", "cite", "class", "datetime", "height", "href", "lang", "src", "title", "width", "xml:lang",
+];
 
 /// `ContentFilters::EDITOR_FORMATTING_TAGS` (reference/app/helpers/content_filters.rb)
 pub const EDITOR_FORMATTING_TAGS: &[&str] = &["s", "u", "mark", "table", "thead", "tbody", "tfoot", "tr", "th", "td"];
@@ -32,8 +73,18 @@ pub const EDITOR_FORMATTING_ATTRIBUTES: &[&str] = &["data-language"];
 
 /// `ActionText::Attachment::ATTRIBUTES`
 pub const ATTACHMENT_ATTRIBUTES: &[&str] = &[
-    "sgid", "content-type", "url", "href", "filename", "filesize", "width", "height", "previewable", "presentation",
-    "caption", "content",
+    "sgid",
+    "content-type",
+    "url",
+    "href",
+    "filename",
+    "filesize",
+    "width",
+    "height",
+    "previewable",
+    "presentation",
+    "caption",
+    "content",
 ];
 
 /// A tag and attribute allowlist, as passed to `sanitize(html, tags:, attributes:)`.
@@ -54,7 +105,10 @@ impl SafeList {
 
     /// Action View's `sanitize(html)` with no options: the sanitizer's class-level defaults.
     pub fn defaults() -> Self {
-        SafeList { tags: DEFAULT_ALLOWED_TAGS.to_vec(), attributes: DEFAULT_ALLOWED_ATTRIBUTES.to_vec() }
+        SafeList {
+            tags: DEFAULT_ALLOWED_TAGS.to_vec(),
+            attributes: DEFAULT_ALLOWED_ATTRIBUTES.to_vec(),
+        }
     }
 
     /// `ActionText::ContentHelper.allowed_tags`/`allowed_attributes` as configured at boot: Action
@@ -86,7 +140,10 @@ impl SafeList {
         if !attributes.contains(&"class") {
             attributes.push("class");
         }
-        SafeList { tags: sanitize_tags_allowed_tags(), attributes }
+        SafeList {
+            tags: sanitize_tags_allowed_tags(),
+            attributes,
+        }
     }
 
     /// `MessagesHelper::AUTO_LINK_ALLOWED_TAGS`/`AUTO_LINK_ALLOWED_ATTRIBUTES`.
@@ -106,9 +163,47 @@ impl SafeList {
 /// `ContentFilters::SanitizeTags::ALLOWED_TAGS`
 pub fn sanitize_tags_allowed_tags() -> Vec<&'static str> {
     let mut tags = vec![
-        "a", "abbr", "acronym", "address", "b", "big", "blockquote", "br", "cite", "code", "dd", "del", "dfn", "div",
-        "dl", "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "ins", "kbd", "li", "ol", "p", "pre", "samp",
-        "small", "span", "strong", "sub", "sup", "time", "tt", "ul", "var",
+        "a",
+        "abbr",
+        "acronym",
+        "address",
+        "b",
+        "big",
+        "blockquote",
+        "br",
+        "cite",
+        "code",
+        "dd",
+        "del",
+        "dfn",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "hr",
+        "i",
+        "ins",
+        "kbd",
+        "li",
+        "ol",
+        "p",
+        "pre",
+        "samp",
+        "small",
+        "span",
+        "strong",
+        "sub",
+        "sup",
+        "time",
+        "tt",
+        "ul",
+        "var",
     ];
     tags.extend(EDITOR_FORMATTING_TAGS);
     tags.extend(["action-text-attachment", "figure", "figcaption"]);
@@ -180,7 +275,9 @@ fn scrub(dom: &mut Dom, node: NodeId, list: &SafeList) {
 fn scrub_attributes(dom: &mut Dom, node: NodeId, list: &SafeList) {
     let names: Vec<String> = dom.attrs(node).into_iter().map(|(name, _)| name).collect();
     for name in names {
-        let Some(value) = dom.attr(node, &name).map(str::to_string) else { continue };
+        let Some(value) = dom.attr(node, &name).map(str::to_string) else {
+            continue;
+        };
         if !list.allows_attribute(&name) {
             dom.remove_attr(node, &name);
             continue;
@@ -215,7 +312,11 @@ fn scrub_style(dom: &mut Dom, node: NodeId) {
     if declarations.iter().all(allowed) && !declarations.is_empty() {
         return;
     }
-    let scrubbed: String = declarations.iter().filter(|d| allowed(d)).map(|(property, value)| format!("{property}: {value};")).collect();
+    let scrubbed: String = declarations
+        .iter()
+        .filter(|d| allowed(d))
+        .map(|(property, value)| format!("{property}: {value};"))
+        .collect();
     if scrubbed.is_empty() {
         dom.remove_attr(node, "style");
     } else {
@@ -236,7 +337,17 @@ fn is_plain_color(value: &str) -> bool {
 }
 
 /// `Loofah::HTML5::SafeList::ATTR_VAL_IS_URI`
-const ATTR_VAL_IS_URI: &[&str] = &["action", "cite", "href", "longdesc", "poster", "preload", "src", "xlink:href", "xml:base"];
+const ATTR_VAL_IS_URI: &[&str] = &[
+    "action",
+    "cite",
+    "href",
+    "longdesc",
+    "poster",
+    "preload",
+    "src",
+    "xlink:href",
+    "xml:base",
+];
 
 /// `Loofah::HTML5::Scrub.force_correct_attribute_escaping!` (libxml2 builds only, which CRuby is):
 /// spaces and double quotes in `href`, `action`, `src` and an `a`'s `name` become `%20` and `%22`.
@@ -265,8 +376,8 @@ fn force_correct_attribute_escaping(dom: &mut Dom, node: NodeId) {
 }
 
 const ALLOWED_PROTOCOLS: &[&str] = &[
-    "afs", "aim", "callto", "data", "ed2k", "fax", "ftp", "gopher", "http", "https", "irc", "line", "mailto", "modem",
-    "news", "nntp", "rsync", "rtsp", "sftp", "sms", "ssh", "tag", "tel", "telnet", "urn", "webcal", "xmpp",
+    "afs", "aim", "callto", "data", "ed2k", "fax", "ftp", "gopher", "http", "https", "irc", "line", "mailto", "modem", "news", "nntp",
+    "rsync", "rtsp", "sftp", "sms", "ssh", "tag", "tel", "telnet", "urn", "webcal", "xmpp",
 ];
 
 const ALLOWED_URI_DATA_MEDIATYPES: &[&str] = &["image/gif", "image/jpeg", "image/png", "text/css", "text/plain"];
@@ -284,7 +395,9 @@ pub fn allowed_uri(uri: &str) -> bool {
     s = s.replace("&Tab;", "").replace("&NewLine;", "");
     s = s.replace("&colon;", ":");
     s = s.to_lowercase();
-    let Some(protocol) = protocol_before_separator(&s) else { return true };
+    let Some(protocol) = protocol_before_separator(&s) else {
+        return true;
+    };
     if !ALLOWED_PROTOCOLS.contains(&protocol) {
         return false;
     }
@@ -302,7 +415,8 @@ fn protocol_before_separator(s: &str) -> Option<&str> {
         return None;
     }
     let mut end = 1;
-    while end < bytes.len() && (bytes[end].is_ascii_lowercase() || bytes[end].is_ascii_digit() || matches!(bytes[end], b'+' | b'-' | b'.')) {
+    while end < bytes.len() && (bytes[end].is_ascii_lowercase() || bytes[end].is_ascii_digit() || matches!(bytes[end], b'+' | b'-' | b'.'))
+    {
         end += 1;
     }
     // The class can't contain the start of a separator, so the scheme is the longest run.
@@ -340,7 +454,11 @@ fn data_uri_mediatype(s: &str) -> Option<String> {
     let rest = s.strip_prefix("data:").unwrap_or(s);
     let (metadata, _) = rest.split_once(',')?;
     let metadata = metadata.strip_suffix(";base64").unwrap_or(metadata);
-    let mediatype = metadata.split(';').next().unwrap_or("").trim_matches(|c: char| matches!(c, ' ' | '\t' | '\n' | '\u{0b}' | '\u{0c}' | '\r' | '\0'));
+    let mediatype = metadata
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim_matches(|c: char| matches!(c, ' ' | '\t' | '\n' | '\u{0b}' | '\u{0c}' | '\r' | '\0'));
     let tchar = |c: char| c.is_ascii_alphanumeric() || "!#$%&'*+-.^_`|~".contains(c);
     let valid = mediatype
         .split_once('/')
@@ -380,9 +498,13 @@ fn unescape_one(s: &str) -> (Option<String>, usize) {
     let Some(end) = s.find(';') else { return (None, 0) };
     let body = &s[1..end];
     let code = if let Some(hex) = body.strip_prefix("#x").or_else(|| body.strip_prefix("#X")) {
-        (!hex.is_empty() && hex.len() <= 8 && hex.bytes().all(|b| b.is_ascii_hexdigit())).then(|| u32::from_str_radix(hex, 16).ok()).flatten()
+        (!hex.is_empty() && hex.len() <= 8 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+            .then(|| u32::from_str_radix(hex, 16).ok())
+            .flatten()
     } else if let Some(dec) = body.strip_prefix('#') {
-        (!dec.is_empty() && dec.len() <= 10 && dec.bytes().all(|b| b.is_ascii_digit())).then(|| dec.parse::<u32>().ok()).flatten()
+        (!dec.is_empty() && dec.len() <= 10 && dec.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| dec.parse::<u32>().ok())
+            .flatten()
     } else {
         None
     };
@@ -405,7 +527,13 @@ fn decode_numeric_character_references(s: &str) -> String {
             let hex = matches!(bytes.get(start), Some(b'x') | Some(b'X'));
             let digits_start = if hex { start + 1 } else { start };
             let mut end = digits_start;
-            while end < bytes.len() && (if hex { bytes[end].is_ascii_hexdigit() } else { bytes[end].is_ascii_digit() }) {
+            while end < bytes.len()
+                && (if hex {
+                    bytes[end].is_ascii_hexdigit()
+                } else {
+                    bytes[end].is_ascii_digit()
+                })
+            {
                 end += 1;
             }
             if end > digits_start {
@@ -440,10 +568,19 @@ mod tests {
     #[test]
     fn scrubs_like_rails() {
         let list = SafeList::content_filter();
-        assert_eq!(sanitize("<div><a href=\"javascript:alert(1)\">x</a></div>", &list).unwrap(), "<div><a>x</a></div>");
-        assert_eq!(sanitize("<a href=\"/x\" onmouseover=\"alert(1)\">x</a>", &list).unwrap(), "<a href=\"/x\">x</a>");
+        assert_eq!(
+            sanitize("<div><a href=\"javascript:alert(1)\">x</a></div>", &list).unwrap(),
+            "<div><a>x</a></div>"
+        );
+        assert_eq!(
+            sanitize("<a href=\"/x\" onmouseover=\"alert(1)\">x</a>", &list).unwrap(),
+            "<a href=\"/x\">x</a>"
+        );
         assert_eq!(sanitize("<a href=\"data:text/html,pwned\">x</a>", &list).unwrap(), "<a>x</a>");
-        assert_eq!(sanitize("<a href=\"a b\">x</a><!-- c -->", &list).unwrap(), "<a href=\"a%20b\">x</a>");
+        assert_eq!(
+            sanitize("<a href=\"a b\">x</a><!-- c -->", &list).unwrap(),
+            "<a href=\"a%20b\">x</a>"
+        );
         assert_eq!(sanitize("<svg><a>x</a></svg>y<script>z</script>", &list).unwrap(), "yz");
     }
 
@@ -468,9 +605,15 @@ mod tests {
             "",
         ] {
             let html = sanitize(&format!("<span style=\"{hostile}\">x</span>"), &list).unwrap();
-            assert!(!html.contains("url") && !html.contains("expression") && !html.contains('\\') && !html.contains("width"), "{hostile}: {html}");
+            assert!(
+                !html.contains("url") && !html.contains("expression") && !html.contains('\\') && !html.contains("width"),
+                "{hostile}: {html}"
+            );
         }
-        assert_eq!(sanitize("<span style=\"position: fixed\">x</span>", &list).unwrap(), "<span>x</span>");
+        assert_eq!(
+            sanitize("<span style=\"position: fixed\">x</span>", &list).unwrap(),
+            "<span>x</span>"
+        );
     }
 
     #[test]

@@ -7,9 +7,9 @@ pub mod attachments;
 pub mod page;
 pub mod pagination;
 pub mod rich_text;
-pub mod view_context;
 #[cfg(test)]
 pub mod test_support;
+pub mod view_context;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -18,13 +18,13 @@ use std::sync::LazyLock;
 use campfire_db::{Boost, Connection, Membership, Message, RichText, Room, RoomType, User};
 use campfire_richtext::Presentation;
 use campfire_storage::{Storage, Variation};
+use campfire_views::fragment_cache;
 use campfire_views::messages::json::{BoostJson, BoostMessageJson, IdJson, MessageBodyJson, MessageJson, UserJson};
+use campfire_views::messages::support::RubyNumber;
 use campfire_views::messages::support::json_time;
 use campfire_views::messages::{
     AttachmentPreview, AttachmentView, BoostView, MessageContent, MessageItem, MessageView, RoomKind, SoundImage, SoundView, UserView,
 };
-use campfire_views::messages::support::RubyNumber;
-use campfire_views::fragment_cache;
 use campfire_views::rooms::{RoomView, room_display_name};
 use rails_compat::Secrets;
 use regex::Regex;
@@ -73,12 +73,23 @@ pub fn room_kind(room_type: RoomType) -> RoomKind {
 }
 
 pub fn user_view(secrets: &Secrets, user: &User) -> UserView {
-    UserView { id: user.id, name: user.name.clone(), title: user.title(), avatar_url: avatar_path(secrets, user) }
+    UserView {
+        id: user.id,
+        name: user.name.clone(),
+        title: user.title(),
+        avatar_url: avatar_path(secrets, user),
+    }
 }
 
 /// `users/_user.json.jbuilder` (`json.cache! user`).
 fn cached_user_json(secrets: &Secrets, base_url: &str, user: &User) -> UserJson {
-    let key = || jbuilder_key("users/_user", &cache_key_with_version("users", user.id, user.updated_at.jiff()), base_url);
+    let key = || {
+        jbuilder_key(
+            "users/_user",
+            &cache_key_with_version("users", user.id, user.updated_at.jiff()),
+            base_url,
+        )
+    };
     fragment_cache::try_fetch_value(key, || Ok::<_, std::convert::Infallible>(user_json(secrets, base_url, user)))
         .unwrap_or_else(|never| match never {})
 }
@@ -130,7 +141,11 @@ impl<'a> Presenter<'a> {
     }
 
     pub fn resolver(&self) -> DbResolver<'_> {
-        DbResolver { conn: self.conn, secrets: self.secrets, now: self.now }
+        DbResolver {
+            conn: self.conn,
+            secrets: self.secrets,
+            now: self.now,
+        }
     }
 
     pub fn user(&self, id: i64) -> Result<User> {
@@ -157,7 +172,12 @@ impl<'a> Presenter<'a> {
         } else {
             Vec::new()
         };
-        Ok(room_display_name(room.name.as_deref(), room.direct(), &names, for_user.map(|u| u.name.as_str())))
+        Ok(room_display_name(
+            room.name.as_deref(),
+            room.direct(),
+            &names,
+            for_user.map(|u| u.name.as_str()),
+        ))
     }
 
     pub fn room_view(&self, room: &Room, for_user: &User) -> Result<RoomView> {
@@ -193,10 +213,16 @@ impl<'a> Presenter<'a> {
 
     /// `render message`, as [`Self::messages`] does it.
     pub fn message_item(&self, message: &Message) -> Result<MessageItem> {
-        Ok(match campfire_views::messages::cached_message_fragment(message.id, message.updated_at.jiff()) {
-            Some(html) => MessageItem::Fragment { client_message_id: message.client_message_id.clone(), room_id: message.room_id, html },
-            None => MessageItem::View(Box::new(self.message(message)?)),
-        })
+        Ok(
+            match campfire_views::messages::cached_message_fragment(message.id, message.updated_at.jiff()) {
+                Some(html) => MessageItem::Fragment {
+                    client_message_id: message.client_message_id.clone(),
+                    room_id: message.room_id,
+                    html,
+                },
+                None => MessageItem::View(Box::new(self.message(message)?)),
+            },
+        )
     }
 
     /// A message as `messages/_message` shows it.
@@ -210,7 +236,12 @@ impl<'a> Presenter<'a> {
                 client_message_id: message.client_message_id.clone(),
                 room_id: message.room_id,
                 room_name,
-                creator: UserView { id: message.creator_id, name: String::new(), title: String::new(), avatar_url: String::new() },
+                creator: UserView {
+                    id: message.creator_id,
+                    name: String::new(),
+                    title: String::new(),
+                    avatar_url: String::new(),
+                },
                 created_at: message.created_at.jiff(),
                 updated_at: message.updated_at.jiff(),
                 all_emoji: false,
@@ -239,7 +270,10 @@ impl<'a> Presenter<'a> {
 
     /// `message.boosts.ordered`.
     pub fn boosts(&self, message: &Message) -> Result<Vec<BoostView>> {
-        Boost::for_message_ordered(self.conn, message.id)?.iter().map(|boost| self.boost(boost)).collect()
+        Boost::for_message_ordered(self.conn, message.id)?
+            .iter()
+            .map(|boost| self.boost(boost))
+            .collect()
     }
 
     pub fn boost(&self, boost: &Boost) -> Result<BoostView> {
@@ -310,7 +344,9 @@ impl<'a> Presenter<'a> {
                     poster_url: campfire_storage::paths::representation_redirect_path(verifier, &blob, &poster),
                 }
             } else {
-                AttachmentPreview::Image { thumb_url: self.thumb_path(&blob)? }
+                AttachmentPreview::Image {
+                    thumb_url: self.thumb_path(&blob)?,
+                }
             }
         } else {
             AttachmentPreview::File
@@ -328,13 +364,23 @@ impl<'a> Presenter<'a> {
     /// `polymorphic_url(attachment.representation(:thumb), only_path: true)`.
     fn thumb_path(&self, blob: &campfire_storage::Blob) -> Result<String> {
         let thumb = Variation::resize_to_limit(THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT, None);
-        let variation = if blob.is_previewable() { thumb } else { self.storage.variation_for(blob, &thumb).map_err(storage_error)? };
-        Ok(campfire_storage::paths::representation_redirect_path(&*self.storage.verifier, blob, &variation))
+        let variation = if blob.is_previewable() {
+            thumb
+        } else {
+            self.storage.variation_for(blob, &thumb).map_err(storage_error)?
+        };
+        Ok(campfire_storage::paths::representation_redirect_path(
+            &*self.storage.verifier,
+            blob,
+            &variation,
+        ))
     }
 
     /// `message.body.to_s`: the stored rich text rendered inside its layout.
     pub fn body_html(&self, message: &Message) -> Result<String> {
-        let Some(body) = message.body_html(self.conn)? else { return Ok(String::new()) };
+        let Some(body) = message.body_html(self.conn)? else {
+            return Ok(String::new());
+        };
         let resolver = self.resolver();
         let ctx = resolver.render_context(self.request_host.clone());
         Ok(campfire_richtext::Content::load(&body, &ctx)
@@ -355,7 +401,13 @@ impl<'a> Presenter<'a> {
 
     /// `messages/_message.json.jbuilder` (`json.cache! message`).
     pub fn message_json(&self, message: &Message, base_url: &str) -> Result<MessageJson> {
-        let key = || jbuilder_key("messages/_message", &cache_key_with_version("messages", message.id, message.updated_at.jiff()), base_url);
+        let key = || {
+            jbuilder_key(
+                "messages/_message",
+                &cache_key_with_version("messages", message.id, message.updated_at.jiff()),
+                base_url,
+            )
+        };
         fragment_cache::try_fetch_value(key, || self.render_message_json(message, base_url))
     }
 
@@ -363,7 +415,10 @@ impl<'a> Presenter<'a> {
         Ok(MessageJson {
             id: message.id,
             created_at: json_time(message.created_at.jiff()),
-            body: MessageBodyJson { plain_text: self.plain_text_body(message)?, html: self.body_html(message)? },
+            body: MessageBodyJson {
+                plain_text: self.plain_text_body(message)?,
+                html: self.body_html(message)?,
+            },
             creator: cached_user_json(self.secrets, base_url, &self.user(message.creator_id)?),
             room: IdJson { id: message.room_id },
             url: format!("{base_url}{}", campfire_routes::room_message(message.room_id, message.id)),
@@ -372,7 +427,13 @@ impl<'a> Presenter<'a> {
 
     /// `messages/boosts/_boost.json.jbuilder` (`json.cache! boost`).
     pub fn boost_json(&self, boost: &Boost, message: &Message, base_url: &str) -> Result<BoostJson> {
-        let key = || jbuilder_key("messages/boosts/_boost", &cache_key_with_version("boosts", boost.id, boost.updated_at.jiff()), base_url);
+        let key = || {
+            jbuilder_key(
+                "messages/boosts/_boost",
+                &cache_key_with_version("boosts", boost.id, boost.updated_at.jiff()),
+                base_url,
+            )
+        };
         fragment_cache::try_fetch_value(key, || self.render_boost_json(boost, message, base_url))
     }
 

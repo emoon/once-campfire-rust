@@ -57,17 +57,11 @@ impl TestDb {
         }
     }
 
-    pub fn write<T: Send + 'static>(
-        &self,
-        f: impl FnOnce(&mut Tx<'_>) -> Result<T> + Send + 'static,
-    ) -> T {
+    pub fn write<T: Send + 'static>(&self, f: impl FnOnce(&mut Tx<'_>) -> Result<T> + Send + 'static) -> T {
         self.db.write_blocking(f).unwrap()
     }
 
-    pub fn try_write<T: Send + 'static>(
-        &self,
-        f: impl FnOnce(&mut Tx<'_>) -> Result<T> + Send + 'static,
-    ) -> Result<T> {
+    pub fn try_write<T: Send + 'static>(&self, f: impl FnOnce(&mut Tx<'_>) -> Result<T> + Send + 'static) -> Result<T> {
         self.db.write_blocking(f)
     }
 

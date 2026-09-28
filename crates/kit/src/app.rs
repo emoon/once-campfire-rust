@@ -95,7 +95,14 @@ impl Kit {
     /// `state` is the application's own state (database handles etc.), reachable from actions
     /// with [`crate::Ctx::state`].
     pub fn new<S: Send + Sync + 'static>(config: KitConfig, crypto: SharedCrypto, clock: SharedClock, state: S) -> Self {
-        Self { inner: Arc::new(KitInner { config, crypto, clock, state: Arc::new(state) }) }
+        Self {
+            inner: Arc::new(KitInner {
+                config,
+                crypto,
+                clock,
+                state: Arc::new(state),
+            }),
+        }
     }
 
     pub fn config(&self) -> &KitConfig {

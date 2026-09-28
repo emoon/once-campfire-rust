@@ -32,7 +32,11 @@ pub struct GlobalId {
 
 impl GlobalId {
     pub fn new(model_name: &str, id: impl ToString) -> Self {
-        Self { app: APP.to_string(), model_name: model_name.to_string(), id: id.to_string() }
+        Self {
+            app: APP.to_string(),
+            model_name: model_name.to_string(),
+            id: id.to_string(),
+        }
     }
 
     /// `GlobalID.parse` for the URI form (`URI::GID`): `gid://<app>/<Model>/<id>[?params]`.
@@ -44,7 +48,11 @@ impl GlobalId {
         if app.is_empty() || model_name.is_empty() || id.is_empty() {
             return None;
         }
-        Some(GlobalId { app: app.to_string(), model_name: model_name.to_string(), id: id.to_string() })
+        Some(GlobalId {
+            app: app.to_string(),
+            model_name: model_name.to_string(),
+            id: id.to_string(),
+        })
     }
 
     /// `GlobalID#to_param`: URL-safe Base64 without padding, as used in Turbo stream names.
@@ -104,7 +112,12 @@ fn verify_with_legacy_self_validated_metadata(verifier: &MessageVerifier, sgid: 
 
 pub fn verifier(secrets: &Secrets) -> MessageVerifier {
     let secret = secrets.key_generator.generate_key(SALT, 64);
-    MessageVerifier::new(secret, Digest::Sha1, Encoding::UrlSafePadded, Serializer::JsonWithFallback { allow_marshal: true })
+    MessageVerifier::new(
+        secret,
+        Digest::Sha1,
+        Encoding::UrlSafePadded,
+        Serializer::JsonWithFallback { allow_marshal: true },
+    )
 }
 
 /// Why `attachable_from_possibly_expired_sgid` would raise in Rails (it only rescues
@@ -130,7 +143,9 @@ pub enum UnverifiedSgidError {
 /// the JSON form. `Err` is where Rails raises instead of returning nil.
 pub fn unverified_attachable_user(sgid: Option<&str>) -> Result<Option<GlobalId>, UnverifiedSgidError> {
     // `sgid&.split("--")&.first`: nil for nil or "", but "" (then a JSON error) for "--x".
-    let Some(message) = sgid.filter(|s| !s.is_empty()).and_then(|s| s.split("--").next()) else { return Ok(None) };
+    let Some(message) = sgid.filter(|s| !s.is_empty()).and_then(|s| s.split("--").next()) else {
+        return Ok(None);
+    };
     let decoded = decode_base64(message)?;
     let parsed = json::parse(&decoded).ok_or(UnverifiedSgidError::InvalidJson)?;
 
@@ -140,13 +155,19 @@ pub fn unverified_attachable_user(sgid: Option<&str>) -> Result<Option<GlobalId>
             _ => None,
         },
         Some(rails) if truthy(rails.get("message")) => {
-            let data = rails.get("message").and_then(Value::as_str).ok_or(UnverifiedSgidError::UnexpectedStructure)?;
+            let data = rails
+                .get("message")
+                .and_then(Value::as_str)
+                .ok_or(UnverifiedSgidError::UnexpectedStructure)?;
             find_marshaled_gid(&decode_base64(data)?)
         }
         _ => None,
     };
 
-    Ok(decoded_gid.as_deref().and_then(GlobalId::parse).filter(|gid| gid.model_name == "User"))
+    Ok(decoded_gid
+        .as_deref()
+        .and_then(GlobalId::parse)
+        .filter(|gid| gid.model_name == "User"))
 }
 
 /// `encoded_message.dig("_rails", ...)`: `Hash#dig` raises on anything that isn't a Hash or nil.
@@ -167,7 +188,9 @@ fn truthy(value: Option<&Value>) -> bool {
 
 /// `Base64.strict_decode64(message) rescue Base64.urlsafe_decode64(message)`.
 fn decode_base64(message: &str) -> Result<Vec<u8>, UnverifiedSgidError> {
-    encoding::strict_decode(message).or_else(|| encoding::urlsafe_decode(message)).ok_or(UnverifiedSgidError::InvalidBase64)
+    encoding::strict_decode(message)
+        .or_else(|| encoding::urlsafe_decode(message))
+        .ok_or(UnverifiedSgidError::InvalidBase64)
 }
 
 /// `decode_base64(data).match(%r{(gid://campfire/[^/]+/\d+)})` over the raw bytes of a Marshal

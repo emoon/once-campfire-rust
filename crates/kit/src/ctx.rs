@@ -67,7 +67,10 @@ pub struct Freshness {
 
 impl Freshness {
     pub fn etag(validator: impl Into<String>) -> Self {
-        Self { etag: Some(validator.into()), ..Self::default() }
+        Self {
+            etag: Some(validator.into()),
+            ..Self::default()
+        }
     }
 }
 
@@ -216,10 +219,12 @@ impl Ctx {
         match self.request.header("sec-fetch-site") {
             Some("same-origin" | "same-site") => Ok(()),
             None if !self.request.is_ssl() && !self.kit.config().force_ssl => Ok(()),
-            Some("cross-site") => {
-                Err(Error::InvalidAuthenticityToken("Sec-Fetch-Site header (cross-site) indicates a cross-site request".into()))
-            }
-            other => Err(Error::InvalidAuthenticityToken(format!("Sec-Fetch-Site header is missing or invalid ({other:?})"))),
+            Some("cross-site") => Err(Error::InvalidAuthenticityToken(
+                "Sec-Fetch-Site header (cross-site) indicates a cross-site request".into(),
+            )),
+            other => Err(Error::InvalidAuthenticityToken(format!(
+                "Sec-Fetch-Site header is missing or invalid ({other:?})"
+            ))),
         }
     }
 
@@ -273,7 +278,11 @@ impl Ctx {
     pub fn respond_to(&mut self, offered: &[Format]) -> Result<Format> {
         let formats = self.formats()?;
         let chosen = format::negotiate(&formats, offered).ok_or(Error::UnknownFormat)?;
-        let chosen = if *chosen == format::ALL { offered.first().copied().unwrap_or(&format::HTML) } else { chosen };
+        let chosen = if *chosen == format::ALL {
+            offered.first().copied().unwrap_or(&format::HTML)
+        } else {
+            chosen
+        };
         self.rendered_format = Some(chosen);
         Ok(chosen)
     }
@@ -366,7 +375,9 @@ impl Ctx {
         }
         let location = self.compute_location(location)?;
         if location.bytes().any(|b| matches!(b, 0x00..=0x08 | 0x0A..=0x1F)) {
-            return Err(Error::UnsafeRedirect(format!("The redirect URL {location} contains illegal characters")));
+            return Err(Error::UnsafeRedirect(format!(
+                "The redirect URL {location} contains illegal characters"
+            )));
         }
         if !options.allow_other_host && !self.url_host_allowed(&location) {
             return Err(Error::UnsafeRedirect(format!("Unsafe redirect to {location:?}")));
@@ -431,7 +442,11 @@ impl Ctx {
             options.filename = path.file_name().map(|n| n.to_string_lossy().into_owned());
         }
         let range = self.request.header("range").map(str::to_string);
-        Ok(response::send(&options, range.as_deref(), SendBody::File(path.to_path_buf(), metadata.len())))
+        Ok(response::send(
+            &options,
+            range.as_deref(),
+            SendBody::File(path.to_path_buf(), metadata.len()),
+        ))
     }
 
     /// `send_data data, type:, disposition:, filename:`
@@ -461,7 +476,11 @@ impl Ctx {
         if freshness.public {
             self.cache_control.public = true;
         }
-        if self.is_fresh() { Some(self.head(StatusCode::NOT_MODIFIED)) } else { None }
+        if self.is_fresh() {
+            Some(self.head(StatusCode::NOT_MODIFIED))
+        } else {
+            None
+        }
     }
 
     /// `stale?`: the inverse of freshness, after setting the validators.
@@ -510,18 +529,25 @@ impl Ctx {
 
     /// `expires_now`
     pub fn expires_now(&mut self) {
-        self.cache_control = CacheControl { no_cache: true, ..CacheControl::default() };
+        self.cache_control = CacheControl {
+            no_cache: true,
+            ..CacheControl::default()
+        };
     }
 
     /// `no_store`
     pub fn no_store(&mut self) {
-        self.cache_control = CacheControl { no_store: true, ..CacheControl::default() };
+        self.cache_control = CacheControl {
+            no_store: true,
+            ..CacheControl::default()
+        };
     }
 
     /// Set a response header ahead of the response (`response.headers[...] = ...`).
     pub fn set_header(&mut self, name: impl TryInto<HeaderName>, value: &str) {
         let name = name.try_into().unwrap_or_else(|_| panic!("invalid header name"));
-        self.headers.insert(name, HeaderValue::from_str(value).expect("invalid header value"));
+        self.headers
+            .insert(name, HeaderValue::from_str(value).expect("invalid header value"));
     }
 
     /// A controller that includes `ActionController::Live` (`ActiveStorage::Streaming` does):
@@ -565,10 +591,10 @@ impl Ctx {
                 response.headers.insert(name.clone(), value.clone());
             }
         }
-        if !response.headers.contains_key(header::CONTENT_TYPE)
-            && !matches!(response.status.as_u16(), 100..=199 | 204 | 205 | 304)
-        {
-            response.headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(response::HTML_UTF8));
+        if !response.headers.contains_key(header::CONTENT_TYPE) && !matches!(response.status.as_u16(), 100..=199 | 204 | 205 | 304) {
+            response
+                .headers
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static(response::HTML_UTF8));
         }
         rack_etag(&mut response, !self.live);
         self.conditional_get(&mut response);
@@ -607,7 +633,9 @@ impl Ctx {
         self.session.commit(&mut self.cookies, now)?;
 
         for cookie in self.cookies.set_cookie_headers(self.request.is_ssl(), &self.request.host()) {
-            response.headers.append(header::SET_COOKIE, HeaderValue::from_str(&cookie).map_err(Error::internal)?);
+            response
+                .headers
+                .append(header::SET_COOKIE, HeaderValue::from_str(&cookie).map_err(Error::internal)?);
         }
         Ok(())
     }
@@ -618,13 +646,18 @@ impl Ctx {
             return;
         }
         let mut cache_control = self.cache_control.clone();
-        if cache_control.is_empty()
-            && (response.headers.contains_key(header::ETAG) || response.headers.contains_key(header::LAST_MODIFIED))
+        if cache_control.is_empty() && (response.headers.contains_key(header::ETAG) || response.headers.contains_key(header::LAST_MODIFIED))
         {
-            cache_control = CacheControl { max_age: Some(0), must_revalidate: true, ..CacheControl::default() };
+            cache_control = CacheControl {
+                max_age: Some(0),
+                must_revalidate: true,
+                ..CacheControl::default()
+            };
         }
         if let Some(value) = cache_control.to_header() {
-            response.headers.insert(header::CACHE_CONTROL, HeaderValue::from_str(&value).unwrap());
+            response
+                .headers
+                .insert(header::CACHE_CONTROL, HeaderValue::from_str(&value).unwrap());
         }
     }
 
@@ -633,7 +666,11 @@ impl Ctx {
         if !matches!(self.request.method, Method::GET | Method::HEAD) || response.status != StatusCode::OK {
             return;
         }
-        if is_fresh(&self.request, response.get_header(header::ETAG), response.get_header(header::LAST_MODIFIED)) {
+        if is_fresh(
+            &self.request,
+            response.get_header(header::ETAG),
+            response.get_header(header::LAST_MODIFIED),
+        ) {
             response.status = StatusCode::NOT_MODIFIED;
             response.headers.remove(header::CONTENT_TYPE);
             response.headers.remove(header::CONTENT_LENGTH);
@@ -649,7 +686,12 @@ impl Ctx {
             tracing::info!(error = %error, path = self.request.path(), "request rejected");
         }
         let formats = self.formats().unwrap_or_default();
-        crate::exceptions::render(self.kit.error_pages(), error.status(), formats.first().copied(), self.request.is_head())
+        crate::exceptions::render(
+            self.kit.error_pages(),
+            error.status(),
+            formats.first().copied(),
+            self.request.is_head(),
+        )
     }
 }
 
@@ -662,7 +704,9 @@ fn is_fresh(request: &Request, etag: Option<&str>, last_modified: Option<&str>) 
         let Some(etag) = etag else { return false };
         if_none_match.split(',').map(str::trim).any(|v| v == etag || v == "*")
     } else if let Some(since) = request.header("if-modified-since").and_then(clock::parse_httpdate) {
-        last_modified.and_then(clock::parse_httpdate).is_some_and(|last_modified| since >= last_modified)
+        last_modified
+            .and_then(clock::parse_httpdate)
+            .is_some_and(|last_modified| since >= last_modified)
     } else {
         false
     }
@@ -680,19 +724,27 @@ fn rack_etag(response: &mut Response, digestible: bool) {
     }
     let mut digested = false;
     let skip = !digestible || response.headers.contains_key(header::ETAG) || response.headers.contains_key(header::LAST_MODIFIED);
-    if matches!(response.status.as_u16(), 200 | 201) && !skip
+    if matches!(response.status.as_u16(), 200 | 201)
+        && !skip
         && let Body::Bytes(bytes) = &response.body
-            && !bytes.is_empty() {
-                // A page of cached fragments hashes its parts' digests rather than the whole body.
-                let hex = match &response.page_parts {
-                    Some(parts) => parts.etag(bytes),
-                    None => hex::encode(Sha256::digest(bytes)),
-                };
-                response.headers.insert(header::ETAG, HeaderValue::from_str(&format!("W/\"{}\"", &hex[..32])).unwrap());
-                digested = true;
-            }
+        && !bytes.is_empty()
+    {
+        // A page of cached fragments hashes its parts' digests rather than the whole body.
+        let hex = match &response.page_parts {
+            Some(parts) => parts.etag(bytes),
+            None => hex::encode(Sha256::digest(bytes)),
+        };
+        response
+            .headers
+            .insert(header::ETAG, HeaderValue::from_str(&format!("W/\"{}\"", &hex[..32])).unwrap());
+        digested = true;
+    }
     if !response.headers.contains_key(header::CACHE_CONTROL) {
-        let value = if digested { "max-age=0, private, must-revalidate" } else { "no-cache" };
+        let value = if digested {
+            "max-age=0, private, must-revalidate"
+        } else {
+            "no-cache"
+        };
         response.headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(value));
     }
 }

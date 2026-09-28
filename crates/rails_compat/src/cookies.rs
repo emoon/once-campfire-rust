@@ -16,15 +16,18 @@ use jiff::{Timestamp, ToSpan, tz::TimeZone};
 use serde_json::Value;
 
 use crate::message_verifier::{Digest, Encoding};
-use crate::{MessageEncryptor, MessageVerifier, Secrets, json};
 use crate::metadata::Serializer;
+use crate::{MessageEncryptor, MessageVerifier, Secrets, json};
 
 pub const SIGNED_COOKIE_SALT: &str = "signed cookie";
 pub const AUTHENTICATED_ENCRYPTED_COOKIE_SALT: &str = "authenticated encrypted cookie";
 
 /// `cookies.permanent`: expires 20 years from now (calendar years, like `20.years.from_now`).
 pub fn permanent_expires_at(now: Timestamp) -> Timestamp {
-    now.to_zoned(TimeZone::UTC).checked_add(20.years()).expect("20 years from now is in range").timestamp()
+    now.to_zoned(TimeZone::UTC)
+        .checked_add(20.years())
+        .expect("20 years from now is in range")
+        .timestamp()
 }
 
 /// The raw value for `cookies.signed[name] = { value:, expires: expires_at }`.

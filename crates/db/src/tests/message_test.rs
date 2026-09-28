@@ -30,11 +30,7 @@ fn search(t: &TestDb, room: &str, query: &str) -> Vec<i64> {
 fn creating_a_message_enqueues_to_push_later() {
     let t = TestDb::new();
     let message = create(&t, "designers", "jason", "Hello", "123");
-    let pushes: Vec<_> = t
-        .events()
-        .into_iter()
-        .filter(|e| matches!(e, Event::PushMessage { .. }))
-        .collect();
+    let pushes: Vec<_> = t.events().into_iter().filter(|e| matches!(e, Event::PushMessage { .. })).collect();
     assert_eq!(
         pushes,
         vec![Event::PushMessage {
@@ -50,54 +46,27 @@ fn mentionees() {
     let rich_text = BasicRichText;
     let pets = id("pets");
     let mentioned = |html: String| {
-        t.read(|c| {
-            crate::models::message::mentionees_in_room(
-                c,
-                pets,
-                &crate::RichText::mentioned_user_ids(&rich_text, c, &html),
-            )
-        })
+        t.read(|c| crate::models::message::mentionees_in_room(c, pets, &crate::RichText::mentioned_user_ids(&rich_text, c, &html)))
     };
 
-    let users = mentioned(format!(
-        "<div>Hey {}</div>",
-        mention_attachment_for(id("david"))
-    ));
-    assert_eq!(
-        users.iter().map(|u| u.id).collect::<Vec<_>>(),
-        vec![id("david")]
-    );
+    let users = mentioned(format!("<div>Hey {}</div>", mention_attachment_for(id("david"))));
+    assert_eq!(users.iter().map(|u| u.id).collect::<Vec<_>>(), vec![id("david")]);
 
     let users = mentioned(format!(
         "<div>Hey {} {}</div>",
         mention_attachment_for(id("david")),
         mention_attachment_for(id("david"))
     ));
-    assert_eq!(
-        users.iter().map(|u| u.id).collect::<Vec<_>>(),
-        vec![id("david")]
-    );
+    assert_eq!(users.iter().map(|u| u.id).collect::<Vec<_>>(), vec![id("david")]);
 
     // Kevin isn't in All Pets.
-    assert!(
-        mentioned(format!(
-            "<div>Hey {}</div>",
-            mention_attachment_for(id("kevin"))
-        ))
-        .is_empty()
-    );
+    assert!(mentioned(format!("<div>Hey {}</div>", mention_attachment_for(id("kevin")))).is_empty());
 }
 
 #[test]
 fn message_body_is_indexed_and_searchable() {
     let t = TestDb::new();
-    let mut message = create(
-        &t,
-        "designers",
-        "david",
-        "My hovercraft is full of eels",
-        "earth",
-    );
+    let mut message = create(&t, "designers", "david", "My hovercraft is full of eels", "earth");
     assert_eq!(search(&t, "designers", "eel"), vec![message.id]);
 
     let m = message.clone();
@@ -116,7 +85,9 @@ fn message_body_is_indexed_and_searchable() {
 fn search_words_are_never_query_syntax() {
     let t = TestDb::new();
     let message = create(&t, "designers", "jason", "Do NOT feed the eel OR the shark", "c1");
-    for query in ["NOT", "OR", "AND", "NEAR", "eel NOT", "NOT eel", "shark OR", "\"", "*", "", "a\0b", "\0"] {
+    for query in [
+        "NOT", "OR", "AND", "NEAR", "eel NOT", "NOT eel", "shark OR", "\"", "*", "", "a\0b", "\0",
+    ] {
         search(&t, "designers", query);
     }
     assert_eq!(search(&t, "designers", "NOT eel"), vec![message.id]);
@@ -140,13 +111,7 @@ fn search_results_are_returned_in_message_order() {
 #[test]
 fn rich_text_body_is_converted_to_plain_text_for_indexing() {
     let t = TestDb::new();
-    let message = create(
-        &t,
-        "designers",
-        "david",
-        "<span>My hovercraft is full of eels</span>",
-        "earth",
-    );
+    let message = create(&t, "designers", "david", "<span>My hovercraft is full of eels</span>", "earth");
     assert!(search(&t, "designers", "span").is_empty());
     assert_eq!(search(&t, "designers", "eel"), vec![message.id]);
 }
@@ -156,14 +121,8 @@ fn search_reachable_only_finds_messages_in_the_users_rooms() {
     let t = TestDb::new();
     let message = create(&t, "designers", "david", "hovercraft", "earth");
     let found = t.read(|c| Message::search_reachable(c, id("kevin"), "hovercraft"));
-    assert_eq!(
-        found.iter().map(|m| m.id).collect::<Vec<_>>(),
-        vec![message.id]
-    );
-    assert!(
-        t.read(|c| Message::search_reachable(c, id("bender"), "hovercraft"))
-            .is_empty()
-    );
+    assert_eq!(found.iter().map(|m| m.id).collect::<Vec<_>>(), vec![message.id]);
+    assert!(t.read(|c| Message::search_reachable(c, id("bender"), "hovercraft")).is_empty());
 }
 
 #[test]
@@ -195,22 +154,12 @@ fn creating_a_blank_message_with_attachment_uses_filename_as_plain_text_body() {
             },
         )
     });
-    assert_eq!(
-        t.read(|c| message.plain_text_body(c, &BasicRichText)),
-        "moon.jpg"
-    );
-    assert_eq!(
-        t.read(|c| message.content_type(c, &BasicRichText)),
-        crate::ContentType::Attachment
-    );
+    assert_eq!(t.read(|c| message.plain_text_body(c, &BasicRichText)), "moon.jpg");
+    assert_eq!(t.read(|c| message.content_type(c, &BasicRichText)), crate::ContentType::Attachment);
     assert_eq!(search(&t, "hq", "moon"), vec![message.id]);
 
     t.write(move |tx| message.destroy(tx));
-    assert!(
-        t.events()
-            .iter()
-            .any(|e| matches!(e, Event::PurgeBlob { .. }))
-    );
+    assert!(t.events().iter().any(|e| matches!(e, Event::PurgeBlob { .. })));
     assert_eq!(
         t.read(|c| crate::sql::count(c, "SELECT COUNT(*) FROM active_storage_attachments", [])),
         0
@@ -221,19 +170,10 @@ fn creating_a_blank_message_with_attachment_uses_filename_as_plain_text_body() {
 fn sound_messages() {
     let t = TestDb::new();
     let message = create(&t, "designers", "david", "/play trombone", "x");
-    assert_eq!(
-        t.read(|c| message.content_type(c, &BasicRichText)),
-        crate::ContentType::Sound
-    );
-    assert_eq!(
-        t.read(|c| message.sound(c, &BasicRichText)).unwrap().name,
-        "trombone"
-    );
+    assert_eq!(t.read(|c| message.content_type(c, &BasicRichText)), crate::ContentType::Sound);
+    assert_eq!(t.read(|c| message.sound(c, &BasicRichText)).unwrap().name, "trombone");
     let message = create(&t, "designers", "david", "/play nosuchsound", "y");
-    assert_eq!(
-        t.read(|c| message.content_type(c, &BasicRichText)),
-        crate::ContentType::Text
-    );
+    assert_eq!(t.read(|c| message.content_type(c, &BasicRichText)), crate::ContentType::Text);
 }
 
 #[test]
@@ -274,13 +214,7 @@ fn pagination() {
 
     for n in 0..PAGE_SIZE {
         t.travel(1);
-        create(
-            &t,
-            "watercooler",
-            "david",
-            &format!("message {n}"),
-            &format!("c{n}"),
-        );
+        create(&t, "watercooler", "david", &format!("message {n}"), &format!("c{n}"));
     }
     assert!(t.read(|c| Message::paged(c, watercooler)));
     let last = t.read(|c| Message::last_page(c, watercooler));

@@ -60,12 +60,7 @@ impl RichText for BasicRichText {
                     continue;
                 }
             }
-            if matches!(
-                name.as_str(),
-                "br" | "p" | "div" | "li" | "h1" | "blockquote" | "pre"
-            ) && !out.is_empty()
-                && !closing
-            {
+            if matches!(name.as_str(), "br" | "p" | "div" | "li" | "h1" | "blockquote" | "pre") && !out.is_empty() && !closing {
                 out.push('\n');
             }
             rest = &rest[start + end + 1..];
@@ -103,10 +98,7 @@ fn attribute_values(html: &str, name: &str) -> Vec<String> {
 /// Reads `gid://campfire/User/<id>` out of an SGID's message without verifying it.
 pub fn user_id_from_sgid(sgid: &str) -> Option<i64> {
     let message = sgid.split("--").next()?;
-    let message = message
-        .replace("%3D", "=")
-        .replace("%2B", "+")
-        .replace("%2F", "/");
+    let message = message.replace("%3D", "=").replace("%2B", "+").replace("%2F", "/");
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(message.as_bytes())
         .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(message.as_bytes()))
@@ -114,10 +106,7 @@ pub fn user_id_from_sgid(sgid: &str) -> Option<i64> {
     let text = String::from_utf8_lossy(&decoded);
     let marker = "gid://campfire/User/";
     let start = text.find(marker)? + marker.len();
-    let digits: String = text[start..]
-        .chars()
-        .take_while(|c| c.is_ascii_digit())
-        .collect();
+    let digits: String = text[start..].chars().take_while(|c| c.is_ascii_digit()).collect();
     digits.parse().ok()
 }
 

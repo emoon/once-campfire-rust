@@ -51,9 +51,17 @@ impl NewBlob {
 
     /// [`NewBlob::unfurl`] for a file, reading only as much of it as identification needs, and
     /// streaming it through the checksum.
-    pub fn unfurl_file(path: &Path, filename: Filename, declared_type: Option<&str>, service_name: &str, identify: bool) -> Result<NewBlob> {
+    pub fn unfurl_file(
+        path: &Path,
+        filename: Filename,
+        declared_type: Option<&str>,
+        service_name: &str,
+        identify: bool,
+    ) -> Result<NewBlob> {
         let mut head = Vec::new();
-        std::fs::File::open(path)?.take(marcel::magic_prefix_len() as u64).read_to_end(&mut head)?;
+        std::fs::File::open(path)?
+            .take(marcel::magic_prefix_len() as u64)
+            .read_to_end(&mut head)?;
         let content_type = Self::content_type(&head, &filename, declared_type, identify);
         let byte_size = std::fs::metadata(path)?.len();
         Ok(Self::build(filename, content_type, service_name, byte_size, checksum_file(path)?))
@@ -146,7 +154,10 @@ impl Blob {
                 BLOB_COLUMNS.split(", ").map(|c| format!("b.{c}")).collect::<Vec<_>>().join(", ")
             )
         });
-        Ok(conn.prepare_cached(&SQL)?.query_row(params![record_type, record_id, name], Blob::from_row).optional()?)
+        Ok(conn
+            .prepare_cached(&SQL)?
+            .query_row(params![record_type, record_id, name], Blob::from_row)
+            .optional()?)
     }
 
     pub fn content_type(&self) -> &str {
@@ -182,7 +193,9 @@ impl Blob {
     }
 
     pub fn is_analyzed(&self) -> bool {
-        self.metadata.get("analyzed").is_some_and(|v| !matches!(v, Json::Null | Json::Bool(false)))
+        self.metadata
+            .get("analyzed")
+            .is_some_and(|v| !matches!(v, Json::Null | Json::Bool(false)))
     }
 
     /// `metadata[:width]`/`[:height]` as the views read them.
@@ -196,14 +209,21 @@ impl Blob {
 
     /// `update!(metadata:)`.
     pub fn update_metadata(&mut self, conn: &Connection, metadata: Json) -> Result<()> {
-        conn.execute("UPDATE active_storage_blobs SET metadata = ?1 WHERE id = ?2", params![metadata.encode(), self.id])?;
+        conn.execute(
+            "UPDATE active_storage_blobs SET metadata = ?1 WHERE id = ?2",
+            params![metadata.encode(), self.id],
+        )?;
         self.metadata = metadata;
         Ok(())
     }
 
     /// `default_variant_format`: web images keep their format, everything else becomes PNG.
     pub fn default_variant_format(&self) -> String {
-        if content_types::is_web_image(self.content_type()) { self.format().unwrap_or_else(|| "png".into()) } else { "png".into() }
+        if content_types::is_web_image(self.content_type()) {
+            self.format().unwrap_or_else(|| "png".into())
+        } else {
+            "png".into()
+        }
     }
 
     /// `Representable#format`: the filename's extension when Marcel agrees it names the

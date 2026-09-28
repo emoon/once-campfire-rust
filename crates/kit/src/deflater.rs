@@ -31,7 +31,12 @@ pub struct AppContentLength;
 
 /// The `Rack::Deflater` middleware.
 pub async fn deflater(request: Request, next: Next) -> Response {
-    let accept_encoding = request.headers().get(header::ACCEPT_ENCODING).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+    let accept_encoding = request
+        .headers()
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
     let path = request.uri().path_and_query().map(|p| p.as_str().to_string()).unwrap_or_default();
     let mut response = next.run(request).await;
     if !should_deflate(&response) {
@@ -48,7 +53,11 @@ pub async fn deflater(request: Request, next: Next) -> Response {
         .flat_map(|v| v.split(',').map(|t| t.trim().to_string()).collect::<Vec<_>>())
         .collect();
     if !vary.iter().any(|v| v == "*" || v.eq_ignore_ascii_case("accept-encoding")) {
-        let mut vary: Vec<String> = if response.headers().contains_key(header::VARY) { vary } else { Vec::new() };
+        let mut vary: Vec<String> = if response.headers().contains_key(header::VARY) {
+            vary
+        } else {
+            Vec::new()
+        };
         vary.push("Accept-Encoding".into());
         if let Ok(value) = HeaderValue::from_str(&vary.join(",")) {
             response.headers_mut().insert(header::VARY, value);
@@ -78,8 +87,12 @@ pub async fn deflater(request: Request, next: Next) -> Response {
             let message = format!("An acceptable encoding for the requested resource {path} could not be found.");
             let mut response = Response::new(Body::from(message.clone()));
             *response.status_mut() = StatusCode::NOT_ACCEPTABLE;
-            response.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
-            response.headers_mut().insert(header::CONTENT_LENGTH, HeaderValue::from(message.len()));
+            response
+                .headers_mut()
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+            response
+                .headers_mut()
+                .insert(header::CONTENT_LENGTH, HeaderValue::from(message.len()));
             response
         }
     }
@@ -191,7 +204,10 @@ fn select_best_encoding(available: &[&'static str], accept: &[(String, f64)]) ->
 /// `GzipStream` with `sync: true`: each body chunk is compressed and flushed as it arrives.
 /// `Zlib::GzipWriter` writes the header with the given mtime and the Unix OS code.
 fn gzip_stream(body: Body, mtime: u32) -> Body {
-    let encoder = GzBuilder::new().mtime(mtime).operating_system(3).write(Vec::new(), Compression::default());
+    let encoder = GzBuilder::new()
+        .mtime(mtime)
+        .operating_system(3)
+        .write(Vec::new(), Compression::default());
     let chunks = body.into_data_stream();
     let stream = futures_util::stream::unfold(Some((chunks, encoder)), |state| async move {
         let (mut chunks, mut encoder) = state?;
@@ -217,14 +233,20 @@ fn gzip_stream(body: Body, mtime: u32) -> Body {
 async fn gzip_page_parts(body: Body, page_parts: &splice::PageParts, mtime: u32) -> Body {
     let bytes = match body.collect().await {
         Ok(collected) => collected.to_bytes(),
-        Err(error) => return Body::from_stream(futures_util::stream::once(async move { Err::<Bytes, _>(std::io::Error::other(error)) })),
+        Err(error) => {
+            return Body::from_stream(futures_util::stream::once(
+                async move { Err::<Bytes, _>(std::io::Error::other(error)) },
+            ));
+        }
     };
     if !page_parts.fits(&bytes) {
         return gzip_stream(Body::from(bytes), mtime);
     }
     let gzipped = page_parts.gzip(&bytes, mtime);
     // Streamed like `gzip_stream`'s output, so no `Content-Length` goes with it.
-    Body::from_stream(futures_util::stream::once(async move { Ok::<_, std::io::Error>(Bytes::from(gzipped)) }))
+    Body::from_stream(futures_util::stream::once(
+        async move { Ok::<_, std::io::Error>(Bytes::from(gzipped)) },
+    ))
 }
 
 fn compress(encoder: &mut GzEncoder<Vec<u8>>, chunk: &[u8]) -> std::io::Result<Bytes> {

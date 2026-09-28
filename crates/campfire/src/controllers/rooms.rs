@@ -50,7 +50,12 @@ impl Scope {
 pub async fn index(c: &mut Ctx) -> Result {
     before_actions(c, Before::default()).await?;
     let user_id = require_current_user(c)?.id;
-    let room = c.app().db.read(move |conn| Room::last_for_user(conn, user_id)).await.map_err(db_error)?;
+    let room = c
+        .app()
+        .db
+        .read(move |conn| Room::last_for_user(conn, user_id))
+        .await
+        .map_err(db_error)?;
     let Some(room) = room else {
         return Err(Error::internal(anyhow::anyhow!("No route matches room_url(nil)")));
     };
@@ -97,14 +102,22 @@ pub async fn set_room(c: &mut Ctx, scope: Scope) -> Result<Room> {
     let user_id = require_current_user(c)?.id;
     let id = c.param_str("room_id").or_else(|| c.param_str("id")).and_then(cast_integer);
     let room = match id {
-        Some(id) => c.app().db.read(move |conn| Room::find_for_user(conn, user_id, id)).await.map_err(db_error)?,
+        Some(id) => c
+            .app()
+            .db
+            .read(move |conn| Room::find_for_user(conn, user_id, id))
+            .await
+            .map_err(db_error)?,
         None => None,
     };
     match room.filter(|room| scope.includes(room)) {
         Some(room) => Ok(room),
         None => {
             let root = c.url_for(&campfire_routes::root());
-            let redirect = Redirect { alert: Some("Room not found or inaccessible".into()), ..Redirect::default() };
+            let redirect = Redirect {
+                alert: Some("Room not found or inaccessible".into()),
+                ..Redirect::default()
+            };
             halt(c.redirect_to_with(&root, redirect)?)
         }
     }
@@ -182,7 +195,10 @@ pub(crate) async fn render_shared_room(c: &Ctx, room: &Room) -> Result<Rendered>
         .await
         .map_err(db_error)?
         .map_err(Error::internal)?;
-    Ok(Rendered { shared_room: Some(html), ..Rendered::default() })
+    Ok(Rendered {
+        shared_room: Some(html),
+        ..Rendered::default()
+    })
 }
 
 /// `rooms/show` with `find_messages`: the page around `params[:message_id]`, else the last page.

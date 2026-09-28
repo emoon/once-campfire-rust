@@ -17,7 +17,8 @@ use crate::config::Config;
 const ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
 const HOST: &str = "campfire.test";
 const PASSWORD: &str = "secret123456";
-const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const CHROME: &str =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
 struct Test {
     booted: Booted,
@@ -37,7 +38,10 @@ async fn boot_seed(name: &str) -> Option<Test> {
     if seed.join("storage").exists() {
         copy_dir(&seed.join("storage"), &dir.path().join("files"));
     }
-    let labels = std::fs::read_to_string(seed.join("labels.json")).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let labels = std::fs::read_to_string(seed.join("labels.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
     let root = dir.path().to_string_lossy().into_owned();
     let secret = parity_env("SECRET_KEY_BASE").unwrap();
     let config = Config::from_lookup(|key| match key {
@@ -48,12 +52,17 @@ async fn boot_seed(name: &str) -> Option<Test> {
         _ => None,
     })
     .unwrap();
-    Some(Test { booted: boot(config).await.unwrap(), labels, _dir: dir })
+    Some(Test {
+        booted: boot(config).await.unwrap(),
+        labels,
+        _dir: dir,
+    })
 }
 
 fn parity_env(name: &str) -> Option<String> {
     let env = std::fs::read_to_string(Path::new(ROOT).join("parity/.env.reference")).ok()?;
-    env.lines().find_map(|line| line.strip_prefix(&format!("{name}=")).map(str::to_string))
+    env.lines()
+        .find_map(|line| line.strip_prefix(&format!("{name}=")).map(str::to_string))
 }
 
 fn copy_dir(from: &Path, to: &Path) {
@@ -78,7 +87,11 @@ impl Test {
 
     /// A browser: a cookie jar and a remote IP of its own (the sign-in rate limit is per IP).
     fn browser(&self, ip: &str) -> Browser<'_> {
-        Browser { test: self, cookies: BTreeMap::new(), ip: ip.to_string() }
+        Browser {
+            test: self,
+            cookies: BTreeMap::new(),
+            ip: ip.to_string(),
+        }
     }
 }
 
@@ -102,7 +115,11 @@ impl Reply {
     }
 
     fn set_cookies(&self) -> Vec<String> {
-        self.headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap().to_string()).collect()
+        self.headers
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect()
     }
 
     /// Asserts the page has a form posting to `action`.
@@ -134,7 +151,11 @@ struct Browser<'a> {
 
 impl Browser<'_> {
     async fn request(&mut self, method: Method, path: &str, headers: &[(&str, &str)], body: Option<(&str, String)>) -> Reply {
-        let mut request = Request::builder().method(method).uri(path).header(header::HOST, HOST).header("x-forwarded-for", &self.ip);
+        let mut request = Request::builder()
+            .method(method)
+            .uri(path)
+            .header(header::HOST, HOST)
+            .header("x-forwarded-for", &self.ip);
         if !headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("user-agent")) {
             request = request.header(header::USER_AGENT, CHROME);
         }
@@ -180,15 +201,22 @@ impl Browser<'_> {
             pairs.push(("_method".into(), method.into()));
         }
         pairs.extend(fields.iter().map(|(k, v)| (k.to_string(), v.to_string())));
-        let body = pairs.iter().map(|(k, v)| format!("{}={}", encode(k), encode(v))).collect::<Vec<_>>().join("&");
-        self.request(Method::POST, path, &[], Some(("application/x-www-form-urlencoded", body))).await
+        let body = pairs
+            .iter()
+            .map(|(k, v)| format!("{}={}", encode(k), encode(v)))
+            .collect::<Vec<_>>()
+            .join("&");
+        self.request(Method::POST, path, &[], Some(("application/x-www-form-urlencoded", body)))
+            .await
     }
 
     async fn sign_in(&mut self, email: &str) {
         let page = self.get("/session/new").await;
         assert_eq!(page.status, StatusCode::OK, "{}", page.text());
         page.assert_form("/session");
-        let reply = self.form("post", "/session", &[("email_address", email), ("password", PASSWORD)]).await;
+        let reply = self
+            .form("post", "/session", &[("email_address", email), ("password", PASSWORD)])
+            .await;
         assert_eq!(reply.status, StatusCode::FOUND, "sign in as {email}: {}", reply.text());
     }
 }
@@ -216,13 +244,29 @@ async fn signs_in_with_a_password_and_out_again() {
     assert!(page.text().contains("<title>Sign in</title>"));
     assert!(page.header("link").is_some_and(|link| link.contains("rel=preload; as=style")));
     page.assert_form("/session");
-    let signed_in = browser.form("post", "/session", &[("email_address", &test.label("emails.david")), ("password", PASSWORD)]).await;
+    let signed_in = browser
+        .form(
+            "post",
+            "/session",
+            &[("email_address", &test.label("emails.david")), ("password", PASSWORD)],
+        )
+        .await;
     assert_redirect(&signed_in, "http://campfire.test/account/edit");
-    let session_cookie = signed_in.set_cookies().into_iter().find(|c| c.starts_with("session_token=")).expect("session cookie");
-    assert!(session_cookie.contains("httponly") && session_cookie.contains("samesite=lax") && session_cookie.contains("expires="), "{session_cookie}");
+    let session_cookie = signed_in
+        .set_cookies()
+        .into_iter()
+        .find(|c| c.starts_with("session_token="))
+        .expect("session cookie");
+    assert!(
+        session_cookie.contains("httponly") && session_cookie.contains("samesite=lax") && session_cookie.contains("expires="),
+        "{session_cookie}"
+    );
 
     // Signed in: sign-in and join pages send you home.
-    assert_redirect(&browser.get(&format!("/join/{}", test.label("join_codes.signal"))).await, "http://campfire.test/");
+    assert_redirect(
+        &browser.get(&format!("/join/{}", test.label("join_codes.signal"))).await,
+        "http://campfire.test/",
+    );
     let root = browser.get("/").await;
     assert_eq!(root.status, StatusCode::FOUND);
     assert!(root.location().starts_with("http://campfire.test/rooms/"));
@@ -233,7 +277,11 @@ async fn signs_in_with_a_password_and_out_again() {
     profile.assert_form("/session");
     let signed_out = browser.form("delete", "/session", &[]).await;
     assert_redirect(&signed_out, "http://campfire.test/");
-    assert!(signed_out.set_cookies().iter().any(|c| c.starts_with("session_token=;")), "{:?}", signed_out.set_cookies());
+    assert!(
+        signed_out.set_cookies().iter().any(|c| c.starts_with("session_token=;")),
+        "{:?}",
+        signed_out.set_cookies()
+    );
     assert_redirect(&browser.get("/users/me/profile").await, "http://campfire.test/session/new");
 }
 
@@ -243,24 +291,47 @@ async fn rejects_bad_passwords_and_rate_limits_sign_ins() {
     let mut browser = test.browser("198.51.100.2");
     browser.get("/session/new").await.assert_form("/session");
     for attempt in 1..=11 {
-        let reply = browser.form("post", "/session", &[("email_address", "david@37signals.com"), ("password", "wrong")]).await;
-        let expected = if attempt <= 10 { StatusCode::UNAUTHORIZED } else { StatusCode::TOO_MANY_REQUESTS };
+        let reply = browser
+            .form(
+                "post",
+                "/session",
+                &[("email_address", "david@37signals.com"), ("password", "wrong")],
+            )
+            .await;
+        let expected = if attempt <= 10 {
+            StatusCode::UNAUTHORIZED
+        } else {
+            StatusCode::TOO_MANY_REQUESTS
+        };
         assert_eq!(reply.status, expected, "attempt {attempt}");
         let html = reply.text();
-        assert!(html.contains("Too many requests or unauthorized.") && html.contains("shake"), "{html}");
+        assert!(
+            html.contains("Too many requests or unauthorized.") && html.contains("shake"),
+            "{html}"
+        );
         assert!(html.contains(r#"value="david@37signals.com""#));
     }
     // Deactivated users can't sign in.
     let mut other = test.browser("198.51.100.3");
     other.get("/session/new").await.assert_form("/session");
-    let reply = other.form("post", "/session", &[("email_address", &test.label("emails.rita")), ("password", PASSWORD)]).await;
+    let reply = other
+        .form(
+            "post",
+            "/session",
+            &[("email_address", &test.label("emails.rita")), ("password", PASSWORD)],
+        )
+        .await;
     assert_eq!(reply.status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
 async fn a_rails_issued_session_cookie_continues_on_rust() {
     let Some(test) = boot_seed("default").await else { return };
-    let vectors: serde_json::Value = serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vectors/campfire_sessions.json"))).unwrap();
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../vectors/campfire_sessions.json"
+    )))
+    .unwrap();
     let cookie = vectors["sessions"][0]["cookie_header"].as_str().unwrap();
     let mut browser = test.browser("198.51.100.4");
     for pair in cookie.split("; ") {
@@ -278,23 +349,42 @@ async fn direct_uploads_are_refused_past_the_body_limit() {
     let mut browser = test.browser("198.51.100.10");
     browser.sign_in("david@37signals.com").await;
     let create = |byte_size: usize| {
-        format!(r#"{{"blob":{{"filename":"a.bin","byte_size":{byte_size},"checksum":"1B2M2Y8AsgTpgAmY7PhCfg==","content_type":"application/octet-stream"}}}}"#)
+        format!(
+            r#"{{"blob":{{"filename":"a.bin","byte_size":{byte_size},"checksum":"1B2M2Y8AsgTpgAmY7PhCfg==","content_type":"application/octet-stream"}}}}"#
+        )
     };
-    let small = browser.request(Method::POST, "/rails/active_storage/direct_uploads", &[], Some(("application/json", create(5)))).await;
+    let small = browser
+        .request(
+            Method::POST,
+            "/rails/active_storage/direct_uploads",
+            &[],
+            Some(("application/json", create(5))),
+        )
+        .await;
     assert_eq!(small.status, StatusCode::OK, "{}", small.text());
     assert!(small.text().contains("/rails/active_storage/disk/"), "{}", small.text());
-    let large = browser.request(Method::POST, "/rails/active_storage/direct_uploads", &[], Some(("application/json", create(campfire_kit::body::MAX_BUFFERED_BODY + 1)))).await;
+    let large = browser
+        .request(
+            Method::POST,
+            "/rails/active_storage/direct_uploads",
+            &[],
+            Some(("application/json", create(campfire_kit::body::MAX_BUFFERED_BODY + 1))),
+        )
+        .await;
     assert_eq!(large.status, StatusCode::PAYLOAD_TOO_LARGE);
 }
 
 #[tokio::test]
 async fn edge_gets_its_install_instructions() {
     // EdgeHTML's token: the useragent gem reports Chromium Edge (`Edg/`) as Chrome.
-    const EDGE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edge/124.0.0.0";
+    const EDGE: &str =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edge/124.0.0.0";
     let Some(test) = boot_seed("default").await else { return };
     let mut browser = test.browser("198.51.100.9");
     browser.sign_in("david@37signals.com").await;
-    let profile = browser.request(Method::GET, "/users/me/profile", &[("user-agent", EDGE)], None).await;
+    let profile = browser
+        .request(Method::GET, "/users/me/profile", &[("user-agent", EDGE)], None)
+        .await;
     assert_eq!(profile.status, StatusCode::OK);
     assert!(profile.text().contains("/assets/install-edge-"), "{}", profile.text());
 }
@@ -336,15 +426,26 @@ async fn joins_with_the_join_code() {
     let page = browser.get(&path).await;
     assert_eq!(page.status, StatusCode::OK);
     page.assert_form(&path);
-    let fields = [("user[name]", "New Person"), ("user[email_address]", "new@example.com"), ("user[password]", PASSWORD)];
+    let fields = [
+        ("user[name]", "New Person"),
+        ("user[email_address]", "new@example.com"),
+        ("user[password]", PASSWORD),
+    ];
     assert_redirect(&browser.form("post", &path, &fields).await, "http://campfire.test/");
     assert_eq!(browser.get("/users/me/profile").await.status, StatusCode::OK);
 
     // A taken email address goes to sign in instead.
     let mut other = test.browser("198.51.100.9");
     other.get(&path).await.assert_form(&path);
-    let fields = [("user[name]", "Imposter"), ("user[email_address]", "new@example.com"), ("user[password]", PASSWORD)];
-    assert_redirect(&other.form("post", &path, &fields).await, "http://campfire.test/session/new?email_address=new%40example.com");
+    let fields = [
+        ("user[name]", "Imposter"),
+        ("user[email_address]", "new@example.com"),
+        ("user[password]", PASSWORD),
+    ];
+    assert_redirect(
+        &other.form("post", &path, &fields).await,
+        "http://campfire.test/session/new?email_address=new%40example.com",
+    );
 }
 
 #[tokio::test]
@@ -355,7 +456,11 @@ async fn first_run_sets_up_the_account() {
     let page = browser.get("/first_run").await;
     assert_eq!(page.status, StatusCode::OK, "{}", page.text());
     page.assert_form("/first_run");
-    let fields = [("user[name]", "Owner"), ("user[email_address]", "owner@example.com"), ("user[password]", PASSWORD)];
+    let fields = [
+        ("user[name]", "Owner"),
+        ("user[email_address]", "owner@example.com"),
+        ("user[password]", PASSWORD),
+    ];
     assert_redirect(&browser.form("post", "/first_run", &fields).await, "http://campfire.test/");
     assert_redirect(&browser.get("/first_run").await, "http://campfire.test/");
     assert!(browser.get("/").await.location().starts_with("http://campfire.test/rooms/"));
@@ -382,19 +487,37 @@ async fn administers_the_account() {
 
     // Join code reset.
     edit.assert_form("/account/join_code");
-    assert_redirect(&admin.form("post", "/account/join_code", &[]).await, "http://campfire.test/account/edit");
+    assert_redirect(
+        &admin.form("post", "/account/join_code", &[]).await,
+        "http://campfire.test/account/edit",
+    );
     assert!(!admin.get("/account/edit").await.text().contains(&test.label("join_codes.signal")));
 
     // Custom styles.
     let page = admin.get("/account/custom_styles/edit").await;
     assert_eq!(page.status, StatusCode::OK);
     page.assert_form("/account/custom_styles");
-    let reply = admin.form("patch", "/account/custom_styles", &[("account[custom_styles]", "body { --x: 1 }")]).await;
+    let reply = admin
+        .form("patch", "/account/custom_styles", &[("account[custom_styles]", "body { --x: 1 }")])
+        .await;
     assert_redirect(&reply, "http://campfire.test/account/custom_styles/edit");
-    assert!(admin.get("/account/custom_styles/edit").await.text().contains("<style data-turbo-track=\"reload\">body { --x: 1 }</style>"));
+    assert!(
+        admin
+            .get("/account/custom_styles/edit")
+            .await
+            .text()
+            .contains("<style data-turbo-track=\"reload\">body { --x: 1 }</style>")
+    );
 
     // The next page of people, as a turbo stream.
-    let page = admin.request(Method::GET, "/account/users?page=2", &[("accept", "text/vnd.turbo-stream.html")], None).await;
+    let page = admin
+        .request(
+            Method::GET,
+            "/account/users?page=2",
+            &[("accept", "text/vnd.turbo-stream.html")],
+            None,
+        )
+        .await;
     assert_eq!(page.status, StatusCode::OK);
     assert!(page.header("content-type").unwrap().starts_with("text/vnd.turbo-stream.html"));
     assert_eq!(admin.get("/account/users").await.status, StatusCode::NOT_ACCEPTABLE);
@@ -404,8 +527,14 @@ async fn administers_the_account() {
     member.sign_in(&test.label("emails.kevin")).await;
     let edit = member.get("/account/edit").await;
     assert_eq!(edit.status, StatusCode::OK);
-    assert!(!edit.text().contains(&format!("action=\"{action}\"")), "members get no account form");
-    assert_eq!(member.form("patch", &action, &[("account[name]", "Mine")]).await.status, StatusCode::FORBIDDEN);
+    assert!(
+        !edit.text().contains(&format!("action=\"{action}\"")),
+        "members get no account form"
+    );
+    assert_eq!(
+        member.form("patch", &action, &[("account[name]", "Mine")]).await.status,
+        StatusCode::FORBIDDEN
+    );
     assert_eq!(member.get("/account/bots").await.status, StatusCode::FORBIDDEN);
 }
 
@@ -420,7 +549,13 @@ async fn manages_bots() {
 
     let new = admin.get("/account/bots/new").await;
     new.assert_form("/account/bots");
-    let reply = admin.form("post", "/account/bots", &[("user[name]", "Robo"), ("user[webhook_url]", "https://example.com/robo")]).await;
+    let reply = admin
+        .form(
+            "post",
+            "/account/bots",
+            &[("user[name]", "Robo"), ("user[webhook_url]", "https://example.com/robo")],
+        )
+        .await;
     assert_redirect(&reply, "http://campfire.test/account/bots");
     assert!(admin.get("/account/bots").await.text().contains("Robo"));
 
@@ -429,7 +564,10 @@ async fn manages_bots() {
     assert_eq!(edit.status, StatusCode::OK);
     let action = format!("/account/bots/{bender}");
     edit.assert_form(&action);
-    assert_redirect(&admin.form("patch", &action, &[("user[name]", "Bender 2")]).await, "http://campfire.test/account/bots");
+    assert_redirect(
+        &admin.form("patch", &action, &[("user[name]", "Bender 2")]).await,
+        "http://campfire.test/account/bots",
+    );
 
     let edit = admin.get(&format!("/account/bots/{bender}/edit")).await;
     let key_action = format!("/account/bots/{bender}/key");
@@ -437,9 +575,15 @@ async fn manages_bots() {
     assert_redirect(&admin.form("put", &key_action, &[]).await, "http://campfire.test/account/bots");
     assert!(!admin.get("/account/bots").await.text().contains(&test.label("bot_keys.bender")));
 
-    admin.get(&format!("/account/bots/{bender}/edit")).await.assert_button(&action, "delete");
+    admin
+        .get(&format!("/account/bots/{bender}/edit"))
+        .await
+        .assert_button(&action, "delete");
     assert_redirect(&admin.form("delete", &action, &[]).await, "http://campfire.test/account/bots");
-    assert_eq!(admin.get(&format!("/account/bots/{bender}/edit")).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        admin.get(&format!("/account/bots/{bender}/edit")).await.status,
+        StatusCode::NOT_FOUND
+    );
 }
 
 #[tokio::test]
@@ -449,9 +593,14 @@ async fn serves_the_account_logo_and_avatars() {
     let logo = browser.get("/account/logo?size=small").await;
     assert_eq!(logo.status, StatusCode::OK);
     assert_eq!(logo.header("content-type"), Some("image/png"));
-    assert_eq!(logo.header("cache-control"), Some("max-age=300, public, stale-while-revalidate=604800"));
+    assert_eq!(
+        logo.header("cache-control"),
+        Some("max-age=300, public, stale-while-revalidate=604800")
+    );
     let etag = logo.header("etag").unwrap().to_string();
-    let again = browser.request(Method::GET, "/account/logo?size=small", &[("if-none-match", &etag)], None).await;
+    let again = browser
+        .request(Method::GET, "/account/logo?size=small", &[("if-none-match", &etag)], None)
+        .await;
     assert_eq!(again.status, StatusCode::NOT_MODIFIED);
 
     // Avatars need a session.
@@ -462,7 +611,10 @@ async fn serves_the_account_logo_and_avatars() {
     assert_eq!(avatar.status, StatusCode::OK);
     assert_eq!(avatar.header("content-type"), Some("image/svg+xml; charset=utf-8"));
     assert!(avatar.text().contains("\n      D\n    </text>"), "{}", avatar.text());
-    assert_eq!(avatar.header("cache-control"), Some("max-age=1800, public, stale-while-revalidate=604800"));
+    assert_eq!(
+        avatar.header("cache-control"),
+        Some("max-age=1800, public, stale-while-revalidate=604800")
+    );
     let jason = browser.get(&format!("/users/{}/avatar", test.label("avatar_tokens.jason"))).await;
     assert_eq!((jason.status, jason.header("content-type")), (StatusCode::OK, Some("image/webp")));
     let bad = browser.get("/users/bogus/avatar").await;
@@ -480,25 +632,37 @@ async fn profile_sidebar_and_user_pages() {
     let profile = browser.get("/users/me/profile").await;
     assert_eq!(profile.status, StatusCode::OK);
     profile.assert_form("/users/me/profile");
-    let reply = browser.form("patch", "/users/me/profile", &[("user[name]", "Kev"), ("user[bio]", "Hi")]).await;
+    let reply = browser
+        .form("patch", "/users/me/profile", &[("user[name]", "Kev"), ("user[bio]", "Hi")])
+        .await;
     assert_redirect(&reply, "http://campfire.test/users/me/profile");
     assert!(browser.get("/users/me/profile").await.text().contains("Kev"));
 
     let sidebar = browser.get("/users/me/sidebar").await;
     assert_eq!(sidebar.status, StatusCode::OK);
     assert!(sidebar.text().contains("<!DOCTYPE html>"));
-    let frame = browser.request(Method::GET, "/users/me/sidebar", &[("turbo-frame", "user_sidebar")], None).await;
+    let frame = browser
+        .request(Method::GET, "/users/me/sidebar", &[("turbo-frame", "user_sidebar")], None)
+        .await;
     assert_eq!(frame.status, StatusCode::OK);
     assert!(!frame.text().contains("<!DOCTYPE html>") && frame.text().contains("<turbo-frame"));
 
-    assert_eq!(browser.get(&format!("/users/{}", test.label("users.david"))).await.status, StatusCode::OK);
+    assert_eq!(
+        browser.get(&format!("/users/{}", test.label("users.david"))).await.status,
+        StatusCode::OK
+    );
     assert_eq!(browser.get("/users/999999999").await.status, StatusCode::NOT_FOUND);
 
     let subscriptions = browser.get("/users/me/push_subscriptions").await;
     assert_eq!(subscriptions.status, StatusCode::OK);
     let body = r#"{"push_subscription":{"endpoint":"http://example.com/push","p256dh_key":"a","auth_key":"b"}}"#;
     let reply = browser
-        .request(Method::POST, "/users/me/push_subscriptions", &[], Some(("application/json", body.into())))
+        .request(
+            Method::POST,
+            "/users/me/push_subscriptions",
+            &[],
+            Some(("application/json", body.into())),
+        )
         .await;
     assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY, "an http endpoint fails validation");
 }
@@ -515,7 +679,10 @@ async fn bans_and_unbans() {
     assert_redirect(&admin.form("post", &action, &[]).await, &format!("http://campfire.test/users/{jz}"));
     let page = admin.get(&format!("/users/{jz}")).await;
     page.assert_button(&action, "delete");
-    assert_redirect(&admin.form("delete", &action, &[]).await, &format!("http://campfire.test/users/{jz}"));
+    assert_redirect(
+        &admin.form("delete", &action, &[]).await,
+        &format!("http://campfire.test/users/{jz}"),
+    );
 }
 
 #[tokio::test]
@@ -530,8 +697,17 @@ async fn autocompletes_users() {
     assert_eq!(json.header("content-type"), Some("application/json; charset=utf-8"));
     assert!(json.header("x-total-count").is_some());
     let users: serde_json::Value = serde_json::from_slice(&json.body).unwrap();
-    assert!(users.as_array().unwrap().iter().all(|user| user["avatar_url"].as_str().unwrap().starts_with("http://campfire.test/users/")));
-    assert_eq!(browser.get("/autocompletable/users?room_id=999999").await.status, StatusCode::NOT_FOUND);
+    assert!(
+        users
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|user| user["avatar_url"].as_str().unwrap().starts_with("http://campfire.test/users/"))
+    );
+    assert_eq!(
+        browser.get("/autocompletable/users?room_id=999999").await.status,
+        StatusCode::NOT_FOUND
+    );
 }
 
 #[tokio::test]
@@ -539,12 +715,21 @@ async fn qr_codes_and_the_pwa() {
     let Some(test) = boot_seed("default").await else { return };
     let mut browser = test.browser("198.51.100.18");
     let qr = browser.get("/qr_code/aHR0cDovL2NhbXBmaXJlLnRlc3Q").await;
-    assert_eq!((qr.status, qr.header("content-type")), (StatusCode::OK, Some("image/svg+xml; charset=utf-8")));
+    assert_eq!(
+        (qr.status, qr.header("content-type")),
+        (StatusCode::OK, Some("image/svg+xml; charset=utf-8"))
+    );
     assert_eq!(qr.header("cache-control"), Some("max-age=31556952, public"));
     assert!(qr.text().starts_with("<?xml version=\"1.0\" standalone=\"yes\"?><svg"));
 
     let manifest = browser.get("/webmanifest.json").await;
-    assert_eq!((manifest.status, manifest.header("content-type")), (StatusCode::OK, Some("application/json; charset=utf-8")));
+    assert_eq!(
+        (manifest.status, manifest.header("content-type")),
+        (StatusCode::OK, Some("application/json; charset=utf-8"))
+    );
     let worker = browser.get("/service-worker.js").await;
-    assert_eq!((worker.status, worker.header("content-type")), (StatusCode::OK, Some("text/javascript; charset=utf-8")));
+    assert_eq!(
+        (worker.status, worker.header("content-type")),
+        (StatusCode::OK, Some("text/javascript; charset=utf-8"))
+    );
 }

@@ -76,7 +76,11 @@ pub fn test_tls_roots() -> rustls::RootCertStore {
 }
 
 pub fn network(resolver: Arc<FakeResolver>, dialer: Arc<MappingDialer>) -> Network {
-    Network { resolver, dialer, tls: super::net::tls_config(test_tls_roots()) }
+    Network {
+        resolver,
+        dialer,
+        tls: super::net::tls_config(test_tls_roots()),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -133,7 +137,10 @@ pub struct Received {
 
 impl Received {
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
+        self.headers
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
     }
 }
 
@@ -211,14 +218,33 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(stream: S, routes: &[Route], l
             headers.push((name.to_string(), value.to_string()));
         }
     }
-    let length = headers.iter().find(|(n, _)| n.eq_ignore_ascii_case("content-length")).and_then(|(_, v)| v.parse().ok()).unwrap_or(0);
+    let length = headers
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case("content-length"))
+        .and_then(|(_, v)| v.parse().ok())
+        .unwrap_or(0);
     let mut body = vec![0; length];
     reader.read_exact(&mut body).await?;
-    let host = headers.iter().find(|(n, _)| n.eq_ignore_ascii_case("host")).map(|(_, v)| v.clone()).unwrap_or_default();
-    let host = host.rsplit_once(':').filter(|(_, p)| p.bytes().all(|b| b.is_ascii_digit())).map(|(h, _)| h.to_string()).unwrap_or(host);
-    log.lock().unwrap().push(Received { method: method.clone(), target: target.clone(), headers, body });
+    let host = headers
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case("host"))
+        .map(|(_, v)| v.clone())
+        .unwrap_or_default();
+    let host = host
+        .rsplit_once(':')
+        .filter(|(_, p)| p.bytes().all(|b| b.is_ascii_digit()))
+        .map(|(h, _)| h.to_string())
+        .unwrap_or(host);
+    log.lock().unwrap().push(Received {
+        method: method.clone(),
+        target: target.clone(),
+        headers,
+        body,
+    });
 
-    let not_found = Route::new(&method, &host, &target, 404).header("Content-Type", "text/plain").body("not found");
+    let not_found = Route::new(&method, &host, &target, 404)
+        .header("Content-Type", "text/plain")
+        .body("not found");
     let route = routes
         .iter()
         .find(|r| r.method == method && (r.host == host || r.host == "*") && r.path == target)
@@ -303,12 +329,20 @@ impl TestDb {
         let path = std::env::temp_dir().join(format!("campfire-integrations-{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&path);
         std::fs::create_dir_all(&path).unwrap();
-        let env = Env { clock: Arc::new(TestClock::new()), sink: Arc::new(NullSink), rich_text: Arc::new(BasicRichText), bcrypt_cost: 4 };
+        let env = Env {
+            clock: Arc::new(TestClock::new()),
+            sink: Arc::new(NullSink),
+            rich_text: Arc::new(BasicRichText),
+            bcrypt_cost: 4,
+        };
         let mut config = Config::new(path.join("test.sqlite3"));
         config.environment = "test".into();
         let db = Database::open(config, env).unwrap();
         db.write_blocking(|tx| {
-            let options = fixtures::Options { now: tx.now(), bcrypt_cost: 4 };
+            let options = fixtures::Options {
+                now: tx.now(),
+                bcrypt_cost: 4,
+            };
             fixtures::load(tx.conn(), &fixtures::reference_dir(), &options)
         })
         .unwrap();
