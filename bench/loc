@@ -8,8 +8,10 @@
 Lines are non-blank. A comment line is one that is only a comment (`//`, `///`, `//!`, or inside
 `/* */`); it counts under "comments" in production code and under "tests" in test code. Test code
 is everything under a crate's tests/, benches/ or examples/, every module declared under
-`#[cfg(test)]` (or `#[cfg(any(test, ...))]`) with its submodules, and the inline items those
-attributes cover. Askama templates (crates/views/templates) are counted on their own row. Excluded:
+`#[cfg(test)]` (or `any(test, ...)`, `all(test, ...)`, `feature = "test-support"`) with its
+submodules, and the inline items those attributes cover. An inline item that spans lines ends at the
+first line at its own indentation that starts with a closing bracket and ends in `}` or `;` (true of
+rustfmt output: `}`, `};`, `];`, `);`). Askama templates (crates/views/templates) are counted on their own row. Excluded:
 vendored code (vendor/, which holds the patched html5ever) and the generated MIME table
 (crates/storage/src/tables.rs). These are the rules of the size table in plans/cleanup.md.
 """
@@ -20,7 +22,7 @@ EXCLUDED_FILES = {"storage/src/tables.rs"}
 TEST_DIRS = {"tests", "benches", "examples"}
 TEMPLATES = "views/templates"
 
-CFG_TEST = re.compile(r"^\s*#\[cfg\((test|any\(test\b.*)\)\]\s*$")
+CFG_TEST = re.compile(r'^\s*#\[cfg\((test|(any|all)\(test\b.*|feature = "test-support")\)\]\s*$')
 MOD_DECL = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*;")
 
 
@@ -71,7 +73,7 @@ def is_test_file(rel, prefixes):
 def classify(lines):
     """Yields (kind, is_test) per non-blank line: kind is "code" or "comment"."""
     in_block = False
-    test_until = None  # the closing line of an inline cfg(test) item: its indentation + "}"
+    test_indent = None  # the indentation of the multi-line cfg(test) item being skipped
     pending = False
     for line in lines:
         s = line.strip()
@@ -87,10 +89,10 @@ def classify(lines):
             in_block = "*/" not in s[2:]
         else:
             kind = "code"
-        if test_until is not None:
+        if test_indent is not None:
             yield kind, True
-            if line.startswith(test_until):
-                test_until = None
+            if closes_item(line, test_indent):
+                test_indent = None
             continue
         if CFG_TEST.match(line):
             pending = True
@@ -99,10 +101,15 @@ def classify(lines):
         if pending and kind == "code" and not s.startswith("#["):
             pending = False
             if not s.endswith(";") and not s.endswith("}"):
-                test_until = line[: len(line) - len(line.lstrip())] + "}"
+                test_indent = line[: len(line) - len(line.lstrip())]
             yield kind, True
             continue
         yield kind, pending
+
+
+def closes_item(line, indent):
+    s = line[len(indent) :]
+    return line.startswith(indent) and s[:1] in ("}", "]", ")") and s.rstrip().endswith(("}", ";"))
 
 
 def template_kind(line):

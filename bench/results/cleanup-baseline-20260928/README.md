@@ -109,37 +109,43 @@ each target's req/s and CPU ms/req only to the terminal.
 
 ## Size (bench/loc, S-3)
 
-Non-blank lines per crate at this commit; the rules are in `bench/loc`'s header. WPs put the
-production delta from `bench/loc --against refactor/cleanup` in their commit message.
+Non-blank lines per crate; the rules are in `bench/loc`'s header. WPs put the production delta from
+`bench/loc --against refactor/cleanup` in their commit message. Recounted after the Phase 0 review
+taught `bench/loc` that `all(test, ...)` and `feature = "test-support"` code (db's fixtures loader,
+two test modules) is test code.
+
+Before S-4, at 94c914e (the code as on `main`):
 
 | crate | production | comments | tests |
 |---|---|---|---|
 | assets | 1,341 | 126 | 318 |
 | cable | 1,384 | 268 | 1,146 |
-| campfire | 10,887 | 1,552 | 4,844 |
-| db | 4,505 | 476 | 2,562 |
-| kit | 6,002 | 794 | 2,612 |
+| campfire | 10,868 | 1,549 | 4,866 |
+| db | 4,108 | 446 | 2,989 |
+| kit | 5,991 | 793 | 2,624 |
 | rails_compat | 739 | 182 | 389 |
 | richtext | 2,490 | 313 | 1,026 |
 | routes | 89 | 4 | 0 |
 | storage | 2,154 | 278 | 457 |
 | views | 2,872 | 562 | 1,634 |
 | views (templates) | 1,771 | 36 | 0 |
-| **total** | 34,234 | 4,591 | 14,988 |
+| **total** | 33,807 | 4,557 | 15,449 |
 
-After S-4's `cargo fmt --all` (63b72b1), the baseline later WPs actually diff against:
+After S-4's `cargo fmt --all` (63b72b1), the baseline later WPs diff against. S-5 then adds 59
+production and 22 test lines of `#[expect]` attributes (36,466 / 17,559 at ddd2806), which the lanes
+remove as they fix the hits.
 
 | crate | production | comments | tests |
 |---|---|---|---|
 | assets | 1,163 | 126 | 273 |
 | cable | 1,473 | 268 | 1,393 |
-| campfire | 12,252 | 1,552 | 6,007 |
-| db | 4,073 | 476 | 2,094 |
-| kit | 6,683 | 794 | 3,258 |
+| campfire | 12,235 | 1,549 | 6,027 |
+| db | 3,732 | 446 | 2,465 |
+| kit | 6,672 | 793 | 3,270 |
 | rails_compat | 828 | 182 | 440 |
 | richtext | 2,823 | 313 | 1,239 |
 | routes | 106 | 4 | 0 |
 | storage | 2,319 | 278 | 561 |
 | views | 3,285 | 562 | 1,869 |
 | views (templates) | 1,771 | 36 | 0 |
-| **total** | 36,776 | 4,591 | 17,134 |
+| **total** | 36,407 | 4,557 | 17,537 |

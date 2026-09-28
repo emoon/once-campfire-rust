@@ -56,8 +56,9 @@ otherwise stop" in `plans/cleanup.md`.
       base binary, post_message twice, explicit cpu and `bench/run` recipes, `LOAD_WAIT_SECS=60`,
       cargo pinned off the benchmark CCD (`taskset -c 0-7,16-23`), DB-5's differential runner.
 - [r] S-3 (refactor/cleanup) `bench/loc` script, with the baseline recorded (in
-      `bench/results/cleanup-baseline-20260928/README.md`: 34,234 production lines incl. 1,771 of
-      templates, 4,591 comment lines, 14,988 test lines, before S-4's `cargo fmt`).
+      `bench/results/cleanup-baseline-20260928/README.md`: 33,807 production lines incl. 1,771 of
+      templates, 4,557 comment lines, 15,449 test lines before S-4's `cargo fmt`; 36,407 /
+      4,557 / 17,537 after it).
       `bench/loc --against refactor/cleanup` prints the per-crate delta for commit messages.
 - [r] S-4 (refactor/cleanup) (approved) `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`.
       fmt commit 63b72b1 (233 files, 1,635 hunks; production lines 34,234 → 36,776). The vendored
