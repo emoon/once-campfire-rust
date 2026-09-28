@@ -17,9 +17,9 @@ Add anything new under "Found while working".
 
 ## Waiting on the human
 
-- [ ] S-1: may need help fixing the rustup/mise install of Rust 1.98.1.
-- [ ] S-4: approve the one-time `cargo fmt` commit at `max_width = 140` (~1.9k hunks).
-- [ ] X-6: typed ids, yes or no.
+- [x] S-1: Rust 1.98.1 installed by the human (2026-09-28); `cargo` and `mise exec rust@1.98.1` both work.
+- [x] S-4: one-time `cargo fmt` commit at `max_width = 140` approved (2026-09-28).
+- [x] X-6: typed ids approved "where it makes sense" (2026-09-28); criteria in `plans/cleanup.md` X-6.
 
 ## Phase 0: safety net (serial; blocks everything)
 
@@ -28,7 +28,7 @@ Add anything new under "Found while working".
       lean gate, `bench/profile` alloc and cpu, `bench/run --apps rust`) in
       `bench/results/cleanup-baseline-<date>/`
 - [ ] S-3 `bench/loc` script, with the baseline recorded
-- [ ] S-4 `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`
+- [ ] S-4 (approved) `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`
 - [ ] S-5 Workspace `[lints.clippy]` floor (warn), existing hits allowed
 
 ## Phase 1: shared foundations
@@ -110,7 +110,10 @@ Add anything new under "Found while working".
 - [ ] X-3 `Html` newtype with private field; helpers take `&Html`
 - [ ] X-4 Involvement/RoomKind/Role enums in view models (after VIEW-5)
 - [ ] X-5 `Ctx` split (incremental)
-- [ ] X-6 Typed ids (**needs approval**)
+- [ ] X-6a Typed ids: db struct fields and finders (`UserId`, `RoomId`, `MessageId` first; after DB-7)
+- [ ] X-6b Typed ids: campfire controllers, presenters, channels
+- [ ] X-6c Typed ids: views and routes helpers
+- [ ] X-6d Typed ids: param parsing and GlobalID/signed-id edges
 - [ ] X-7 One blob model; one `Record` type
 
 ## Phase 4: size and polish

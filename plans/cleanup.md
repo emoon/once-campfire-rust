@@ -192,10 +192,9 @@ Compare the report with the Phase 0 baseline in `bench/results/cleanup-baseline-
 The Phase 0 agent is the exception to the worktree rule. It works directly in `$MAIN` on
 `refactor/cleanup` and commits there, because every later branch starts from its result.
 
-- **S-1 Toolchain.** Get Rust 1.98.1 (the `Dockerfile` version) working. mise fails here with
-  `rustup-init: No such file or directory`, so try `rustup toolchain install 1.98.1` directly or fix
-  the rustup shim. Re-run clippy on 1.98.1. Fix the one richtext warning if it still shows. *May need
-  the human.*
+- **S-1 Toolchain.** Rust 1.98.1 (the `Dockerfile` version) is installed (the human did this on
+  2026-09-28; `cargo --version` and `mise exec rust@1.98.1 -- cargo --version` both report 1.98.1).
+  Re-run clippy on it, and fix the one richtext warning (`nonminimal_bool`) if it still shows.
 - **S-2 Seed, images, baselines.** `parity/bin/seed build`, `parity/bin/reference build`,
   `parity/bin/candidate build`. Then:
   - Confirm the integration tests now run (count them before and after).
@@ -210,7 +209,7 @@ The Phase 0 agent is the exception to the worktree rule. It works directly in `$
 - **S-3 `bench/loc`.** Add a small script that prints production, test and comment lines per crate,
   excluding `html5ever` and `storage/src/tables.rs` (same rules as the table above). Record the
   baseline.
-- **S-4 Formatting (decision: recommended yes).** Add `rustfmt.toml` with `max_width = 140`. Run
+- **S-4 Formatting (approved by the human, 2026-09-28).** Add `rustfmt.toml` with `max_width = 140`. Run
   `cargo fmt --all` as one mechanical commit, and add that commit to `.git-blame-ignore-revs`. It
   must land before any lane branches, or every branch conflicts. After this, agents run
   `cargo fmt` freely.
@@ -566,16 +565,34 @@ after they merge). Use one agent per migration, and let the compiler drive the c
     methods.
   - Optionally `Ctx<C>` with `type Ctx = kit::Ctx<Current>` in campfire, for typed
     `c.current.user` instead of the `Extensions` typemap.
-- **X-6 Typed ids (decision: needs the human's go-ahead).** Generate `UserId`, `RoomId`, `MessageId`
-  and so on with one macro (`#[repr(transparent)]`, `Copy`, `ToSql`, `FromSql`, `Display`,
-  `FromStr`). Stages:
-  1. db struct fields.
-  2. Let the compiler drive campfire.
-  3. Views.
-  4. Param parsing and the GlobalID/signed-id boundaries.
+- **X-6 Typed ids (approved by the human, 2026-09-28: "where it makes sense").** Generate the id
+  types with one macro (`#[repr(transparent)]`, `Copy`, `ToSql`, `FromSql`, `Display`, `FromStr`).
+  The schema and cookies don't change: ids stay `i64` in SQLite and in signed payloads.
 
-  The schema and cookies don't change. It's about 230 sites. DB-7 fixes the concrete argument-order
-  hazards first, cheaply.
+  **Where it makes sense.** Give a record a typed id when its id crosses a function or crate
+  boundary next to another kind of id, or appears in a signature where it could be swapped. Start
+  with `UserId`, `RoomId` and `MessageId`, which are passed together everywhere
+  (`find_for_user`, `create_for`, `room_message(room_id, id)`). Then add others only where the same
+  test holds, for example `MembershipId`, `BoostId`, `BlobId`, `SessionId` and
+  `PushSubscriptionId`. Keep a bare `i64` for:
+  - ids used only inside one module's SQL;
+  - counts, positions and other numbers that aren't ids;
+  - the wire formats themselves: raw params and GlobalID/signed-id payloads. Convert at those
+    edges, in one place each.
+
+  If a type would only add `.0` noise without ever preventing a mix-up, leave it out, and say
+  which ones you skipped and why in the WP notes.
+
+  **Stages,** each its own WP branch (`x-6a` … `x-6d`), so each diff stays reviewable:
+  1. db struct fields and finders.
+  2. Campfire controllers, presenters and channels (let the compiler drive).
+  3. Views, and routes helpers, which then take typed ids instead of `impl Display`.
+  4. Param parsing and the GlobalID/signed-id edges.
+
+  DB-7 fixes the concrete argument-order hazards first, cheaply. X-6 comes after it.
+
+  **Perf:** the id types are `#[repr(transparent)]` over `i64` and `Copy`, so they cost nothing at
+  runtime. The allocation gate must show no change.
 - **X-7 One blob model.** `campfire_db::Blob` and `campfire_storage::Blob` model the same table; keep
   one. Similarly, the attachment record triple (`record_type`, `record_id`, `name`) becomes one
   `Record` type, shared by db and campfire.
@@ -606,7 +623,7 @@ Phase 0  S-1 → S-2 → S-3 → S-4 → S-5                               (one 
 Phase 1  F-1  F-2  F-3  F-4  F-5                                   (up to 5 agents; F-5 before DB/WEB)
 Phase 2  DB   KIT   WEB   LIVE   VIEW   STORE                      (6 lanes, ~4 running at once; benches take turns)
            └─ WEB-8 SQL move after DB-2;  WEB-9 after KIT-1;  VIEW-5 with LIVE-3;  STORE-6 after F-2
-Phase 3  X-1 → X-2 → X-3 → X-4 → X-5 → (X-6 if approved) → X-7     (one at a time)
+Phase 3  X-1 → X-2 → X-3 → X-4 → X-5 → X-6a…d → X-7                (one at a time)
 Phase 4  P-1 … P-5                                                 (per crate, as lanes finish)
 ```
 
