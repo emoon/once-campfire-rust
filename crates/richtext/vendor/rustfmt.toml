@@ -1,0 +1,3 @@
+# The vendored html5ever stays byte-identical to upstream (plus its one backported fix), so
+# `cargo fmt` leaves it alone.
+disable_all_formatting = true
