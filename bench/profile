@@ -9,7 +9,8 @@ kernel.perf_event_paranoid=2 rules out perf and samply for unprivileged users:
 
 cpu:   LD_PRELOAD gperftools' libprofiler.so (SIGPROF sampling at 1 kHz, libunwind stacks),
        toggled with SIGUSR2 around each target's load window, then bench/lib/cpuprof.py renders
-       folded stacks, a flamegraph (inferno) and a rollup per target.
+       folded stacks, a flamegraph (inferno, if installed) and a rollup per target; cpu.json has
+       each target's throughput and campfire CPU ms per request (under the profiler).
 alloc: LD_PRELOAD jemalloc with stats and full-rate allocation profiling; two runs (0 and N requests
        of the route) give allocations per request (the difference over N) and, via jeprof --base,
        the allocation sites.
@@ -78,6 +79,7 @@ def cpu():
     pid = app.pids["campfire"]
     toggle = lambda: os.kill(pid, signal.SIGUSR2)
     done = []
+    summary = {}
     try:
         sess = b.session(app, labels)
         rts = b.routes(sess)
@@ -98,6 +100,7 @@ def cpu():
 
                 res = run_cable_toggled(app, sess, n, on_phase)
                 b.log(f"cable {n}: {res['throughput']['delivered_msgs_per_sec']} msg/s")
+                summary[t] = {"delivered_msgs_per_sec": res["throughput"]["delivered_msgs_per_sec"]}
             else:
                 conc = 1 if t.endswith("_c1") else 16
                 b.lg("http", "--base", app.base, "--cookie", sess["cookie"], *rts[t], "--conc", 4, "--duration", 1)
@@ -105,10 +108,12 @@ def cpu():
                 r = b.http(app, sess, rts[t], conc, a.secs)
                 toggle()
                 b.log(f"{t} c={conc}: {r['rps']} rps, campfire {r['cpu_ms_per_req']['campfire']} CPU ms/req")
+                summary[t] = {"conc": conc, "rps": r["rps"], "cpu_ms_per_req": r["cpu_ms_per_req"]["campfire"]}
             done.append(t)
             time.sleep(0.5)
     finally:
         app.stop()
+        json.dump(summary, open(os.path.join(out, "cpu.json"), "w"), indent=1)
     time.sleep(0.5)
     for i, t in enumerate(done):
         f = os.path.join(raw, f"cpu.{i}")
