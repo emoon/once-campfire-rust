@@ -24,8 +24,9 @@ compare `perf` with `bench/profile cpu` (gperftools) and say which the CPU gate 
    fragment-cache key with three `format!`s and a `strftime` is 10-12% of messages_page (new
    **VIEW-11**).
 4. **post_message pays ~9% for SQLite's `mmap`**: after every commit, each reader unmaps and
-   remaps the file. `mmap_size = 0` cut post_message by 14%, but may cost reads 2-3% (new
-   **DB-12**, measure first).
+   remaps the file. `mmap_size = 0` cut post_message by 14%, and moved the reads within ±3% with
+   mixed sign (room_show +3.0%, messages_page +1.7%, sidebar −2.9%; 2 runs each) (new **DB-12**,
+   measure first).
 5. **The cable fan-out is ~70% kernel**: one `writev` per client per message (0.86 per delivery),
    on loopback. User-space fixes there (LIVE-1, LIVE-2) can reach at most the other 30%.
 6. Several planned perf WPs measure as noise here: DB-4 (`format!` of paging SQL: 0.0%), KIT-1
@@ -63,9 +64,13 @@ possible. The human confirmed the screensaver wasn't running. The plan's check i
 - `bench/profile perf`: the same load as `bench/profile cpu`, with no preload. It attaches
   `perf record -e cpu-clock:u -F 1000 --call-graph fp|dwarf -p <app>` (started disabled, and
   enabled through perf's `--control` FIFO around each target's load window, like `cpu`'s SIGUSR2).
-  `perf.json` has, per target, CPU ms/req and req/s, plus per request: user and system CPU,
-  voluntary and involuntary context switches per thread kind (/proc), and read/write syscalls.
-  `--freq 0` measures without recording; `--app-env K=V` passes environment to the app.
+  `perf.json` has, per target, CPU ms/req and req/s, plus per request: user and system CPU and
+  voluntary and involuntary context switches per thread kind (/proc, threads alive for the whole
+  window), and for the whole process user and system CPU and read/write syscalls.
+  `--freq 0` measures without recording; `--app-env K=V` passes environment to the app. (The
+  `timing/` files were recorded before review, when the per-kind sums covered the threads alive at
+  each read and there was no whole-process CPU. No thread exited during those windows: the pool
+  only grew, from 90 to 112 threads. So their numbers stand.)
 - `bench/lib/perfprof.py`: `perf script` → the same folded stacks and `.top.md` rollup as
   `cpuprof.py` (which it reuses: same llvm-symbolizer, same inlined-frame expansion, same
   categories), so the two profilers' reports compare line for line.
@@ -246,9 +251,9 @@ all of it.
 | # | WP | targets and expected gain | basis |
 |---|---|---|---|
 | 1 | **DB-11** reads without the blocking-pool hop | room_show −12%, messages_page −19%, sidebar −12%, post_message −23% (req/s +16…+30%) | measured |
-| 2 | **KIT-10** reuse gzip output for repeated bodies (+ encoder reuse) | sidebar up to −40%; post_message ~−1% | 44-45% user share; `memset` 1.8% |
+| 2 | **KIT-10** reuse gzip output for repeated bodies (+ encoder reuse) | sidebar up to −40% when bodies repeat (as in the bench); post_message ~−1% | 44-45% user share; `memset` 1.8% |
 | 3 | **KIT-9** splice without rehashing the page | room_show up to −19% (realistically −12…−15%), messages_page up to −12% | 22% / 15% user share |
-| 4 | **DB-12** `mmap_size` (measure; after DB-11) | post_message −14%; reads +2-3% (so maybe readers only) | measured |
+| 4 | **DB-12** `mmap_size` (measure; after DB-11) | post_message −14%; reads within ±3%, mixed sign (2 runs each) | measured |
 | 5 | **VIEW-11** fragment cache keys without formatting (after VIEW-4) | messages_page up to −12%, room_show up to −5% | 15% / 6% user share |
 | 6 | **DB-13** column indices once per query | reads −5…−6%, post_message −2% | 6.4-7.6% user share |
 | 7 | WEB-8 (body once, `UserView` cache) + VIEW-8 (parse once) | post_message up to −12% together | 6.6% + 5.1% |

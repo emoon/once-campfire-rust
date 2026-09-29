@@ -549,9 +549,9 @@ the hot spot's profiled share, an upper bound.
 | # | WP | expected gain | basis |
 |---|---|---|---|
 | 1 | DB-11 reads without the blocking-pool hop | room_show −12%, messages_page −19%, sidebar −12%, post_message −23% | measured |
-| 2 | KIT-10 reuse gzip output for repeated bodies | sidebar up to −40% | share |
+| 2 | KIT-10 reuse gzip output for repeated bodies | sidebar up to −40% when bodies repeat | share |
 | 3 | KIT-9 splice without rehashing (after KIT-10, or before; not beside it) | room_show −12…−15%, messages_page up to −10% | share |
-| 4 | DB-12 `mmap_size` (measure; after DB-11) | post_message −14%, if reads don't lose it | measured |
+| 4 | DB-12 `mmap_size` (measure; after DB-11) | post_message −14%; reads within ±3%, mixed sign | measured |
 | 5 | VIEW-11 fragment cache keys (after VIEW-4) | messages_page up to −12%, room_show −5% | share |
 | 6 | DB-13 column indices once per query | reads −5…−6% | share |
 | 7 | WEB-8 (body once, `UserView` cache), VIEW-8 (parse once) | post_message up to −12% together | share |
@@ -633,12 +633,16 @@ measured targets, so there's no data: DB-1, DB-5, DB-6, STORE-3, WEB-1, VIEW-3.
   callers is a cross-lane edit in campfire. S-8's experiment
   (`bench/results/s-8-20260929/experiment.patch`, all reads inline) measured CPU/request −12.4%
   room_show, −18.8% messages_page, −12.2% sidebar, −22.9% post_message, and req/s +16…+30%. Also run
-  the http `bench/run` suite: latency at c=16 must not get worse.
+  the http `bench/run` suite: latency at c=16 must not get worse. A read on the worker that has to
+  wait for a free connection (`ReaderPool::with`, 8 readers) blocks that worker thread, and with
+  more workers than readers that can stall the runtime. So either keep readers ≥ worker threads
+  (size the pool from the runtime), or try a checkout and offload the read when none is free.
 - **DB-12 perf (measure; after DB-11): `mmap_size` (S-8).** With `PRAGMA mmap_size = 128 MB`
   (`schema::configure_connection`, Rails 8's default), each connection's first read after a commit
   unmaps and remaps the database file (`pagerBeginReadTransaction` → `unixUnfetch` → `munmap`,
   then `mmap` and page faults). That's ~9% of post_message, all in the kernel. `mmap_size = 0`
-  measured post_message −14.1%, but room_show +3.0% and messages_page +1.7%. Try variants (off for
+  measured post_message −14.1%. The reads moved within ±3% with mixed sign (room_show +3.0%,
+  messages_page +1.7%, sidebar −2.9%; 2 runs each), so re-measure them. Try variants (off for
   every connection, off for the writer only, a smaller size), and keep one only if no target gets
   worse by more than T. It isn't visible to users, but it differs from Rails' default pragma: list
   it under "Known differences".
@@ -721,7 +725,10 @@ measured targets, so there's no data: DB-1, DB-5, DB-6, STORE-3, WEB-1, VIEW-3.
   only for bodies the ETag step digested. For the rest (post_message's response is new each time),
   reuse deflate encoders (`Compress::reset`) instead of zeroing a fresh state per response (1.8% of
   post_message is that `memset`). Output bytes stay identical, flushes included (Rack::Deflater
-  flushes per chunk). Expected: sidebar up to −40%.
+  flushes per chunk). Expected: sidebar up to −40%, but only when bodies repeat, as in the bench
+  (one user fetching the same sidebar). Real traffic hits the cache less, so the gate also needs a
+  run where every body is new: it must not get slower, and the cache must stay within its byte
+  bound.
 
 ### Lane WEB: `crates/campfire/src/{controllers*,concerns*,app*,config.rs,main.rs}`
 
