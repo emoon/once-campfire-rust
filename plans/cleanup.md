@@ -342,9 +342,13 @@ coordinator removes them when it merges the WP. Never remove any other image.
 1. `taskset -c 0-7,16-23 cargo test --workspace --exclude html5ever` passes **with the seed
    built**. Say so in the report. If any test skipped, say which.
 2. `taskset -c 0-7,16-23 cargo clippy --workspace --exclude html5ever --all-targets` is clean.
-3. If the WP can change output (anything in `views`, `richtext`, `kit`, `cable`, `storage`
-   serving, or the controllers), the parity lean gate (`parity/bin/candidate compare`) matches the
-   Phase 0 baseline: no new failing cells.
+3. **Parity** (batched, the human's decision of 2026-09-29). A WP that changes rendered output
+   (`views`, `richtext`, the Askama templates, `crates/assets/overrides/`) runs the parity lean
+   gate (`parity/bin/candidate compare`) itself before `[r]`: no new failing cells against the
+   Phase 0 baseline. Every other WP skips it; the coordinator runs one compare on the
+   `refactor/cleanup` tip after every three merges (and at the end of each phase), with the image
+   tags `campfire-rust:batch`/`campfire-candidate-batch`. If a batch compare fails, the coordinator
+   bisects the merges since the last green batch, reverts the culprit's merge and sends it back.
 4. **Perf gate.** If the WP touches code that runs per request or per broadcast, run
    `bench/profile alloc` on `room_show`, `messages_page`, `sidebar` and `post_message`.
    Allocations per request must not go up. For WPs marked **perf**, also run `bench/profile cpu` on

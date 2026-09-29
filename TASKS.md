@@ -35,6 +35,10 @@ otherwise stop" in `plans/cleanup.md`.
   each pair removed after its WP merges; no other image is touched).
 - Not approved: `cargo install inferno` (skip flamegraph SVGs), and freeing disk any other way
   (below 60 GB free, the coordinator stops and asks).
+- Parity is batched (2026-09-29): per-WP only for WPs that change rendered output (views,
+  richtext, templates, asset overrides); otherwise one compare on the tip after every three merges.
+- The human disables the desktop screensaver and the spinning `gh auth token` themselves
+  (2026-09-29); agents still check `pgrep -f omarchy-screensaver` around CPU runs.
 - The run ends after P-5 with everything committed on `refactor/cleanup` and the PR description in
   `plans/cleanup-pr.md`. Nothing is pushed (2026-09-28).
 
@@ -73,7 +77,7 @@ otherwise stop" in `plans/cleanup.md`.
       (C/SQLite only; see S-7).
       Branch keeps only `bench/results/s-6-20260929/` and a plan note; the pinning diff
       (`PARITY_CPUSET`) is saved there, not applied. Gate recipes unchanged. Images removed.
-- [ ] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order
+- [~] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order (refactor/cleanup-s-8)
 - [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
