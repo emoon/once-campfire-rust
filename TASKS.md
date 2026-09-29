@@ -228,7 +228,7 @@ Batch parity on 6b98426 (after batch 1, VIEW-3, KIT-9): 873 pass, 0 fail, 1 allo
 - [ ] VIEW-7 `render_mention` agrees with `_mention.html` (test or render)
 - [ ] VIEW-8 perf (last): `ParsedBody`, parse each message body once
 - [ ] VIEW-9 views `rails_json_escape`/`to_rails_json` and richtext `to_json_string` on `rails_compat::json` (after F-1, F-2)
-- [ ] VIEW-10 perf: page buffers sized up front (touches the page renders in campfire) (S-8)
+- [x] VIEW-10 perf: page buffers sized up front (refactor/cleanup-view-10, merged). 8 ABBA runs: room_show CPU/req −4.4%, messages_page −3.1%
 - [x] VIEW-11 perf: fragment cache keys without `format!`/`strftime` (refactor/cleanup-view-11, merged a13b19d; done without VIEW-4). messages_page CPU/req −9.0%, room_show −5.0%. views +63, campfire −8 lines
 
 ### STORE (`crates/storage`, `crates/assets`, rails_compat crypto, `campfire/src/active_storage.rs`)
