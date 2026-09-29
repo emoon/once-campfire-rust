@@ -187,7 +187,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] KIT-7 Routes: `&'static str` for constant paths
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
 - [ ] KIT-9 perf: splice without rehashing (text identity, recorded fragment offsets, combined CRCs) (S-8)
-- [~] KIT-10 perf: reuse gzip output for repeated bodies; reuse deflate encoders (S-8) (refactor/cleanup-kit-10)
+- [x] KIT-10 perf: reuse gzip output for repeated bodies (refactor/cleanup-kit-10, merged). c=16 ABBA, 8 runs: sidebar CPU/req −48.5%, req/s +91%; others ±1%. Encoder pooling left out (−0.5% of post_message, under T). kit +72 lines
 
 ### WEB (`crates/campfire` controllers, concerns, app)
 - [-] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1). Dropped: no measurable time gain, even on the path it changes (static_css_app, the bare app: CPU/req +0.3%, req/s -0.9%, 8 ABBA runs). Only the results are kept (7d9ccbc, `bench/results/web-1-20260929/`); the code commit was not merged.

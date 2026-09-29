@@ -1,0 +1,11 @@
+
+running 1 test
+test deflater::tests::gzip_miss_overhead ... body 30763 B, 40000 distinct bodies per arm
+old: 102.6 us/body (+0.0% vs old)
+pooled: 98.3 us/body (-4.2% vs old)
+pooled+cache: 99.0 us/body (-3.5% vs old)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 103 filtered out; finished in 13.37s
+
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 2.8% busy (max 15.0%), screensaver off
