@@ -1,0 +1,62 @@
+== 21:41:23 warmup:0 try 1
+[22:03:39] room_show c=16: 25232.1 rps, campfire 0.1538 CPU ms/req
+[22:03:51] messages_page c=16: 26486.5 rps, campfire 0.1327 CPU ms/req
+[22:04:02] sidebar c=16: 30288.7 rps, campfire 0.127 CPU ms/req
+[22:04:14] post_message c=16: 5450.3 rps, campfire 0.3527 CPU ms/req
+bench/quiet: other CCD 5.9% busy (max 15.0%), bench siblings 24-31 10.6% busy (max 15.0%), screensaver off
+== 22:04:14 base:1 try 1
+[22:04:26] room_show c=16: 25442.8 rps, campfire 0.1525 CPU ms/req
+[22:04:38] messages_page c=16: 30322.7 rps, campfire 0.1272 CPU ms/req
+[22:04:49] sidebar c=16: 30189.9 rps, campfire 0.1279 CPU ms/req
+[22:05:01] post_message c=16: 4798.0 rps, campfire 0.3491 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 3.8% busy (max 15.0%), screensaver off
+== 22:05:02 kit-9:1 try 1
+[22:05:13] room_show c=16: 26056.9 rps, campfire 0.1468 CPU ms/req
+[22:05:24] messages_page c=16: 31519.2 rps, campfire 0.122 CPU ms/req
+[22:05:36] sidebar c=16: 30146.0 rps, campfire 0.128 CPU ms/req
+[22:05:48] post_message c=16: 4998.0 rps, campfire 0.3543 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 4.0% busy (max 15.0%), screensaver off
+== 22:05:48 kit-9:2 try 1
+[22:06:00] room_show c=16: 25998.8 rps, campfire 0.1487 CPU ms/req
+[22:06:11] messages_page c=16: 31543.6 rps, campfire 0.1226 CPU ms/req
+[22:06:23] sidebar c=16: 30217.3 rps, campfire 0.1277 CPU ms/req
+[22:06:34] post_message c=16: 5564.8 rps, campfire 0.3514 CPU ms/req
+bench/quiet: other CCD 2.2% busy (max 15.0%), bench siblings 24-31 4.4% busy (max 15.0%), screensaver off
+== 22:06:35 base:2 try 1
+[22:06:46] room_show c=16: 24950.7 rps, campfire 0.1531 CPU ms/req
+[22:06:58] messages_page c=16: 30312.8 rps, campfire 0.1273 CPU ms/req
+[22:07:09] sidebar c=16: 30074.1 rps, campfire 0.1283 CPU ms/req
+[22:07:21] post_message c=16: 4830.3 rps, campfire 0.3625 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 4.2% busy (max 15.0%), screensaver off
+== done 22:07:21
+== 22:07:33 warmup:0 try 1
+[22:07:44] room_show c=16: 25307.4 rps, campfire 0.1533 CPU ms/req
+[22:07:56] messages_page c=16: 30320.0 rps, campfire 0.1277 CPU ms/req
+[22:08:07] sidebar c=16: 30045.4 rps, campfire 0.1284 CPU ms/req
+[22:08:19] post_message c=16: 4523.2 rps, campfire 0.3599 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 4.4% busy (max 15.0%), screensaver off
+== 22:08:19 base:1 try 1
+[22:08:31] room_show c=16: 25529.8 rps, campfire 0.1522 CPU ms/req
+[22:08:43] messages_page c=16: 30507.6 rps, campfire 0.1268 CPU ms/req
+[22:08:54] sidebar c=16: 30350.7 rps, campfire 0.127 CPU ms/req
+[22:09:06] post_message c=16: 5574.4 rps, campfire 0.3535 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 4.2% busy (max 15.0%), screensaver off
+== 22:09:06 kit-9:1 try 1
+[22:09:18] room_show c=16: 25933.3 rps, campfire 0.1472 CPU ms/req
+[22:09:29] messages_page c=16: 31393.5 rps, campfire 0.1232 CPU ms/req
+[22:09:41] sidebar c=16: 30113.4 rps, campfire 0.128 CPU ms/req
+[22:09:52] post_message c=16: 5785.1 rps, campfire 0.3496 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.3% busy (max 15.0%), screensaver off
+== 22:09:53 kit-9:2 try 1
+[22:10:04] room_show c=16: 25997.6 rps, campfire 0.1486 CPU ms/req
+[22:10:16] messages_page c=16: 31346.6 rps, campfire 0.1233 CPU ms/req
+[22:10:27] sidebar c=16: 29990.4 rps, campfire 0.1286 CPU ms/req
+[22:10:39] post_message c=16: 5014.4 rps, campfire 0.3519 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 3.4% busy (max 15.0%), screensaver off
+== 22:10:39 base:2 try 1
+[22:10:51] room_show c=16: 25217.3 rps, campfire 0.1536 CPU ms/req
+[22:11:02] messages_page c=16: 30566.8 rps, campfire 0.1266 CPU ms/req
+[22:11:14] sidebar c=16: 30458.3 rps, campfire 0.1266 CPU ms/req
+[22:11:25] post_message c=16: 5130.4 rps, campfire 0.3504 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 4.1% busy (max 15.0%), screensaver off
+== done 22:11:26

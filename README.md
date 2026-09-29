@@ -213,14 +213,15 @@ the same on every request, so the app stopped compressing them per request, in t
    renders byte for byte the same until what it shows changes, so the layout can be stored too. A
    page is now split into parts that cover it end to end: its cached messages and the text between
    them. Each part is compressed once, against the part before it, and kept under the part's
-   identity (the cached fragment, or the SHA-256 of the text) and its predecessor's; a message keeps
-   pieces for the few predecessors it's seen with (its room, a page of older messages, search
-   results). The ETag comes from the parts' digests instead of a SHA-256 over the whole body.
+   identity (the cached fragment, or the BLAKE3 digest of the text) and its predecessor's, with the
+   part's CRC-32, so the page's CRC is combined from its parts' instead of read from the body; a
+   message keeps pieces for the few predecessors it's seen with (its room, a page of older messages,
+   search results). The ETag comes from the parts' digests instead of a SHA-256 over the whole body.
 
 For a 466 KB room page, gzip and the ETag took ~1,200 µs per request at first, ~460 µs after
-splicing, and 42 µs now; the first request after a page changes pays ~2 ms, once, to compress its
-new parts. The decoded body is unchanged, and the compressed page is within 1% of compressing it
-whole.
+splicing, 42 µs with SHA-256 digests and a CRC over the whole body, and ~25 µs now; the first
+request after a page changes pays ~2 ms, once, to compress its new parts. The decoded body is
+unchanged, and the compressed page is within 1% of compressing it whole.
 
 | Route (16 clients) | Before | Spliced gzip | Cached page parts |
 |---|---|---|---|
@@ -354,8 +355,8 @@ Deliberate:
   keeps its 20-year expiry rolling; `last_room` is set when it changes. An authenticated request whose
   session doesn't need that refresh also no longer passes through the database writer.
 - **ETags aren't a digest of the body** on pages made of cached messages (room, messages and search
-  pages): they're a SHA-256 over the page's parts. Identical pages still get identical ETags, and
-  any change gets a new one.
+  pages): they're a BLAKE3 hash over the page's parts. Identical pages still get identical ETags,
+  and any change gets a new one.
 - **One more index.** On boot the app adds `index_messages_on_room_id_and_created_at` to the Rails
   schema if it's missing (a one-time 49 ms for 236k messages). Rails' schema pages a room's messages
   through `index_messages_on_room_id` alone, which sorts the room's whole history for every page.
