@@ -374,7 +374,9 @@ coordinator removes them when it merges the WP. Never remove any other image.
    **Tolerance** (the human's decision, 2026-09-28): for each target, T is the larger of 3% and the
    run-to-run spread S-2 measured for it (see `bench/results/cleanup-baseline-20260928/README.md`).
    CPU per request or throughput worse than base by more than T fails the gate. A WP marked **perf**
-   must also improve at least one target by more than T, or it's dropped (see "When you'd otherwise
+   must also improve at least one target by more than T, or it's dropped (a WP whose code path the
+   four targets don't reach, e.g. cold fragment-cache renders, adds a target that does and is judged
+   on it, with the four standard targets as the no-regression check; see "When you'd otherwise
    stop"). Only time counts as a gain: CPU per request or req/s (the human, 2026-09-29: "you have to
    figure out what takes time"). Allocation counts (`bench/profile alloc`, S-7) are recorded for
    information only and never make or block a merge.
