@@ -1,0 +1,25 @@
+{
+ "room_show": {
+  "conc": 16,
+  "rps": 21584.9,
+  "cpu_ms_per_req": 0.1714
+ },
+ "messages_page": {
+  "conc": 16,
+  "rps": 25686.6,
+  "cpu_ms_per_req": 0.1429
+ },
+ "sidebar": {
+  "conc": 16,
+  "rps": 13373.4,
+  "cpu_ms_per_req": 0.2797
+ },
+ "post_message": {
+  "conc": 16,
+  "rps": 4722.8,
+  "cpu_ms_per_req": 0.4702
+ },
+ "cable1000": {
+  "delivered_msgs_per_sec": 383.0
+ }
+}

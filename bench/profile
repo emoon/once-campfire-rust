@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Profile the Rust app natively (no Docker, no Thruster) with in-process samplers, since
-kernel.perf_event_paranoid=2 rules out perf and samply for unprivileged users:
+"""Profile the Rust app natively (no Docker, no Thruster), with in-process samplers or with perf
+(kernel.perf_event_paranoid=2 limits perf to the user space of your own processes):
 
   bench/profile cpu   --label base [--targets room_show,messages_page,post_message_c1,post_message,cable1000] [--secs 10]
   bench/profile alloc --label base [--route room_show] [--requests 1000]
   bench/profile heap  --label base [--clients 1000]
+  bench/profile perf  --label base [--targets ...] [--secs 10] [--call-graph fp|dwarf] [--freq 1000]
   (all take --out DIR; default bench/results/profile-<stamp>)
 
 cpu:   LD_PRELOAD gperftools' libprofiler.so (SIGPROF sampling at 1 kHz, libunwind stacks),
@@ -14,13 +15,20 @@ cpu:   LD_PRELOAD gperftools' libprofiler.so (SIGPROF sampling at 1 kHz, libunwi
 alloc: LD_PRELOAD jemalloc with stats and full-rate allocation profiling; two runs (0 and N requests
        of the route) give allocations per request (the difference over N) and, via jeprof --base,
        the allocation sites.
+perf:  like cpu, but `perf record -e cpu-clock:u` attached to the running app (user space only, which
+       kernel.perf_event_paranoid=2 allows for your own processes), enabled around each target's load
+       window through perf's control FIFO; bench/lib/perfprof.py writes the same folded stacks and
+       rollup. perf.json adds per request: user and system CPU ms and voluntary and involuntary context
+       switches per thread kind (threads alive for the whole window), and for the whole process user
+       and system CPU ms and read/write syscalls. Kernel time is invisible to perf here;
+       the system CPU and context switches stand in for it.
 heap:  LD_PRELOAD jemalloc heap profiling with prof_gdump (a dump at every new peak of mapped
        memory) during the cable fan-out; the last dump is the peak's live heap by allocation site.
 
 The binary comes from NATIVE_<LABEL>_BIN (build it with CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
 for symbols). Knobs: SERVER_CPUS, LOADGEN_CPUS, PORT as in bench/attrib.
 """
-import argparse, glob, json, os, signal, subprocess, sys, time
+import argparse, collections, glob, json, os, select, signal, subprocess, sys, time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 import benchlib as b
@@ -29,13 +37,17 @@ LIBPROFILER = os.environ.get("LIBPROFILER", "/usr/lib/libprofiler.so")
 LIBJEMALLOC = os.environ.get("LIBJEMALLOC", "/usr/lib/libjemalloc.so")
 
 p = argparse.ArgumentParser()
-p.add_argument("mode", choices=["cpu", "alloc", "heap"])
+p.add_argument("mode", choices=["cpu", "alloc", "heap", "perf"])
 p.add_argument("--label", default="base")
 p.add_argument("--targets", default="room_show,room_show_identity,messages_page,sidebar,post_message_c1,post_message,cable1000")
 p.add_argument("--secs", default="10")
 p.add_argument("--route", default="room_show")
 p.add_argument("--requests", type=int, default=1000)
 p.add_argument("--clients", default="1000")
+p.add_argument("--call-graph", default="dwarf")
+p.add_argument("--freq", default="1000", help="perf mode: sampling rate; 0 measures without recording")
+p.add_argument("--no-report", action="store_true", help="perf mode: leave raw/perf-*.data for a later perfprof.py run")
+p.add_argument("--app-env", action="append", default=[], metavar="K=V", help="perf mode: extra environment for the app")
 p.add_argument("--out")
 a = p.parse_args()
 
@@ -126,6 +138,150 @@ def cpu():
                             "--title", f"campfire {a.label}: {t}"], check=True)
 
 
+def proc_counters(pid):
+    """Per thread: its kind, user and system CPU seconds and context switches; plus, for the whole
+    process (exited threads included), user and system CPU seconds and read/write syscalls.
+    tokio names its workers and its blocking-pool threads alike; the workers (one per CPU the app
+    may run on) are started first, so they have the lowest tids."""
+    workers = int(subprocess.check_output(["taskset", "-c", b.SERVER_CPUS, "nproc"]).strip())
+    threads = {}
+    seen_tokio = 0
+    for tid in sorted(os.listdir(f"/proc/{pid}/task"), key=int):
+        try:
+            stat = open(f"/proc/{pid}/task/{tid}/stat").read()
+            status = open(f"/proc/{pid}/task/{tid}/status").read()
+        except OSError:
+            continue
+        name, rest = stat[stat.index("(") + 1:stat.rindex(")")], stat.rsplit(")", 1)[1].split()
+        if name.startswith("tokio-"):
+            kind = "tokio worker" if seen_tokio < workers else "blocking pool"
+            seen_tokio += 1
+        else:
+            kind = {"campfire-db-wri": "db writer", "cable": "cable runtime"}.get(name, "other")
+        c = collections.Counter(user_s=int(rest[11]) / b.CLK_TCK, sys_s=int(rest[12]) / b.CLK_TCK)
+        for line in status.splitlines():
+            k, _, v = line.partition(":")
+            if k in ("voluntary_ctxt_switches", "nonvoluntary_ctxt_switches"):
+                c[k.split("_")[0]] += int(v)
+        threads[tid] = (kind, c)
+    rest = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()
+    io = dict(line.split(": ") for line in open(f"/proc/{pid}/io").read().splitlines())
+    process = {"user_s": int(rest[11]) / b.CLK_TCK, "sys_s": int(rest[12]) / b.CLK_TCK, "syscr": int(io["syscr"]), "syscw": int(io["syscw"])}
+    return threads, process
+
+
+def per_request(before, after, n):
+    """Deltas per request: per thread kind over the threads alive at both reads (a thread that exits
+    in between would otherwise take its whole lifetime out of the sum), and for the whole process."""
+    (t0, p0), (t1, p1) = before, after
+    res = collections.defaultdict(collections.Counter)
+    for tid, (kind, c1) in t1.items():
+        res[kind]["threads"] += 1
+        if tid in t0:
+            for k, v in c1.items():
+                res[kind][k] += v - t0[tid][1][k]
+    res["process"].update({k: p1[k] - p0[k] for k in p1})
+    scaled = lambda k, v: round(v * (1000 if k.endswith("_s") else 1) / max(n, 1), 4)
+    return {kind: {k.replace("_s", "_ms"): (v if k == "threads" else scaled(k, v)) for k, v in c.items()} for kind, c in res.items()}
+
+
+class PerfRecorder:
+    """`perf record` attached to pid, started disabled and toggled through its control FIFO. Both
+    FIFOs are opened read-write, which never blocks, so a perf that fails to start is noticed
+    (`command` waits for its ack only while it's running) instead of hanging the run."""
+
+    def __init__(self, pid, data):
+        self.fifo, self.ack = data + ".ctl", data + ".ack"
+        for f in (self.fifo, self.ack):
+            if os.path.exists(f):
+                os.remove(f)
+            os.mkfifo(f)
+        cmd = ["taskset", "-c", b.LOADGEN_CPUS, "perf", "record", "-q", "-e", "cpu-clock:u", "-F", a.freq, "--call-graph", a.call_graph,
+               "-p", str(pid), "-o", data, "-D", "-1", "--control", f"fifo:{self.fifo},{self.ack}"]
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.ctl = os.open(self.fifo, os.O_RDWR)
+        self.acks = os.open(self.ack, os.O_RDWR)
+
+    def command(self, what, timeout=60):
+        os.write(self.ctl, (what + "\n").encode())
+        reply = b""
+        deadline = time.time() + timeout
+        while b"\n" not in reply:  # perf writes "ack\n\0"
+            if self.proc.poll() is not None:
+                raise RuntimeError(f"perf record exited ({self.proc.returncode}) before acking {what!r}: {self.proc.stderr.read()[-2000:]}")
+            if time.time() > deadline:
+                raise RuntimeError(f"perf record didn't ack {what!r} within {timeout} s")
+            if select.select([self.acks], [], [], 0.2)[0]:
+                reply += os.read(self.acks, 64)
+
+    def stop(self):
+        self.proc.send_signal(signal.SIGINT)
+        err = self.proc.communicate(timeout=300)[1]
+        os.close(self.ctl)
+        os.close(self.acks)
+        for f in (self.fifo, self.ack):
+            os.remove(f)
+        if self.proc.returncode not in (0, -signal.SIGINT):
+            raise RuntimeError(f"perf record failed: {err[-2000:]}")
+
+
+def perf():
+    raw = os.path.join(out, "raw")
+    os.makedirs(raw, exist_ok=True)
+    summary_path = os.path.join(out, "perf.json")
+    if os.path.exists(summary_path):
+        os.remove(summary_path)
+    os.environ.pop(f"NATIVE_{label}_PRELOAD", None)
+    app = b.start(config, seed, dict(kv.split("=", 1) for kv in a.app_env))
+    pid = app.pids["campfire"]
+    done = []
+    summary = {}
+    try:
+        sess = b.session(app, labels)
+        rts = b.routes(sess)
+        rts["post_message_c1"] = rts["post_message"]
+        for t in a.targets.split(","):
+            rec = PerfRecorder(pid, os.path.join(raw, f"perf-{t}.data")) if a.freq != "0" else None
+            if t.startswith("cable"):
+                n = t[len("cable"):]
+                state = {}
+
+                def on_phase(name):
+                    if name == "saturated":
+                        state["before"], state["t0"] = proc_counters(pid), time.time()
+                        rec and rec.command("enable")
+                    elif name == "saturated_drained" and "t0" in state:
+                        rec and rec.command("disable")
+                        state["after"], state["t1"] = proc_counters(pid), time.time()
+
+                res = run_cable_toggled(app, sess, n, on_phase)
+                rate = res["throughput"]["delivered_msgs_per_sec"]
+                b.log(f"cable {n}: {rate} msg/s")
+                # Per message delivered to every client (a message is `n` deliveries).
+                summary[t] = {"delivered_msgs_per_sec": rate, "per_message": per_request(state["before"], state["after"], rate * (state["t1"] - state["t0"]))}
+            else:
+                conc = 1 if t.endswith("_c1") else 16
+                b.lg("http", "--base", app.base, "--cookie", sess["cookie"], *rts[t], "--conc", 4, "--duration", 1)
+                before = proc_counters(pid)
+                rec and rec.command("enable")
+                r = b.http(app, sess, rts[t], conc, a.secs)
+                rec and rec.command("disable")
+                after = proc_counters(pid)
+                b.log(f"{t} c={conc}: {r['rps']} rps, campfire {r['cpu_ms_per_req']['campfire']} CPU ms/req")
+                summary[t] = {"conc": conc, "rps": r["rps"], "cpu_ms_per_req": r["cpu_ms_per_req"]["campfire"],
+                              "per_request": per_request(before, after, r["latency"]["n"])}
+            if rec:
+                rec.stop()
+            done.append(t)
+            time.sleep(0.5)
+    finally:
+        app.stop()
+    json.dump(summary, open(summary_path, "w"), indent=1)
+    for t in done if a.freq != "0" and not a.no_report else []:
+        subprocess.run([sys.executable, os.path.join(b.BENCH, "lib", "perfprof.py"), os.path.join(raw, f"perf-{t}.data"),
+                        "--out", os.path.join(out, f"perf-{t}"), "--title", f"campfire {a.label}: {t} (perf, {a.call_graph})"], check=True)
+
+
 def jemalloc_stats(stderr_text):
     """Total allocation requests and bytes from jemalloc's JSON stats_print at exit."""
     start = stderr_text.find("{\n\"jemalloc\"")
@@ -207,4 +363,4 @@ def heap():
     b.log(f"heap: {summary['memory_by_phase']} peak dump {summary['peak_dump']}")
 
 
-{"cpu": cpu, "alloc": alloc, "heap": heap}[a.mode]()
+{"cpu": cpu, "alloc": alloc, "heap": heap, "perf": perf}[a.mode]()

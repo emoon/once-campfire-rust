@@ -84,25 +84,30 @@ def load_segments(path):
 def symbolize(pcs, maps):
     starts = [m[0] for m in maps]
     by_obj = collections.defaultdict(dict)
-    segcache = {}
     for pc in pcs:
         i = bisect.bisect_right(starts, pc) - 1
         if i < 0 or pc >= maps[i][1]:
             continue
         start, _, offset, path = maps[i]
-        fileoff = pc - start + offset
-        segs = segcache.setdefault(path, load_segments(path))
-        vaddr = fileoff
-        for so, sv, sz in segs:
-            if so <= fileoff < so + max(sz, 1):
-                vaddr = fileoff - so + sv
-                break
-        by_obj[path][pc] = vaddr
+        by_obj[path][pc] = pc - start + offset
+    return symbolize_offsets(by_obj)
+
+
+def symbolize_offsets(by_obj):
+    """{path: {key: file offset}} → {key: [frame, ...]} (outermost first, inlined frames expanded)."""
     names = {}
-    for path, addrs in by_obj.items():
+    for path, offsets in by_obj.items():
         if not os.path.exists(path):
             continue
-        items = list(addrs.items())
+        segs = load_segments(path)
+        items = []
+        for key, fileoff in offsets.items():
+            vaddr = fileoff
+            for so, sv, sz in segs:
+                if so <= fileoff < so + max(sz, 1):
+                    vaddr = fileoff - so + sv
+                    break
+            items.append((key, vaddr))
         inp = "\n".join(hex(v) for _, v in items)
         # --debuginfod names libc's internal functions (memset/memmove variants, the syscall
         # wrappers) from the distribution's debug info when DEBUGINFOD_URLS is set.
@@ -110,14 +115,14 @@ def symbolize(pcs, maps):
         if os.environ.get("DEBUGINFOD_URLS"):
             cmd.append("--debuginfod")
         out = subprocess.run(cmd, input=inp, capture_output=True, text=True).stdout
-        for (pc, _), line in zip(items, out.splitlines()):
+        for (key, vaddr), line in zip(items, out.splitlines()):
             try:
                 rec = json.loads(line)
             except ValueError:
                 continue
             frames = [qualify(clean(f.get("FunctionName", "??")), f.get("FileName", "")) for f in rec.get("Symbol", [])]
-            frames = [f for f in frames if f and f != "??"] or [f"{os.path.basename(path)}+{hex(pc)}"]
-            names[pc] = list(reversed(frames))  # outermost first
+            frames = [f for f in frames if f and f != "??"] or [f"{os.path.basename(path)}+{hex(vaddr)}"]
+            names[key] = list(reversed(frames))  # outermost first
     return names
 
 
@@ -170,16 +175,23 @@ def main():
         for j, pc in enumerate(pcs):
             lookups.add(pc if j == 0 else pc - 1)
     names = symbolize(sorted(lookups), maps)
-
-    folded = collections.Counter()
-    selfc, incl = collections.Counter(), collections.Counter()
-    cats = collections.Counter()
-    total = 0
+    stacks = []
     for count, pcs in samples:
         frames = []  # leaf first
         for j, pc in enumerate(pcs):
             key = pc if j == 0 else pc - 1
             frames.extend(reversed(names.get(key, [hex(pc)])))
+        stacks.append((count, frames))
+    write_reports(stacks, period_us, a.out, a.title)
+
+
+def write_reports(stacks, period_us, out, title):
+    """Folded stacks, flamegraph and rollup from [(count, frames leaf first)]."""
+    folded = collections.Counter()
+    selfc, incl = collections.Counter(), collections.Counter()
+    cats = collections.Counter()
+    total = 0
+    for count, frames in stacks:
         # Drop the profiler's own signal frames if present.
         while frames and re.search(r"ProfileHandler|CpuProfiler|__restore_rt|prof_handler", frames[0]):
             frames.pop(0)
@@ -205,16 +217,16 @@ def main():
                 break
         cats[(owner or "other", cat or "")] += count
 
-    with open(a.out + ".folded", "w") as f:
+    with open(out + ".folded", "w") as f:
         for stack, n in folded.most_common():
             f.write(f"{stack} {n}\n")
     if shutil.which("inferno-flamegraph"):
-        with open(a.out + ".svg", "w") as f:
-            subprocess.run(["inferno-flamegraph", "--title", a.title or os.path.basename(a.out), "--minwidth", "0.2",
-                            a.out + ".folded"], stdout=f)
+        with open(out + ".svg", "w") as f:
+            subprocess.run(["inferno-flamegraph", "--title", title or os.path.basename(out), "--minwidth", "0.2",
+                            out + ".folded"], stdout=f)
     pct = lambda n: f"{100 * n / max(total, 1):.1f}%"
-    lines = [f"# {a.title or os.path.basename(a.out)}", "",
-             f"{total} samples at {period_us} µs ({total * period_us / 1e6:.2f} CPU-s)", "",
+    lines = [f"# {title or os.path.basename(out)}", "",
+             f"{total} samples at {period_us:g} µs ({total * period_us / 1e6:.2f} CPU-s)", "",
              "## By owner (nearest recognizable frame) and leaf kind", "", "| owner | leaf | share |", "|---|---|---|"]
     owners = collections.Counter()
     for (o, c), n in cats.items():
@@ -228,8 +240,8 @@ def main():
     lines += [f"| {pct(n)} | `{fn[:160]}` |" for fn, n in selfc.most_common(40)]
     lines += ["", "## Top inclusive", "", "| incl | function |", "|---|---|"]
     lines += [f"| {pct(n)} | `{fn[:160]}` |" for fn, n in incl.most_common(80)]
-    open(a.out + ".top.md", "w").write("\n".join(lines) + "\n")
-    print(f"{a.out}: {total} samples")
+    open(out + ".top.md", "w").write("\n".join(lines) + "\n")
+    print(f"{out}: {total} samples")
 
 
 if __name__ == "__main__":
