@@ -160,6 +160,7 @@ otherwise stop" in `plans/cleanup.md`.
 
 Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fail, 1 allowed, as the Phase 0 baseline (2026-09-29).
 Batch parity on 6b98426 (after batch 1, VIEW-3, KIT-9): 873 pass, 0 fail, 1 allowed (2026-09-29).
+Batch parity on 8559e9c (after VIEW-11, VIEW-10): 872 pass, **1 fail**: `rooms/show/direct/group @ chromium-desktop-light`, network layer, the `/users/me/sidebar` body differs (the dark cell of the same state passed). `--only 'rooms/show/direct/*'` then passed 3/3 (`parity/out/recheck-direct-*`). Treated as a one-off; if the next full compare fails it again, bisect VIEW-11/VIEW-10.
 
 ### DB (`crates/db`)
 - [ ] DB-1 perf: N+1 in `Room::find_direct_for`
@@ -287,6 +288,11 @@ won't make. They don't block the run and go into the final report.
   `bench/results/perf-1-20260929/README.md`). The risk the cap guarded: a read that stalls (e.g.
   SQLITE_BUSY for up to 5 s) holds a runtime worker; with WAL, readers don't wait on the writer, so
   this needs something unusual (WAL recovery). Say if you want the cap anyway.
+
+- (WEB-8 review) Predates the cleanup: Rails' `message_tag` evaluates `plain_text_body.all_emoji?`
+  in the div's attributes before `avatar_tag` (`reference/app/helpers/messages_helper.rb:34`), so a
+  message with both a non-UTF-8 body and a missing creator fails the page in Rails; the port renders
+  the unrenderable view. Keep (and list under Known differences) or match Rails?
 
 ## Found while working
 
