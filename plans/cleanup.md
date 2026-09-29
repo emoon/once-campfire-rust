@@ -130,7 +130,10 @@ The coordinator doesn't write WP code. It repeats:
 4. **Verify** before merging: rebase the branch onto `refactor/cleanup` in its worktree, re-run
    tests (seed built) and clippy there (`taskset -c 0-7,16-23 cargo test …` / `cargo clippy …`,
    as in the definition of done), and check the recorded perf and parity results against the
-   tolerance. If the rebase changed code the WP touched, re-run the perf gate too.
+   tolerance. If the rebase changed code the WP touched, re-run the perf gate too. If the WP
+   changed a crate's dependencies or features, also `cargo check -p <crate>` for each workspace
+   crate on its own: the workspace build unifies features (kit, cable and campfire turn on
+   `rails_compat`'s `crypto`), so a crate that misses a feature it needs still passes there.
 5. **Merge** in `$MAIN`: `git merge --no-ff refactor/cleanup-<id>`. Set the WP to `[x]`, then
    commit `TASKS.md` on `refactor/cleanup` ("Tasks: <id> merged"). This is the only place
    `TASKS.md` is committed. Remove the worktree (`git worktree remove --force`: git refuses
