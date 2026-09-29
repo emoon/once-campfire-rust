@@ -1,6 +1,8 @@
 //! Ruby's integer parsing of request strings: `String#to_i`, and the Active Record cast built on
 //! it that decides which row an id parameter finds.
 
+use std::cmp::Ordering;
+
 /// The characters `String#to_i` skips before the number (Ruby's `ISSPACE`).
 const RUBY_SPACE: [char; 6] = [' ', '\t', '\n', '\u{b}', '\u{c}', '\r'];
 
@@ -26,6 +28,18 @@ pub fn cast_integer(value: &str) -> Option<i64> {
     signed(negative, digits)
 }
 
+/// `a.to_i <=> b.to_i`, exact where `to_i` saturates.
+pub fn cmp_to_i(a: &str, b: &str) -> Ordering {
+    let (a_negative, a) = significant_digits(a);
+    let (b_negative, b) = significant_digits(b);
+    match (a_negative, b_negative) {
+        (false, true) => Ordering::Greater,
+        (true, false) => Ordering::Less,
+        (false, false) => cmp_magnitudes(a, b),
+        (true, true) => cmp_magnitudes(b, a),
+    }
+}
+
 /// Skips `to_i`'s leading whitespace, then splits off the sign.
 fn split_sign(value: &str) -> (bool, &str) {
     let value = value.trim_start_matches(RUBY_SPACE);
@@ -47,20 +61,39 @@ fn signed(negative: bool, digits: &str) -> Option<i64> {
 }
 
 fn magnitude(digits: &str) -> Option<u64> {
+    decimal_digits(digits).try_fold(0u64, |number, digit| number.checked_mul(10)?.checked_add(u64::from(digit)))
+}
+
+/// The sign and the digits of `value.to_i` without leading zeros. Zero has no sign.
+fn significant_digits(value: &str) -> (bool, impl Iterator<Item = u8> + Clone + '_) {
+    let (negative, digits) = split_sign(value);
+    let mut digits = decimal_digits(digits).skip_while(|&digit| digit == 0).peekable();
+    (negative && digits.peek().is_some(), digits)
+}
+
+fn cmp_magnitudes(a: impl Iterator<Item = u8> + Clone, b: impl Iterator<Item = u8> + Clone) -> Ordering {
+    a.clone().count().cmp(&b.clone().count()).then_with(|| a.cmp(b))
+}
+
+/// The digits of the number after the sign: an optional `0d` prefix, then digits with single
+/// underscores between them.
+fn decimal_digits(digits: &str) -> impl Iterator<Item = u8> + Clone + '_ {
     let digits = digits.strip_prefix("0d").or_else(|| digits.strip_prefix("0D")).unwrap_or(digits);
-    let mut number: u64 = 0;
     let mut previous_digit = false;
-    for byte in digits.bytes() {
-        match byte {
+    digits
+        .bytes()
+        .map_while(move |byte| match byte {
             b'0'..=b'9' => {
-                number = number.checked_mul(10)?.checked_add(u64::from(byte - b'0'))?;
                 previous_digit = true;
+                Some(Some(byte - b'0'))
             }
-            b'_' if previous_digit => previous_digit = false,
-            _ => break,
-        }
-    }
-    Some(number)
+            b'_' if previous_digit => {
+                previous_digit = false;
+                Some(None)
+            }
+            _ => None,
+        })
+        .flatten()
 }
 
 #[cfg(test)]
@@ -101,6 +134,18 @@ mod tests {
         assert_eq!(to_i("99999999999999999999"), i64::MAX);
         assert_eq!(to_i("-9223372036854775808"), i64::MIN);
         assert_eq!(to_i("-99999999999999999999"), i64::MIN);
+    }
+
+    #[test]
+    fn compares_to_i_exactly() {
+        assert_eq!(cmp_to_i("9223372036854775808", "9223372036854775807"), Ordering::Greater);
+        assert_eq!(cmp_to_i("99999999999999999998", "99999999999999999999"), Ordering::Less);
+        assert_eq!(cmp_to_i("-99999999999999999999", "-99999999999999999998"), Ordering::Less);
+        assert_eq!(cmp_to_i("-99999999999999999999", "99999999999999999998"), Ordering::Less);
+        assert_eq!(cmp_to_i("0000000000000000000000002", "10"), Ordering::Less);
+        assert_eq!(cmp_to_i("1_0_", "0d10"), Ordering::Equal);
+        assert_eq!(cmp_to_i("-0", "abc"), Ordering::Equal);
+        assert_eq!(cmp_to_i("-1", "0"), Ordering::Less);
     }
 
     #[test]
