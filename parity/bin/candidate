@@ -145,10 +145,12 @@ ports() {
 build() {
   # Every checkout's build shares the Dockerfile's cargo target cache, and COPY keeps the checkout's
   # mtimes, so cargo can take crates another worktree built later as fresh and link them in. Touching
-  # the sources makes this tree's newer than anything cached (dependencies stay cached).
+  # the sources makes this tree's newer than anything cached (dependencies stay cached), and
+  # --no-cache-filter re-runs the build stage's COPY, which BuildKit would otherwise reuse by content
+  # with the old mtimes.
   find "$ROOT/crates" -type f -exec touch {} +
   log "building $APP_IMAGE from /Dockerfile"
-  docker build -t "$APP_IMAGE" -f "$ROOT/Dockerfile" \
+  docker build --no-cache-filter build -t "$APP_IMAGE" -f "$ROOT/Dockerfile" \
     --build-arg APP_VERSION=parity --build-arg GIT_REVISION="$(git -C "$ROOT/reference" rev-parse HEAD)" \
     "$ROOT"
   log "building $IMAGE from parity/docker/candidate/Dockerfile"
