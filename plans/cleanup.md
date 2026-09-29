@@ -236,7 +236,10 @@ commit message or your `TASKS.md` line.
 
 Benchmarks pin CPUs 8–15, and the parity harness starts containers on fixed ports. Two at once ruin
 both. Wrap every `bench/*` and `parity/bin/*` run in the shared lock (`flock /tmp/campfire-bench.lock
-…`).
+…`). The compare can't move off that lock (S-6, `bench/results/s-6-20260929/`). Even with every
+container pinned to the other CCD, it costs `bench/profile cpu` 3.6–6.5% CPU/request, because the
+benchmark cores' boost clock drops about 2% and the two CCDs share the disk and the kernel's I/O
+workers.
 
 CPU and throughput runs (`bench/profile cpu`, `bench/run`) are only valid on a quiet desktop. The
 desktop screensaver (`omarchy-screensaver`, two `foot` windows) uses ~5 unpinned CPUs, and on
@@ -414,7 +417,10 @@ them fixed in place rather than reverted.
   bench lock. **Prove it first:** on one binary, run `bench/profile alloc` and ABBA `cpu` on the four
   targets with and without a concurrent pinned compare; adopt it only if every target's spread stays
   within T and the compare still gives 873 pass + 1 allowed. Otherwise mark `[-]` with the numbers.
-  Update "Commands for the gates" either way.
+  Update "Commands for the gates" either way. **Result: dropped.** The pinned compare passed
+  (873 + 1 allowed), but runs beside it were 3.6–6.5% worse on CPU/request and 3.6–17% worse on
+  req/s, so parity stays under the bench lock ("Shared machine resources";
+  `bench/results/s-6-20260929/README.md`).
 - **S-7 The alloc gate counts Rust allocations (found by KIT-1, 2026-09-29).** `bench/profile alloc`
   LD_PRELOADs the system jemalloc and reads its `MALLOC_CONF` stats, but campfire's
   `#[global_allocator]` is the statically linked `tikv_jemallocator` (`_rjem_` prefix,
