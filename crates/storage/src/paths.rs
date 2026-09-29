@@ -4,6 +4,8 @@
 //! `resolve_model_to_route = :rails_storage_redirect`; `rails_storage_proxy_path` gives the
 //! proxy variants. `urls_expire_in` is unset in Campfire, so these signed ids never expire.
 
+use std::fmt::Write as _;
+
 use crate::blob::Blob;
 use crate::disposition::{escape_path, escape_segment};
 use crate::filename::Filename;
@@ -68,14 +70,13 @@ fn representation_path(kind: &str, verifier: &dyn Verifier, blob: &Blob, variati
 }
 
 /// `CGI.escape` as `Hash#to_query` applies it.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn query_escape(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {
         match b {
             b' ' => out.push('+'),
             b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'*' | b'-' | b'.' | b'_' => out.push(b as char),
-            _ => out.push_str(&format!("%{b:02X}")),
+            _ => write!(out, "%{b:02X}").unwrap(),
         }
     }
     out

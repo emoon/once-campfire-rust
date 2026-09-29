@@ -1,6 +1,7 @@
 //! Responses as controllers build them, before the kit finishes them (cookies, default headers,
 //! ETags, conditional GET, HEAD) and hands them to hyper.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use axum::body::Bytes;
@@ -122,14 +123,13 @@ pub fn content_disposition(disposition: &str, filename: Option<&str>) -> String 
     }
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn percent_escape(s: &str, keep: impl Fn(u8) -> bool) -> String {
     let mut out = String::with_capacity(s.len());
     for byte in s.bytes() {
         if keep(byte) {
             out.push(byte as char);
         } else {
-            out.push_str(&format!("%{byte:02X}"));
+            write!(out, "%{byte:02X}").unwrap();
         }
     }
     out

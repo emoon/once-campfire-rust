@@ -9,28 +9,31 @@
 //! points" as the gem scores them (including its floating-point dark-ratio term).
 //! Golden vectors: `reference-tools/campfire/rqrcode.rb`.
 
+use std::fmt::Write as _;
+
 /// `RQRCode::QRCode.new(data).as_svg(viewbox: true, fill: :white, color: :black)`, for the binary
 /// string `Base64.urlsafe_decode64` returns; `None` when it doesn't fit a version 40 code.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn svg_bytes(data: &[u8]) -> Option<String> {
     let modules = QrCode::new(data)?.modules;
     let module_size = 11;
     let dimension = modules.len() * module_size;
     let mut out = String::with_capacity(256 + modules.len() * modules.len() * 30);
     out.push_str(r#"<?xml version="1.0" standalone="yes"?>"#);
-    out.push_str(&format!(
+    write!(
+        out,
         r#"<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" viewBox="0 0 {dimension} {dimension}" shape-rendering="crispEdges">"#
-    ));
-    out.push_str(&format!(
-        r#"<rect width="{dimension}" height="{dimension}" x="0" y="0" fill="white"/>"#
-    ));
+    )
+    .unwrap();
+    write!(out, r#"<rect width="{dimension}" height="{dimension}" x="0" y="0" fill="white"/>"#).unwrap();
     for (row, cells) in modules.iter().enumerate() {
         for (col, &dark) in cells.iter().enumerate() {
             if dark {
                 let (x, y) = (col * module_size, row * module_size);
-                out.push_str(&format!(
+                write!(
+                    out,
                     r#"<rect width="{module_size}" height="{module_size}" x="{x}" y="{y}" fill="black"/>"#
-                ));
+                )
+                .unwrap();
             }
         }
     }

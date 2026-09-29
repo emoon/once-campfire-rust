@@ -1,13 +1,19 @@
 //! `link_to`, `link_to_if` and `mail_to` (`UrlHelper`).
 
+use std::borrow::Borrow;
+
 use super::html::{Html, Safe, escape};
-use super::tag::{Attrs, attrs, content_tag};
+use super::tag::{Attrs, AttrsView, attrs, content_tag};
 use super::url::cgi_escape;
 
-/// `link_to(url, options) { content }`: `href` goes after the given options.
-pub fn link_to(url: &str, options: Attrs, content: &str) -> Html {
-    let options = options.attr("href", url);
-    content_tag("a", &options, content)
+/// `link_to(url, options) { content }`.
+pub fn link_to(url: &str, options: impl Borrow<Attrs>, content: &str) -> Html {
+    content_tag("a", link_options(url, options.borrow().view()), content)
+}
+
+/// `link_to`'s attributes: `href` goes after the given options.
+pub fn link_options<'a>(url: &'a str, options: AttrsView<'a>) -> AttrsView<'a> {
+    options.attr("href", url)
 }
 
 /// `link_to(text, url, options)` with a plain-text name.

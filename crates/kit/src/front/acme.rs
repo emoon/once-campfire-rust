@@ -10,6 +10,7 @@
 //! `acme_account+key` the account's PEM private key.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
@@ -507,7 +508,6 @@ fn covers(certificate: &x509_parser::certificate::X509Certificate<'_>, domain: &
     })
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn pem_block(label: &str, der: &[u8]) -> String {
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(der);
@@ -516,7 +516,7 @@ fn pem_block(label: &str, der: &[u8]) -> String {
         pem.push_str(std::str::from_utf8(line).unwrap());
         pem.push('\n');
     }
-    pem.push_str(&format!("-----END {label}-----\n"));
+    writeln!(pem, "-----END {label}-----").unwrap();
     pem
 }
 

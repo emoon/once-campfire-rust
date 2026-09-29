@@ -1,6 +1,8 @@
 //! The slice of Ruby's `URI.parse` (uri 1.1, RFC 3986 parser) that the opengraph URL checks and
 //! tweet URL normalization rely on, including which inputs raise which error.
 
+use std::fmt::Write as _;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UriError {
     /// `URI::InvalidURIError`, which callers rescue.
@@ -162,7 +164,6 @@ fn mailto_to_valid(to: &str) -> bool {
 }
 
 /// `URI::Generic#query=`: rejects `%` followed by two non-hex characters and escapes the rest.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn escape_query(query: &str) -> Result<String, UriError> {
     let cleaned: Vec<u8> = query.bytes().filter(|b| !matches!(b, b'\t' | b'\r' | b'\n')).collect();
     for w in cleaned.windows(3) {
@@ -178,7 +179,7 @@ fn escape_query(query: &str) -> Result<String, UriError> {
         if escape || matches!(b, b'!' | b'$'..=b'&' | b'('..=b';' | b'=' | b'?'..=b'_' | b'a'..=b'~') {
             out.push(b as char);
         } else {
-            out.push_str(&format!("%{:02X}", b));
+            write!(out, "%{:02X}", b).unwrap();
         }
         i += 1;
     }

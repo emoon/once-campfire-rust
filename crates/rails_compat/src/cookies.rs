@@ -12,6 +12,8 @@
 //!   carrying `pur: "cookie.<name>"` and `exp` (ISO 8601 with milliseconds, or `null`),
 //! - reading tries purpose `cookie.<name>` first, then *no purpose*, so a value signed without
 //!   metadata (pre-Rails 5.2) is accepted under any cookie name.
+use std::fmt::Write as _;
+
 use jiff::{Timestamp, ToSpan, tz::TimeZone};
 use serde_json::Value;
 
@@ -97,14 +99,13 @@ pub fn encrypted_cookie_encryptor(secrets: &Secrets) -> MessageEncryptor {
 
 /// `Rack::Utils.escape` (`URI.encode_www_form_component`), which Rack applies to every cookie
 /// value it writes: `*-._` and alphanumerics stay, a space becomes `+`, the rest is `%XX`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn escape(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for &byte in raw.as_bytes() {
         match byte {
             b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'*' | b'-' | b'.' | b'_' => out.push(byte as char),
             b' ' => out.push('+'),
-            _ => out.push_str(&format!("%{byte:02X}")),
+            _ => write!(out, "%{byte:02X}").unwrap(),
         }
     }
     out

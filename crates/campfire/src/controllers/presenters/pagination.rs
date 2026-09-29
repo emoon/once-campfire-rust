@@ -1,6 +1,8 @@
 //! geared_pagination 1.2.0's `set_page_and_extract_portion_from records, per_page:` for an
 //! unordered-by-cursor relation (`PortionAtOffset`), and its JSON response headers.
 
+use std::fmt::Write as _;
+
 use campfire_kit::Ctx;
 use rails_compat::ruby;
 
@@ -149,14 +151,13 @@ fn unencode(value: &str) -> String {
 }
 
 /// `Addressable::URI.encode_component(value, CharacterClasses::UNRESERVED)`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn encode_component(value: &str) -> String {
     let mut encoded = String::new();
     for byte in value.bytes() {
         if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
             encoded.push(byte as char);
         } else {
-            encoded.push_str(&format!("%{byte:02X}"));
+            write!(encoded, "%{byte:02X}").unwrap();
         }
     }
     encoded

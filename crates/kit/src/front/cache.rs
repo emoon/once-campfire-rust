@@ -13,6 +13,7 @@
 //! responses while holding their large keys.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
@@ -320,14 +321,13 @@ fn query_unescape(s: &str) -> Option<String> {
 }
 
 /// `url.QueryEscape`
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn query_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for &b in s.as_bytes() {
         match b {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
             b' ' => out.push('+'),
-            _ => out.push_str(&format!("%{b:02X}")),
+            _ => write!(out, "%{b:02X}").unwrap(),
         }
     }
     out

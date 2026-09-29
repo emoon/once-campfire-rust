@@ -3,6 +3,8 @@
 //!   <%= stylesheet_link_tag :all, "data-turbo-track": "reload" %>
 //!   <%= javascript_importmap_tags %>
 
+use std::fmt::Write as _;
+
 use rails_compat::erb;
 
 use crate::embedded;
@@ -31,7 +33,6 @@ pub fn stylesheet_link_tag_all(options: &[(&str, &str)]) -> StylesheetTags {
 
 /// `stylesheet_link_tag *sources, **options` as Propshaft::Helper renders it: one Rails
 /// `stylesheet_link_tag` per source, joined by newlines. Missing sources panic, like Rails raises.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn stylesheet_link_tag(sources: &[&str], options: &[(&str, &str)]) -> StylesheetTags {
     let mut html = Vec::with_capacity(sources.len());
     let mut preload_links = Vec::with_capacity(sources.len());
@@ -44,7 +45,7 @@ pub fn stylesheet_link_tag(sources: &[&str], options: &[(&str, &str)]) -> Styles
 
         let mut tag = format!("<link rel=\"stylesheet\" href=\"{}\"", erb::escape(&href));
         for (name, value) in options {
-            tag.push_str(&format!(" {name}=\"{}\"", erb::escape(value)));
+            write!(tag, " {name}=\"{}\"", erb::escape(value)).unwrap();
         }
         tag.push_str(" />");
         html.push(tag);

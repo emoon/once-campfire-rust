@@ -3,6 +3,7 @@
 //! what it was asked.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
@@ -202,7 +203,6 @@ impl FakeServer {
     }
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 async fn serve<S: AsyncRead + AsyncWrite + Unpin>(stream: S, routes: &[Route], log: &Mutex<Vec<Received>>) -> io::Result<()> {
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
@@ -261,7 +261,7 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(stream: S, routes: &[Route], l
     }
     let mut head = format!("HTTP/1.1 {} {}\r\n", route.status, route.reason);
     for (name, value) in &route.headers {
-        head.push_str(&format!("{name}: {value}\r\n"));
+        write!(head, "{name}: {value}\r\n").unwrap();
     }
     if route.gzip {
         head.push_str("Content-Encoding: gzip\r\n");
@@ -269,7 +269,7 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(stream: S, routes: &[Route], l
     if route.chunked {
         head.push_str("Transfer-Encoding: chunked\r\n");
     } else if !route.headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("content-length")) {
-        head.push_str(&format!("Content-Length: {}\r\n", body.len()));
+        write!(head, "Content-Length: {}\r\n", body.len()).unwrap();
     }
     head.push_str("Connection: close\r\n\r\n");
     let mut stream = reader.into_inner();
