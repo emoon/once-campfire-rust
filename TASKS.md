@@ -77,7 +77,7 @@ otherwise stop" in `plans/cleanup.md`.
       (C/SQLite only; see S-7).
       Branch keeps only `bench/results/s-6-20260929/` and a plan note; the pinning diff
       (`PARITY_CPUSET`) is saved there, not applied. Gate recipes unchanged. Images removed.
-- [r] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order (refactor/cleanup-s-8, b8f9ee3 on c1db459)
+- [r] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order (refactor/cleanup-s-8, f28e273 on c1db459)
       Results: `bench/results/s-8-20260929/README.md`. Biggest cost: the `spawn_blocking` hop per DB
       read; reads inline cut CPU/req −12…−23% on all four targets (experiment). Then the deflater
       (sidebar ~40% deflating a repeating body; the splice ~19% of room_show), per-message cache
@@ -169,8 +169,8 @@ otherwise stop" in `plans/cleanup.md`.
       (refactor/cleanup-db-10). +0 production lines (script only), allocs n/a (no production
       code; parity and perf gates don't apply). `differential.sh` runs all four steps, ending in
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
-- [ ] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (S-8; first in the perf order)
-- [ ] DB-12 perf (measure; after DB-11): `mmap_size` (post_message's remap per commit)
+- [~] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (S-8; first in the perf order) (refactor/cleanup-perf-1; started as PERF-1)
+- [~] DB-12 perf (measure; after DB-11): `mmap_size` (post_message's remap per commit) (refactor/cleanup-perf-2; started as PERF-2)
 - [ ] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)`
 - [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
@@ -184,7 +184,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] KIT-7 Routes: `&'static str` for constant paths
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
 - [ ] KIT-9 perf: splice without rehashing (text identity, recorded fragment offsets, combined CRCs) (S-8)
-- [ ] KIT-10 perf: reuse gzip output for repeated bodies; reuse deflate encoders (S-8)
+- [~] KIT-10 perf: reuse gzip output for repeated bodies; reuse deflate encoders (S-8) (refactor/cleanup-kit-10)
 
 ### WEB (`crates/campfire` controllers, concerns, app)
 - [~] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1)
@@ -233,10 +233,6 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] STORE-6 Storage JSON on the shared encoder (vectors for floats and U+2028 first; after F-2)
 - [ ] STORE-7 `find_or_process`; `purge` SQL to storage; consistent `FileNotFound`
 - [ ] STORE-8 vips `SAFETY` comments; warm ffmpeg check; split long functions
-
-### Measured perf (S-8 profiles; ahead of the lanes)
-- [ ] PERF-1 DB reads without the spawn_blocking hop (room_show −17% CPU, post_message −20% in S-8's experiment)
-- [ ] PERF-2 SQLite mmap churn on writes (post_message −12% with mmap_size=0 in S-8's experiment)
 
 ## Phase 3: cross-cutting migrations (one at a time)
 
