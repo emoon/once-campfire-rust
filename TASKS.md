@@ -163,7 +163,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] KIT-2 perf: per-request allocations (deflater, cache variant, compression, host, remote_ip, formats, log, timeouts)
 - [x] KIT-3 Session dead state (refactor/cleanup-kit-3)
 - [ ] KIT-4 `dispatch` error flow; delete `clone_error`
-- [ ] KIT-5 `PendingEntry` instead of boxed closure; `anyhow` in acme
+- [~] KIT-5 `PendingEntry` instead of boxed closure; `anyhow` in acme (refactor/cleanup-kit-5)
 - [ ] KIT-6 Typed `FrontConfig`, `Disposition`, `Redirect.status`, bool structs
 - [ ] KIT-7 Routes: `&'static str` for constant paths
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
@@ -174,12 +174,12 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
 - [ ] WEB-5 perf: ~6 → ~3 DB round trips on room show; `page::bare` without layout load
-- [~] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless` (refactor/cleanup-web-6)
+- [x] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless` (refactor/cleanup-web-6, 7af9f04 on d23c0b8): production lines campfire -12, db +2 (total -10), tests +50; allocations/request n/a (no perf gate, coordinator's call). Reviewer's two requests applied: room-creation test now covers member+unrestricted 200 and administrator+restricted 200 (each verified to fail against the one-sided rewrite), `can_administer` doc cites reference/app/models/user/role.rb. Tests 659 passed, 0 failed, 7 ignored (seed built, none skipped); clippy clean. Previous commit message's delta (-14/+0/+33) was miscounted; corrected.
 - [ ] WEB-7 `page::render_partial` for the 12 detached renders
 - [ ] WEB-8 Presenters: SQL to db (after DB-2), dedupe, per-message perf fixes
 - [ ] WEB-9 perf (measure): `RegexSet` router (after KIT-1)
 - [ ] WEB-10 Redirect helper, bool params, precomputed version headers; `update_message` matches on `Assignment` (F-5)
-- [ ] WEB-11 De-flake `presenters::accounts::tests::manages_bots` (302 under load; F-2)
+- [ ] WEB-11 De-flake `presenters::accounts::tests::manages_bots` and `accounts::tests::serves_the_account_logo_and_avatars` (302 under load; F-2, VIEW-3)
 
 ### LIVE (`crates/cable`, campfire channels, integrations, jobs)
 - [ ] LIVE-1 perf: hub lock not held while sending
@@ -238,15 +238,19 @@ otherwise stop" in `plans/cleanup.md`.
 Items the coordinator moved here from "Found while working": behavior changes or calls it
 won't make. They don't block the run and go into the final report.
 
-- (S-2) `post_message` allocations are bimodal: the same binary measures 78.7 or 77.2 per request
-  (5 of 14 runs landed low). The gate works around it (run twice, compare the higher run); the cause
-  (probably a timing-dependent job or broadcast path) is unexplained.
+- ~~(S-2) `post_message` allocations are bimodal~~ Explained by S-7: one-time work (likely each
+  reader connection preparing its statements) landed in the measured run; with S-7's 500-request
+  warm-up the counts are exact (no longer an item for the human).
 - Verify: `Layout::render` reads (and so sweeps) the flash even for `layout false` renders; Rails
   wouldn't. Possible parity edge (see WEB-5).
 - (F-4) Direct upload `byte_size` (`campfire/src/active_storage.rs`, `cast_integer`): Rails
   casts it as an attribute (`Type::Integer#cast`, `"abc".to_i` → 0, then validations), not as a
   condition, so `"abc"` would create a 0-byte blob where the port answers 422. This predates F-4;
   fixing it would change behavior (STORE, or for the human).
+- (VIEW-3 review) Possible DoS, predates the cleanup: richtext checks its depth and attribute limits
+  only after the parse (`crates/richtext/src/dom.rs` ~:586), so html5ever can build a quadratic
+  number of nodes from a hostile body before the depth error fires; Gumbo (Rails) stops during the
+  parse. Fixing it means limiting inside the parse (behavior change on hostile input only).
 
 ## Found while working
 
