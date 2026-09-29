@@ -178,7 +178,7 @@ won't make. They don't block the run and go into the final report.
   "One more index"). Its three Rust tests pass; the last step (Rails on the Rust-written database)
   never runs. Tooling fix: filter that index out of the Rust side of the diff.
 - (S-2) `post_message` allocations are bimodal: the same binary measures 78.7 or 77.2 per request
-  (4 of 10 runs landed low). The gate works around it (run twice, compare the higher run); the cause
+  (5 of 14 runs landed low). The gate works around it (run twice, compare the higher run); the cause
   (probably a timing-dependent job or broadcast path) is unexplained.
 - Verify: `Layout::render` reads (and so sweeps) the flash even for `layout false` renders; Rails
   wouldn't. Possible parity edge (see WEB-5).

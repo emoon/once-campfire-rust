@@ -62,9 +62,10 @@ req/s spread over all runs; its CPU ms/req spread is 1.8%).
 
 **Allocations.** room_show, messages_page and sidebar move by at most 0.1 per request between
 runs of the same code, so 0.1 is noise and 0.2 or more is a real change. post_message is bimodal:
-the same binary measures either 78.7 (±0.1) or 77.2 (±0.1); 4 of 10 runs landed low. Run it twice
-on each side and compare the higher run of each; a gap of about 1.5 is the mode flipping, not the
-change, so re-run before deciding.
+the same binary measures either about 78.7 (78.6–78.9 over 9 runs) or 77.2–77.3; 5 of 14 runs
+landed low. Run it twice on each side and compare the higher run of each: within the high mode a
+difference of 0.3 or less is noise, and a gap of about 1.5 is the mode flipping, not the change, so
+re-run before deciding.
 
 Files: `alloc-{1,2}/<route>/alloc-<route>.json` (and the `jeprof` top sites, `*.alloc_objects.txt`,
 `*.alloc_space.txt`), `cpu-{1,2}/cpu.json` and `cpu-{1,2}/cpu-<target>.top.md` (rollups; the folded
@@ -106,6 +107,30 @@ flock /tmp/campfire-bench.lock bench/run --apps rust --reps 3 --out $OUT/run
 
 `cpu.json` comes from a small change to `bench/profile` in this commit: before it, `cpu` printed
 each target's req/s and CPU ms/req only to the terminal.
+
+## The gate recipes, run verbatim (S-2 review)
+
+After the Phase 0 review, the four recipes in `plans/cleanup.md` at 2f35123 (worktree setup, perf
+gate, `bench/run`, parity gate) were extracted from the plan and run unchanged except for
+`ID=dryrun2`, in a scratch worktree whose code was the same as `$MAIN`'s. All four ran end to end;
+the worktree, its branch and its image tags were removed afterwards.
+
+- **Setup:** worktree, submodule and the copied seed (21 MB) worked as written.
+- **Perf gate, allocations** (base / dryrun2): room_show 18.1 / 18.0, messages_page 19.0 / 19.0,
+  sidebar 53.1 / 53.1, post_message 78.9 and 77.2 / 78.7 and 78.6 (higher runs 78.9 / 78.7).
+- **Perf gate, CPU in ABBA order**, mean of the two runs per side (base → dryrun2): CPU ms/req
+  room_show 0.1713 → 0.1715 (+0.1%), messages_page 0.1457 → 0.1450 (−0.5%), sidebar 0.2783 →
+  0.2797 (+0.5%), post_message 0.4644 → 0.4656 (+0.3%); req/s room_show 21,494 → 21,512,
+  messages_page 25,151 → 25,302, sidebar 13,366 → 13,292 (−0.6%), post_message 4,709 → 4,796.
+  Every difference is under T/2, so no re-run was due.
+- **`bench/run` recipe** (`SUITES=http`, 3 reps a side, `LOAD_WAIT_SECS=60`): the base image
+  built from `$MAIN`, ran, was removed, and the worktree's image built and ran; about 30 minutes in
+  all. Median c=16 req/s base → dryrun2: room_show 22,404 → 22,520, messages_page 25,918 →
+  25,867, sidebar 13,600 → 13,624, post_message 4,906 → 4,793 (−2.3%, inside its 2.5% spread).
+  Both images had the same id here because the two trees were identical and Docker reused its
+  cache; a real WP's image differs.
+- **Parity gate** from the worktree: **874 cells: 873 pass (0 flaky), 0 fail, 1 allowed, 0 error**
+  in 1,971 s, the same as the baseline.
 
 ## Size (bench/loc, S-3)
 
