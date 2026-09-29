@@ -7,12 +7,47 @@
 
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::ops::{Index, IndexMut};
 
 use html5ever::interface::{ElemName, ElementFlags, NodeOrText, QuirksMode, TreeSink};
 use html5ever::tendril::{StrTendril, TendrilSink};
 use html5ever::{Attribute, LocalName, Namespace, ParseOpts, QualName, local_name, ns};
 
-pub type NodeId = usize;
+/// A node's index in its `Dom`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NodeId(u32);
+
+impl NodeId {
+    /// The document node html5ever parses into, first in its tree.
+    const DOCUMENT: NodeId = NodeId(0);
+
+    fn new(index: usize) -> Self {
+        NodeId(u32::try_from(index).expect("a DOM has fewer than 2^32 nodes"))
+    }
+
+    fn index(self) -> usize {
+        self.0 as usize
+    }
+
+    /// The same node after its tree is appended to a `Dom` that already held `offset` nodes.
+    fn shifted(self, offset: usize) -> Self {
+        NodeId::new(self.index() + offset)
+    }
+}
+
+impl Index<NodeId> for Vec<Node> {
+    type Output = Node;
+
+    fn index(&self, id: NodeId) -> &Node {
+        &self[id.index()]
+    }
+}
+
+impl IndexMut<NodeId> for Vec<Node> {
+    fn index_mut(&mut self, id: NodeId) -> &mut Node {
+        &mut self[id.index()]
+    }
+}
 
 /// Gumbo's defaults, which Nokogiri raises `ArgumentError` for exceeding
 /// (`Nokogiri::Gumbo::DEFAULT_MAX_TREE_DEPTH`, `DEFAULT_MAX_ATTRIBUTES`).
@@ -35,10 +70,21 @@ pub struct Attr {
 
 impl Attr {
     /// The attribute's name as Nokogiri reports and serializes it ("xlink:href", "href").
-    pub fn qualified_name(&self) -> String {
+    pub fn qualified_name(&self) -> Cow<'_, str> {
         match &self.name.prefix {
-            Some(prefix) => format!("{}:{}", prefix, self.name.local),
-            None => self.name.local.to_string(),
+            Some(prefix) => Cow::Owned(format!("{}:{}", prefix, self.name.local)),
+            None => Cow::Borrowed(&self.name.local),
+        }
+    }
+
+    /// Whether `qualified_name() == name`, without building the qualified name.
+    pub fn has_name(&self, name: &str) -> bool {
+        match &self.name.prefix {
+            Some(prefix) => name
+                .strip_prefix(&**prefix)
+                .and_then(|rest| rest.strip_prefix(':'))
+                .is_some_and(|local| local == &*self.name.local),
+            None => name == &*self.name.local,
         }
     }
 }
@@ -105,7 +151,7 @@ impl Dom {
             parent: None,
             children: Vec::new(),
         });
-        self.nodes.len() - 1
+        NodeId::new(self.nodes.len() - 1)
     }
 
     pub fn new_fragment(&mut self) -> NodeId {
@@ -182,11 +228,7 @@ impl Dom {
     }
 
     pub fn attr(&self, id: NodeId, name: &str) -> Option<&str> {
-        self.element(id)?
-            .attrs
-            .iter()
-            .find(|a| a.qualified_name() == name)
-            .map(|a| a.value.as_str())
+        self.element(id)?.attrs.iter().find(|a| a.has_name(name)).map(|a| a.value.as_str())
     }
 
     pub fn has_attr(&self, id: NodeId, name: &str) -> bool {
@@ -196,7 +238,7 @@ impl Dom {
     /// Nokogiri's `node[name] = value`: updates in place, or appends a new attribute.
     pub fn set_attr(&mut self, id: NodeId, name: &str, value: &str) {
         if let Some(element) = self.element_mut(id) {
-            if let Some(attr) = element.attrs.iter_mut().find(|a| a.qualified_name() == name) {
+            if let Some(attr) = element.attrs.iter_mut().find(|a| a.has_name(name)) {
                 attr.value = value.to_string();
             } else {
                 element.attrs.push(Attr {
@@ -209,13 +251,13 @@ impl Dom {
 
     pub fn remove_attr(&mut self, id: NodeId, name: &str) -> Option<String> {
         let element = self.element_mut(id)?;
-        let index = element.attrs.iter().position(|a| a.qualified_name() == name)?;
+        let index = element.attrs.iter().position(|a| a.has_name(name))?;
         Some(element.attrs.remove(index).value)
     }
 
     pub fn attrs(&self, id: NodeId) -> Vec<(String, String)> {
         self.element(id)
-            .map(|e| e.attrs.iter().map(|a| (a.qualified_name(), a.value.clone())).collect())
+            .map(|e| e.attrs.iter().map(|a| (a.qualified_name().into_owned(), a.value.clone())).collect())
             .unwrap_or_default()
     }
 
@@ -329,11 +371,11 @@ impl Dom {
         for node in parsed.nodes {
             self.nodes.push(Node {
                 data: node.data,
-                parent: node.parent.map(|p| p + offset),
-                children: node.children.into_iter().map(|c| c + offset).collect(),
+                parent: node.parent.map(|p| p.shifted(offset)),
+                children: node.children.into_iter().map(|c| c.shifted(offset)).collect(),
             });
         }
-        let top: Vec<NodeId> = children.into_iter().map(|c| c + offset).collect();
+        let top: Vec<NodeId> = children.into_iter().map(|c| c.shifted(offset)).collect();
         for &n in &top {
             self.nodes[n].parent = None;
         }
@@ -415,12 +457,11 @@ impl Dom {
     fn serialize_node(&self, id: NodeId, escaping: AttributeEscaping, out: &mut String) {
         match &self.nodes[id].data {
             NodeData::Element(e) => {
-                let tag = serialized_tag_name(&e.name);
                 out.push('<');
-                out.push_str(&tag);
+                push_tag_name(&e.name, out);
                 for attr in &e.attrs {
                     out.push(' ');
-                    out.push_str(&attr.qualified_name());
+                    push_qualified_name(&attr.name, out);
                     out.push_str("=\"");
                     escape_attribute(&attr.value, escaping, out);
                     out.push('"');
@@ -431,7 +472,7 @@ impl Dom {
                 }
                 self.serialize_children(id, escaping, out);
                 out.push_str("</");
-                out.push_str(&tag);
+                push_tag_name(&e.name, out);
                 out.push('>');
             }
             NodeData::Text(text) => {
@@ -460,15 +501,22 @@ impl Dom {
     }
 }
 
-fn serialized_tag_name(name: &QualName) -> String {
+/// An element's serialized name: the local name in the HTML, SVG and MathML namespaces, the
+/// qualified name otherwise.
+fn push_tag_name(name: &QualName, out: &mut String) {
     if name.ns == ns!(html) || name.ns == ns!(svg) || name.ns == ns!(mathml) {
-        name.local.to_string()
+        out.push_str(&name.local);
     } else {
-        match &name.prefix {
-            Some(p) => format!("{}:{}", p, name.local),
-            None => name.local.to_string(),
-        }
+        push_qualified_name(name, out);
     }
+}
+
+fn push_qualified_name(name: &QualName, out: &mut String) {
+    if let Some(prefix) = &name.prefix {
+        out.push_str(prefix);
+        out.push(':');
+    }
+    out.push_str(&name.local);
 }
 
 pub fn is_void_element(local: &str) -> bool {
@@ -559,12 +607,12 @@ struct ParsedTree {
 impl ParsedTree {
     /// html5ever puts the fragment's nodes under an `html` element beneath the document.
     fn fragment_root(&self) -> NodeId {
-        self.nodes[0]
+        self.nodes[NodeId::DOCUMENT]
             .children
             .iter()
             .copied()
             .find(|&c| matches!(&self.nodes[c].data, NodeData::Element(e) if e.name.local == local_name!("html")))
-            .unwrap_or(0)
+            .unwrap_or(NodeId::DOCUMENT)
     }
 }
 
@@ -609,7 +657,7 @@ impl Sink {
             parent: None,
             children: vec![],
         });
-        nodes.len() - 1
+        NodeId::new(nodes.len() - 1)
     }
 
     fn detach(&self, id: NodeId) {
@@ -663,7 +711,7 @@ impl TreeSink for Sink {
     fn parse_error(&self, _msg: Cow<'static, str>) {}
 
     fn get_document(&self) -> NodeId {
-        0
+        NodeId::DOCUMENT
     }
 
     fn elem_name<'a>(&'a self, target: &'a NodeId) -> OwnedName {
@@ -709,7 +757,7 @@ impl TreeSink for Sink {
 
     fn append_doctype_to_document(&self, name: StrTendril, _public_id: StrTendril, _system_id: StrTendril) {
         let node = self.new_node(NodeData::Doctype(name.to_string()));
-        self.append(&0, NodeOrText::AppendNode(node));
+        self.append(&NodeId::DOCUMENT, NodeOrText::AppendNode(node));
     }
 
     fn get_template_contents(&self, target: &NodeId) -> NodeId {

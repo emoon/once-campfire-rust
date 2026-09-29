@@ -1,0 +1,111 @@
+{
+ "room_show": {
+  "conc": 16,
+  "rps": 3251.2,
+  "cpu_ms_per_req": 1.1974,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 1.1233,
+    "sys_ms": 0.0744,
+    "voluntary": 19.8723,
+    "nonvoluntary": 0.0921
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 1.123,
+    "sys_ms": 0.0744,
+    "syscr": 0.0,
+    "syscw": 2.0058
+   }
+  }
+ },
+ "messages_page": {
+  "conc": 16,
+  "rps": 2620.4,
+  "cpu_ms_per_req": 1.4955,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 1.4196,
+    "sys_ms": 0.0763,
+    "voluntary": 15.8469,
+    "nonvoluntary": 0.1152
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 1.4196,
+    "sys_ms": 0.0759,
+    "syscr": 0.0,
+    "syscw": 2.0072
+   }
+  }
+ },
+ "post_message": {
+  "conc": 16,
+  "rps": 5083.7,
+  "cpu_ms_per_req": 0.3928,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0008,
+    "sys_ms": 0.0053,
+    "voluntary": 0.77,
+    "nonvoluntary": 0.0205
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 0.2055,
+    "sys_ms": 0.0409,
+    "voluntary": 8.6897,
+    "nonvoluntary": 1.8912
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0387,
+    "sys_ms": 0.0382,
+    "voluntary": 3.6029,
+    "nonvoluntary": 0.4576
+   },
+   "blocking pool": {
+    "threads": 48,
+    "user_ms": 0.0098,
+    "sys_ms": 0.003,
+    "voluntary": 1.0505,
+    "nonvoluntary": 0.1719
+   },
+   "process": {
+    "user_ms": 0.293,
+    "sys_ms": 0.0997,
+    "syscr": 48.6865,
+    "syscw": 38.6839
+   }
+  }
+ }
+}
