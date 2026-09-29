@@ -1,0 +1,31 @@
+== 19:06:21 warmup:0 try 1
+[19:06:33] room_show c=16: 22064.9 rps, campfire 0.1677 CPU ms/req
+[19:06:44] messages_page c=16: 25990.6 rps, campfire 0.1409 CPU ms/req
+[19:06:56] sidebar c=16: 13862.3 rps, campfire 0.2679 CPU ms/req
+[19:07:07] post_message c=16: 4898.9 rps, campfire 0.4498 CPU ms/req
+bench/quiet: other CCD 1.9% busy (max 15.0%), bench siblings 24-31 3.9% busy (max 15.0%), screensaver off
+== 19:07:08 base:1 try 1
+[19:07:19] room_show c=16: 22249.6 rps, campfire 0.166 CPU ms/req
+[19:07:31] messages_page c=16: 26329.6 rps, campfire 0.1401 CPU ms/req
+[19:07:42] sidebar c=16: 13888.4 rps, campfire 0.2672 CPU ms/req
+[19:07:54] post_message c=16: 4780.0 rps, campfire 0.4466 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 3.9% busy (max 15.0%), screensaver off
+== 19:07:55 perf-1:1 try 1
+[19:08:06] room_show c=16: 26107.4 rps, campfire 0.1489 CPU ms/req
+[19:08:17] messages_page c=16: 31856.9 rps, campfire 0.1215 CPU ms/req
+[19:08:29] sidebar c=16: 15958.3 rps, campfire 0.2456 CPU ms/req
+[19:08:40] post_message c=16: 4950.2 rps, campfire 0.417 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.0% busy (max 15.0%), screensaver off
+== 19:08:41 perf-1:2 try 1
+[19:08:52] room_show c=16: 25950.1 rps, campfire 0.15 CPU ms/req
+[19:09:04] messages_page c=16: 31327.5 rps, campfire 0.124 CPU ms/req
+[19:09:15] sidebar c=16: 15860.6 rps, campfire 0.2471 CPU ms/req
+[19:09:27] post_message c=16: 5126.8 rps, campfire 0.4145 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.0% busy (max 15.0%), screensaver off
+== 19:09:28 base:2 try 1
+[19:09:39] room_show c=16: 22158.4 rps, campfire 0.1667 CPU ms/req
+[19:09:51] messages_page c=16: 26234.2 rps, campfire 0.1397 CPU ms/req
+[19:10:02] sidebar c=16: 13308.5 rps, campfire 0.278 CPU ms/req
+[19:10:14] post_message c=16: 4573.0 rps, campfire 0.4644 CPU ms/req
+bench/quiet: other CCD 6.0% busy (max 15.0%), bench siblings 24-31 7.9% busy (max 15.0%), screensaver off
+== done 19:10:14

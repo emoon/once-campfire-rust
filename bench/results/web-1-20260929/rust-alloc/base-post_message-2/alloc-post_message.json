@@ -1,0 +1,29 @@
+{
+ "route": "post_message",
+ "requests": 1000,
+ "baseline": {
+  "rust": {
+   "nrequests": 677310,
+   "nmalloc": 46680
+  },
+  "c": {
+   "nrequests": 7693,
+   "nmalloc": 53108
+  }
+ },
+ "with_requests": {
+  "rust": {
+   "nrequests": 1823483,
+   "nmalloc": 91632
+  },
+  "c": {
+   "nrequests": 10099,
+   "nmalloc": 126332
+  }
+ },
+ "allocations_per_request": {
+  "rust": 1146.2,
+  "c": 73.2,
+  "total": 1219.4
+ }
+}

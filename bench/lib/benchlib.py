@@ -14,7 +14,7 @@ Every configuration gets its own copy of the seed, with outbound Web Push and we
 rewritten to 127.0.0.1:9 so deliveries fail fast and locally in every configuration (bench/run gets
 the same effect from `--dns 127.0.0.1`, which host networking can't use).
 """
-import json, os, re, resource, shutil, signal, sqlite3, subprocess, threading, time, urllib.request
+import json, os, re, resource, shutil, signal, socket, sqlite3, subprocess, threading, time, urllib.request
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 BENCH = os.path.join(ROOT, "bench")
@@ -169,6 +169,11 @@ class App:
     def cpu(self):
         return {k: cpu_secs(p) for k, p in self.pids.items()}
 
+    def ensure_running(self):
+        """Raises if the native app has exited: whatever answered on PORT since was someone else's."""
+        if self.proc is not None and self.proc.poll() is not None:
+            raise RuntimeError(f"campfire exited ({self.proc.returncode}) during the run; see {WORK}/app.log:\n{log_tail()}")
+
     def stop(self):
         if self.proc is not None:
             self.proc.send_signal(signal.SIGTERM)
@@ -190,9 +195,33 @@ def wait_up(base, timeout=60):
     raise RuntimeError("app did not come up")
 
 
+def port_in_use(port):
+    """Whether something listens on `port` (a server of another bench run outside the lock, say)."""
+    with socket.socket() as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            return True
+    return False
+
+
+def log_tail():
+    try:
+        return open(os.path.join(WORK, "app.log")).read()[-3000:]
+    except OSError:
+        return ""
+
+
 def start(config, seed, extra_env=None):
-    """Starts `config` on a fresh copy of the seed and waits for /up."""
+    """Starts `config` on a fresh copy of the seed and waits for /up. A native app fails loudly
+    when its ports are taken or it exits, instead of measuring whatever else answers on PORT."""
     subprocess.run(["docker", "rm", "-f", CONTAINER], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if config.startswith("native-"):
+        for port in (PORT, PORT + 1):
+            if port_in_use(port):
+                raise RuntimeError(f"port {port} is already in use: another bench run outside /tmp/campfire-bench.lock? "
+                                   "(set PORT to run elsewhere)")
     storage = fresh_storage(seed)
     env = app_env()
     env.update(extra_env or {})
@@ -231,6 +260,7 @@ def start(config, seed, extra_env=None):
         app = App(config)
     try:
         app.cold_start_s = wait_up(app.base)
+        app.ensure_running()
     except RuntimeError:
         if app.proc is None:
             subprocess.run(["docker", "logs", "--tail", "30", CONTAINER])

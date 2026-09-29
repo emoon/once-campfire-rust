@@ -365,22 +365,22 @@ coordinator removes them when it merges the WP. Never remove any other image.
    `refactor/cleanup` tip after every three merges (and at the end of each phase), with the image
    tags `campfire-rust:batch`/`campfire-candidate-batch`. If a batch compare fails, the coordinator
    bisects the merges since the last green batch, reverts the culprit's merge and sends it back.
-4. **Perf gate.** If the WP touches code that runs per request or per broadcast, run
-   `bench/profile alloc` on `room_show`, `messages_page`, `sidebar` and `post_message`.
-   Allocations per request must not go up. For WPs marked **perf**, also run `bench/profile cpu` on
-   the same targets and a `bench/run --apps rust` suite that covers the path (http, cable or
-   upload). Record before/after under `bench/results/<wp-id>-<date>/`, with a `README.md` holding
-   the before/after table (see "Commands for the gates").
+4. **Perf gate: time.** If the WP touches code that runs per request or per broadcast, time it with
+   the CPU recipe in "Commands for the gates" (unprofiled `bench/profile perf --freq 0`, ABBA after a
+   throwaway run, each run in `bench/quiet`) on room_show, messages_page, sidebar and post_message
+   at c=16; WPs whose point is latency or the cable path (e.g. DB-11) also run one rep per side of
+   `bench/run --apps rust` (http, and cable if they touch it) at
+   c=16 and show `perf` evidence of where the time went. Record before/after under
+   `bench/results/<wp-id>-<date>/` with a `README.md` table of CPU ms/request and req/s.
    **Tolerance** (the human's decision, 2026-09-28): for each target, T is the larger of 3% and the
-   run-to-run spread S-2 measured for it. S-2's numbers are in
-   `bench/results/cleanup-baseline-20260928/README.md`: T = 3% for room_show, messages_page and
-   sidebar and 3.2% for post_message, the `bench/run` metrics whose spread is over 3%, and the
-   allocation noise (0.1 per request; post_message is bimodal). CPU per request or throughput
-   worse than base by more than T fails the gate. A WP marked **perf** must also improve at least
-   one target by more than T, or it's dropped (see "When you'd otherwise stop"). A drop in
-   allocations per request larger than the measured allocation noise (0.1/request; for
-   post_message, beyond its high-mode spread of 0.3) also counts as an improvement, as long as CPU
-   and throughput stay within T (coordinator's reading, 2026-09-29, first applied to KIT-1).
+   run-to-run spread S-2 measured for it (see `bench/results/cleanup-baseline-20260928/README.md`).
+   CPU per request or throughput worse than base by more than T fails the gate. A WP marked **perf**
+   must also improve at least one target by more than T, or it's dropped (a WP whose code path the
+   four targets don't reach, e.g. cold fragment-cache renders, adds a target that does and is judged
+   on it, with the four standard targets as the no-regression check; see "When you'd otherwise
+   stop"). Only time counts as a gain: CPU per request or req/s (the human, 2026-09-29: "you have to
+   figure out what takes time"). Allocation counts (`bench/profile alloc`, S-7) are recorded for
+   information only and never make or block a merge.
 5. **Size.** Run `bench/loc --against refactor/cleanup` (WP S-3) and put the production-lines
    delta per crate in the commit message.
 6. Match the surrounding code: small named functions, a Rails citation where behavior mirrors

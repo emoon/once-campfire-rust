@@ -3,7 +3,7 @@
 
   bench/quiet [--max-other PCT] -- <command...>
 
-The benchmark pins CPUs 8-15 (and their SMT siblings 24-31). Load on the other CCD (0-7, 16-23:
+The benchmark pins CPUs 8-15 and leaves their SMT siblings 24-31 idle. Load on the other CCD (0-7, 16-23:
 builds, allocation runs, parity) still slows it, because both share the package power budget: S-6
 measured a ~2.3% clock drop and 3.6-6.5% worse CPU/request beside a parity compare
 (bench/results/s-6-20260929/). This samples /proc/stat before and after the command and fails
@@ -30,6 +30,16 @@ def cpu_times():
     return times
 
 
+SIBLING_CPUS = list(range(24, 32))
+
+
+def busy_percent(before, after, cpus):
+    cpus = [c for c in cpus if c in before and c in after]
+    total = sum(after[c][0] - before[c][0] for c in cpus)
+    idle = sum(after[c][1] - before[c][1] for c in cpus)
+    return 100.0 * (1 - idle / total) if total else 0.0
+
+
 def screensaver_running():
     # Match processes named foot only: `pgrep -f omarchy-screensaver` also matches every shell whose
     # command line mentions it (the agents' own polling loops).
@@ -53,16 +63,16 @@ def main():
     status = subprocess.call(command)
     after = cpu_times()
 
-    other = [c for c in before if c not in BENCH_CPUS and c in after]
-    total = sum(after[c][0] - before[c][0] for c in other)
-    idle = sum(after[c][1] - before[c][1] for c in other)
-    busy = 100.0 * (1 - idle / total) if total else 0.0
+    busy = busy_percent(before, after, [c for c in before if c not in BENCH_CPUS])
+    # The benchmark pins the app and load generator to 8-15 and leaves their SMT siblings idle, so
+    # load on 24-31 is someone else's (e.g. another project's unpinned build) sharing those cores.
+    siblings = busy_percent(before, after, SIBLING_CPUS)
     saver = screensaver_running()
-    print(f"bench/quiet: other CCD {busy:.1f}% busy (max {args.max_other}%), screensaver {'on' if saver else 'off'}",
-          file=sys.stderr)
+    print(f"bench/quiet: other CCD {busy:.1f}% busy (max {args.max_other}%), bench siblings 24-31 "
+          f"{siblings:.1f}% busy (max {args.max_other}%), screensaver {'on' if saver else 'off'}", file=sys.stderr)
     if status != 0:
         return status
-    if busy > args.max_other or saver:
+    if busy > args.max_other or siblings > args.max_other or saver:
         print("bench/quiet: machine wasn't quiet; discard this run and retry", file=sys.stderr)
         return 3
     return 0

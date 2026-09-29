@@ -1,0 +1,32 @@
+{
+ "room_show": {
+  "conc": 16,
+  "rps": 21561.0,
+  "cpu_ms_per_req": 0.1718
+ },
+ "messages_page": {
+  "conc": 16,
+  "rps": 25582.2,
+  "cpu_ms_per_req": 0.1426
+ },
+ "sidebar": {
+  "conc": 16,
+  "rps": 13873.7,
+  "cpu_ms_per_req": 0.2679
+ },
+ "post_message": {
+  "conc": 16,
+  "rps": 4919.9,
+  "cpu_ms_per_req": 0.452
+ },
+ "static_css_app": {
+  "conc": 16,
+  "rps": 207168.1,
+  "cpu_ms_per_req": 0.0178
+ },
+ "static_css": {
+  "conc": 16,
+  "rps": 436040.0,
+  "cpu_ms_per_req": 0.0071
+ }
+}

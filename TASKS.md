@@ -39,6 +39,8 @@ otherwise stop" in `plans/cleanup.md`.
   richtext, templates, asset overrides); otherwise one compare on the tip after every three merges.
 - The human disables the desktop screensaver and the spinning `gh auth token` themselves
   (2026-09-29); agents still check `pgrep -f omarchy-screensaver` around CPU runs.
+- Performance means time (2026-09-29): the gate is CPU per request and req/s at c=16; allocations
+  are information only and never block a merge. Perf work is ordered by S-8's measured costs.
 - The run ends after P-5 with everything committed on `refactor/cleanup` and the PR description in
   `plans/cleanup-pr.md`. Nothing is pushed (2026-09-28).
 
@@ -90,6 +92,7 @@ otherwise stop" in `plans/cleanup.md`.
       `bench/lib/perfprof.py`, `bench/lib/stacks.py`; `cpuprof.py` split to share them. Production
       lines +0 (no Rust changes), allocations n/a. Tests and clippy not re-run (no Rust changed);
       parity n/a. Clean session under the lock, screensaver off before and after every step.
+- [~] S-9 The write path and cable slower than published v0.1.1: confirm on this host, find the cause (refactor/cleanup-s-9)
 - [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
@@ -169,9 +172,9 @@ otherwise stop" in `plans/cleanup.md`.
       (refactor/cleanup-db-10). +0 production lines (script only), allocs n/a (no production
       code; parity and perf gates don't apply). `differential.sh` runs all four steps, ending in
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
-- [~] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (S-8; first in the perf order) (refactor/cleanup-perf-1; started as PERF-1)
-- [~] DB-12 perf (measure; after DB-11): `mmap_size` (post_message's remap per commit) (refactor/cleanup-perf-2; started as PERF-2)
-- [ ] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)`
+- [x] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (refactor/cleanup-perf-1, merged a493fe6). c=16 ABBA: CPU/req −8.7…−12.3%, req/s +7.7…+20.2% on all four targets; no cap on inline reads (see "For the human"). db +53, campfire +3 lines
+- [~] DB-12 perf (measure; after DB-11): `mmap_size` (post_message's remap per commit) (refactor/cleanup-db-12, on DB-11; perf-2's variant runs are the pre-DB-11 evidence)
+- [~] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)` (refactor/cleanup-db-13)
 - [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
 ### KIT (`crates/kit`, `crates/routes`)
@@ -187,7 +190,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [~] KIT-10 perf: reuse gzip output for repeated bodies; reuse deflate encoders (S-8) (refactor/cleanup-kit-10)
 
 ### WEB (`crates/campfire` controllers, concerns, app)
-- [~] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1)
+- [-] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1). Dropped: no measurable time gain, even on the path it changes (static_css_app, the bare app: CPU/req +0.3%, req/s -0.9%, 8 ABBA runs). Only the results are kept (7d9ccbc, `bench/results/web-1-20260929/`); the code commit was not merged.
 - [ ] WEB-2 perf: memoized user-agent parse; byte-offset parser
 - [~] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3)
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
@@ -274,6 +277,13 @@ won't make. They don't block the run and go into the final report.
   number of nodes from a hostile body before the depth error fires; Gumbo (Rails) stops during the
   parse. Fixing it means limiting inside the parse (behavior change on hostile input only).
 
+- (DB-11, 2026-09-29) Merged **without** the reviewer's cap on inline reads. Capping them at half
+  the workers cost room_show/messages_page 4-6% req/s and raised p99 20-38%; all-but-one cost
+  5-12% req/s; uncapped is +10…+25% req/s with p99 down 9-42% (native tails, two runs a side,
+  `bench/results/perf-1-20260929/README.md`). The risk the cap guarded: a read that stalls (e.g.
+  SQLITE_BUSY for up to 5 s) holds a runtime worker; with WAL, readers don't wait on the writer, so
+  this needs something unusual (WAL recovery). Say if you want the cap anyway.
+
 ## Found while working
 
 - (F-3) kit `response.rs` has a fourth byte-range parser, `parse_range` (single range, strict
@@ -297,3 +307,21 @@ won't make. They don't block the run and go into the final report.
   per request. Suggest an S-WP: make `bench/profile alloc` count the Rust allocator (for example a
   `stats` build of the measured binaries) and re-baseline. Earlier WPs' "allocs unchanged" only
   covers C allocations.
+- (KIT-10, for KIT-9) `splice::compress` builds a fresh `flate2::Compress` for every uncached piece;
+  a new zlib-rs deflate state zeroes 256 KB (window, prev, head), and a reused one
+  (`Compress::reset`) zeroes only the 128 KB head. KIT-10 measured pooling for `gzip_stream` at
+  −5% of a 31 KB body's gzip (5.7 µs of 107), too small to show on a gate target, so it dropped the
+  pool; it only matters for splice on cache misses.
+- (DB-11 review) `broadcast_create` (`controllers/messages.rs:419`, `integrations/jobs.rs:164`)
+  runs inside an inline `db.read` and sends one `unread_room` broadcast per room member
+  (`channels/broadcasts.rs:114`); an open room is every user, on every post. The inline-read cap
+  bounds it to half the workers. Measure moving it to `read_offloaded` (or reading the member ids
+  and broadcasting after the read) at a large member count; post_message is the hot path.
+  Also low: `rooms/closeds.rs:142` loops over `room.user_ids` inline; `sessions.rs:62` `no_users`
+  counts every user where an `EXISTS` would do.
+- (2026-09-29) `database::tests::the_wal_stays_bounded_under_sustained_writes` fails whenever
+  TMPDIR is on the real disk (WAL 50-52 MB against a ~41 MB bound), on the base branch too (3/3);
+  it passes on /tmp (tmpfs). The checkpointer can't keep up on a real fsync. Make the test not
+  depend on disk speed, or bound what it asserts.
+- (2026-09-29) /tmp is a tmpfs with a per-user quota (`usrquota`); seed tests failed with "Disk
+  quota exceeded" at 17 GB used by this user across projects. Keep scratch small there.
