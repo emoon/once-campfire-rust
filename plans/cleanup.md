@@ -110,8 +110,9 @@ then continue."
 
 The coordinator doesn't write WP code. It repeats:
 
-1. **Pick.** Re-read `TASKS.md`. A WP is runnable when it's `[ ]`, its lane has no other WP in
-   flight, and what it waits for is finished (`[x]`, or `[-]` for a WP that was optional to it):
+1. **Pick.** Re-read `TASKS.md`. A WP is runnable when it's `[ ]`, its lane has at most one other WP
+   in flight and the two WPs' files don't overlap (changed 2026-09-29, so code work continues while
+   gates queue on the lock), and what it waits for is finished (`[x]`, or `[-]` for a WP that was optional to it):
    - Phase 0 runs first, as one agent in `$MAIN`.
    - Phase 1 waits for Phase 0.
    - A Phase 2 WP waits for the F-WPs in the lane table and the WPs its own text names ("after
