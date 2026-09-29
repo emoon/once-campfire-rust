@@ -458,6 +458,19 @@ them fixed in place rather than reverted.
   `bench/profile cpu` (gperftools, which crashed twice in its unwinder) and recommend which the
   gate should use. Deliverable: `bench/results/s-8-<date>/README.md` plus the plan and TASKS
   edits on the branch.
+  **Result** (`bench/results/s-8-20260929/README.md`): the biggest cost is the `spawn_blocking` hop
+  per DB read (6-10 per request, and most of the S-2 "syscall" bucket). Running reads on the worker
+  cut CPU/request by 12-23% on all four targets in an experiment (DB-11). Next come the deflater
+  (sidebar deflates a repeating body: ~40%, KIT-10; the room-page splice rehashes and re-finds its
+  parts: ~19% of room_show, KIT-9), then per-message key building and row decoding (VIEW-11,
+  DB-13), and SQLite's `mmap` remapping on post_message (−14% with `mmap_size = 0`, DB-12). The
+  "9% crypto" is mostly the splice's SHA-256; signing is ~2.5%. New WPs: DB-11…DB-14, KIT-9,
+  KIT-10, WEB-12, LIVE-9, VIEW-10, VIEW-11; the order is in "Perf order (S-8)". Gate
+  recommendation, not yet applied to "Commands for the gates": take CPU/request and req/s from an
+  unprofiled run (`bench/profile perf --freq 0`, same fields as `cpu.json` plus system CPU and
+  context switches). gperftools adds 1-4%, drops ~40% of its samples under load and has crashed;
+  perf adds up to 19% on post_message. Keep the profilers for explaining a change: `bench/profile
+  perf` on a frame-pointer build (frame pointers cost ≤1.5%, within noise).
 - **S-9 The write path and cable got slower after v0.1.1 (found 2026-09-29).** The published
   v0.1.1 numbers (`bench/results/v0.1.1-20260928/report.md`, the README's tables, c=16) against
   the cleanup's starting point (`bench/results/cleanup-baseline-20260928/run/report.md`): reads
@@ -526,6 +539,38 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
 (LIVE), and VIEW-1 changes `campfire/src/controllers/presenters/page.rs` (WEB). Files in no lane
 (`campfire/src/rich_text.rs`) follow the same rule as another lane's files.
 
+### Perf order (S-8)
+
+Measured by S-8 (`bench/results/s-8-20260929/README.md`), biggest cost first. When several WPs are
+runnable, start the perf ones in this order, ahead of the same lane's cleanups. A lane's own order
+still applies otherwise. Gains are CPU per request: "measured" means an experiment; otherwise it's
+the hot spot's profiled share, an upper bound.
+
+| # | WP | expected gain | basis |
+|---|---|---|---|
+| 1 | DB-11 reads without the blocking-pool hop | room_show −12%, messages_page −19%, sidebar −12%, post_message −23% | measured |
+| 2 | KIT-10 reuse gzip output for repeated bodies | sidebar up to −40% | share |
+| 3 | KIT-9 splice without rehashing (after KIT-10, or before; not beside it) | room_show −12…−15%, messages_page up to −10% | share |
+| 4 | DB-12 `mmap_size` (measure; after DB-11) | post_message −14%, if reads don't lose it | measured |
+| 5 | VIEW-11 fragment cache keys (after VIEW-4) | messages_page up to −12%, room_show −5% | share |
+| 6 | DB-13 column indices once per query | reads −5…−6% | share |
+| 7 | WEB-8 (body once, `UserView` cache), VIEW-8 (parse once) | post_message up to −12% together | share |
+| 8 | VIEW-10 page buffers sized up front | room_show −3% | share |
+| 9 | VIEW-6 (asset paths, as perf) | room_show −3% | share |
+| 10 | WEB-12 request log off the request path | −2…−3% everywhere | share |
+| 11 | LIVE-2 (with F-2's `EncodedJson`) | post_message −4% | share |
+| 12 | VIEW-2 `Attrs` | sidebar −4%, room_show −3% | share |
+| 13 | DB-8 timestamps | reads −2% | share |
+| 14 | WEB-9 router | reads −2% | share |
+| 15 | DB-14 `Room::original` | reads −1.5…−2% | share |
+| 16 | LIVE-1, then LIVE-9 (cable) | cable, measure | share |
+| 17 | WEB-5 | re-measure after DB-11 | — |
+
+Below T on the measured targets, so expect no CPU gain (keep them for allocations or readability):
+KIT-1 (0.4-0.7%), WEB-2 (≤0.9%), STORE-2 (0.2-0.3%), VIEW-1 (the copies it removes are <0.5%),
+DB-4 (its `format!` measures 0.0%), and KIT-2, whose items are each too small to see. Not on the
+measured targets, so there's no data: DB-1, DB-5, DB-6, STORE-3, WEB-1, VIEW-3.
+
 ### Lane DB: `crates/db`
 
 - **DB-1 perf: N+1 in `Room::find_direct_for`** (`models/room.rs:227`). It runs about 2×(direct
@@ -542,7 +587,8 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   `Role::Bot == 2`).
 - **DB-4 perf: static SQL on hot paths.** `message.rs` paging (`last_page` runs on every room show)
   and `room.rs` `find_for_user`/`SELECT_FOR_USER` build SQL with `format!` on every call. Use
-  `concat!`-based prefix macros so the SQL is a `&'static str`.
+  `concat!`-based prefix macros so the SQL is a `&'static str`. (S-8: the `format!` measures 0.0% of
+  room_show and messages_page. Keep it as a cleanup, and don't expect a perf gain.)
 - **DB-5 perf: one statement per bulk membership insert.** Replace the chunked `VALUES` builders in
   `grant_membership_to_open_rooms` (`user.rs:692`) and `insert_memberships`/`grant_to_active_users`
   (`room.rs:428,461`) with `INSERT … SELECT … ON CONFLICT DO NOTHING`. Explicit id lists use
@@ -576,6 +622,41 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   `index_messages_on_room_id_and_created_at`, which the app adds on boot on purpose (README, "One
   more index"). Filter that index out of the Rust side of the diff, so the last step (Rails on the
   Rust-written database) runs again. Tooling only; no production code changes.
+- **DB-11 perf: reads without the blocking-pool hop (S-8; first in the perf order).**
+  `Database::read` sends every read through `spawn_blocking`: room_show makes 6 of them,
+  messages_page 7, sidebar 5, post_message 10. Each hop wakes an idle pool thread (futex), which
+  runs the query, sleeps again (futex) and wakes the worker: ~10 context switches per page and most
+  of S-2's "syscall" bucket. Run reads on the calling worker instead (`self.readers.with(f)`, as
+  `read_blocking` does). Keep today's path as `read_offloaded` for reads that can take long, which
+  you find first: search, anything not bounded by a page size, and closures that render on a
+  fragment-cache miss (the rich-text pipeline). List which stay offloaded and why; switching those
+  callers is a cross-lane edit in campfire. S-8's experiment
+  (`bench/results/s-8-20260929/experiment.patch`, all reads inline) measured CPU/request −12.4%
+  room_show, −18.8% messages_page, −12.2% sidebar, −22.9% post_message, and req/s +16…+30%. Also run
+  the http `bench/run` suite: latency at c=16 must not get worse.
+- **DB-12 perf (measure; after DB-11): `mmap_size` (S-8).** With `PRAGMA mmap_size = 128 MB`
+  (`schema::configure_connection`, Rails 8's default), each connection's first read after a commit
+  unmaps and remaps the database file (`pagerBeginReadTransaction` → `unixUnfetch` → `munmap`,
+  then `mmap` and page faults). That's ~9% of post_message, all in the kernel. `mmap_size = 0`
+  measured post_message −14.1%, but room_show +3.0% and messages_page +1.7%. Try variants (off for
+  every connection, off for the writer only, a smaller size), and keep one only if no target gets
+  worse by more than T. It isn't visible to users, but it differs from Rails' default pragma: list
+  it under "Known differences".
+- **DB-13 perf: column indices once per query (S-8).** `from_row` reads columns by name, and
+  rusqlite's `Row::get(&str)` scans the statement's columns for every call (`sqlite3_column_name`,
+  `strlen`, a case-insensitive compare). For a 40-message page that's 40 rows × 6 columns of scans:
+  ~5.4% of room_show, 6.1% of messages_page, 6.5% of sidebar. Keep literal SQL and by-name reads
+  ("Keep these patterns"), but resolve the names once per query. For example, a per-model `Columns`
+  struct built from the statement's column names in `query_all`/`query_one` and passed to
+  `from_row`, which then reads by index. Don't hard-code positions: `SELECT *` column order depends
+  on the install's migration history.
+- **DB-14 perf: `Room::original` without a scan (S-8).** Every room show and messages page runs
+  `SELECT * FROM rooms ORDER BY created_at LIMIT 1`, a scan plus a temp B-tree (`rooms` has no
+  `created_at` index): 1.5-1.9% of CPU on the 11-room seed, linear in rooms. Measure two options,
+  and prefer the one without a schema addition if it's as fast: an index on `rooms (created_at)`
+  next to the app's other extra index (`schema::ADDITIONS`, README "One more index"; update
+  `differential.sh`'s filter from DB-10), or selecting only the `id`, which is all the callers
+  compare.
 
 ### Lane KIT: `crates/kit`, `crates/routes`
 
@@ -619,6 +700,28 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   - Merge the three form media-type lists (`adapter.rs:434`, `body.rs:67,87`) into one `MediaType`.
   - Make `is_xhr` consistent between `request.rs:131` and `adapter.rs:524`: `contains`, as Rails
     does.
+- **KIT-9 perf: splice without rehashing the page (S-8).** On every request `PageParts::new`
+  (`deflater/splice.rs`) SHA-256es each text part (the layout around the messages, 2 parts per
+  room show: 7.0% of room_show). It confirms each fragment's position with a whole-fragment
+  `starts_with` (6.1% of room_show, 6.6% of messages_page), and `gzip` CRCs the whole body (2.8% and
+  3.0%). Same output, cheaper:
+  - text identity: a much faster hash (for example BLAKE3, or a 64-bit hash plus a byte compare
+    against the stored text) instead of SHA-256;
+  - fragment positions: record where each cached fragment was written while rendering instead of
+    searching the body, or keep the search but trust a recorded offset that matches;
+  - CRC: keep each stored piece's CRC and combine them (`crc32fast::Hasher::combine`), CRC-ing only
+    what isn't stored.
+  The ETag must stay a function of the body (the same body always gets the same ETag); its value may
+  change once. Expected: room_show −12…−15%, messages_page up to −10%. Do it before or after KIT-10,
+  not beside it (both change `deflater`).
+- **KIT-10 perf: reuse gzip output for repeated bodies (S-8).** Responses without cached fragments
+  (the sidebar, most GETs) go through `gzip_stream`, a full level-6 deflate on every request: ~40%
+  of sidebar's CPU for a body that repeats. `rack_etag` already computes the body's SHA-256. Keep a
+  byte-bounded LRU from (digest, gzip mtime) to the finished gzip member, and serve repeats from it,
+  only for bodies the ETag step digested. For the rest (post_message's response is new each time),
+  reuse deflate encoders (`Compress::reset`) instead of zeroing a fresh state per response (1.8% of
+  post_message is that `memset`). Output bytes stay identical, flushes included (Rack::Deflater
+  flushes per chunk). Expected: sidebar up to −40%.
 
 ### Lane WEB: `crates/campfire/src/{controllers*,concerns*,app*,config.rs,main.rs}`
 
@@ -644,7 +747,9 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   session lookup, `User::find_by_id`, `set_room`, `render_show`, `Account::first` again, and layout
   logo plus `last_room_visited`. Merge them into about 3 reads with the same queries.
   `page::bare` (`page.rs:68`) skips `Layout::load` when the caller ignores it (`messages#destroy`).
-  Before also skipping the flash sweep, check what Rails does with `layout false`.
+  Before also skipping the flash sweep, check what Rails does with `layout false`. (S-8: after
+  DB-11. Most of this WP's gain was the hops, which DB-11 removes; re-measure before starting, and
+  drop the merging part if it no longer gains more than T.)
 - **WEB-6 Authorization.** Split `User::can_administer(creator_id, record_is_new)` (the bool is always
   `false` in app code) into `is_administrator()` and `can_administer(creator_id)`. Replace the three
   `ensure_can_administer` copies and 7 `halt(head(FORBIDDEN))` with one `forbid_unless(bool)`. Owns
@@ -682,6 +787,12 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   full `cargo test` under load (`GET /account/bots` after sign-in answered 302, expected 200) and
   passed on reruns. Find the race (session cookie or clock?) and fix the test, not the app, unless
   the app is wrong.
+- **WEB-12 perf: request log off the request path (S-8).** The front server's `Request` line is
+  logged through tracing's default `fmt` writer to stdout (`app.rs` `init_logging`), so every request
+  pays one `write(2)` on its worker plus the formatting: 3.3% of room_show, 3.1% of messages_page.
+  Use a buffered, non-blocking writer (`tracing-appender`'s `non_blocking` with `lossy(false)`, or a
+  writer thread with a `BufWriter` that flushes when its queue drains) so lines go out in batches.
+  No line may be dropped or change. Expected −2…−3% on every request.
 ### Lane LIVE: `crates/cable`, `crates/campfire/src/{channels*,integrations*,jobs*}`
 
 - **LIVE-1 perf: don't hold the hub lock while waking subscribers** (`cable/src/pubsub.rs:58`). Clone
@@ -724,6 +835,15 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
 - **LIVE-8 De-flake `channels_test::room_channel_streams_for_member_rooms_only`** (found in F-5). It
   failed once under load at its last `assert_eq!` (`client.next_text()` against the broadcast
   delivery). Find the ordering race and make the test wait for the right frame.
+- **LIVE-9 perf (measure first): the fan-out's per-delivery costs (S-8).** At 1,000 clients the
+  fan-out is ~70% kernel. 66% of its CPU is `writev`, 0.86 writes per client per message, and on
+  loopback each write also runs the receiver's TCP path. User space adds `SelectAll`/
+  `FuturesUnordered` over each connection's boxed subscription streams (~8% of CPU) and 1,000
+  receivers contending on each tokio `broadcast` channel's tail lock (~4%; LIVE-1 covers the hub
+  side). Measure two things with the cable suite: coalescing frames that are already queued for a
+  connection into one write (without adding delay), and one queue per connection fed by the hub
+  instead of a `SelectAll` of broadcast receivers. Keep only what gains more than T on
+  deliveries/s without worse delivery latency. After LIVE-1 and LIVE-2.
 ### Lane VIEW: `crates/views`, `crates/richtext`
 
 - **VIEW-1 perf: stop copying whole pages and fragments.**
@@ -754,7 +874,10 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
 - **VIEW-6 Borrowed view context.**
   - `ViewContext` holds `&'a str` instead of per-request `String` clones (`lib.rs:22`).
   - `cable_url` becomes a constant.
-  - `asset_path` returns `&'static str` from the manifest.
+  - `asset_path` returns `&'static str` from the manifest. perf (S-8): the layout looks up each
+    asset tag per request (a binary search with string compares, plus a `String` from
+    `helpers::compute`): 3.4% of room_show. Resolve each logical path once (a static map or
+    per-template statics), and measure it as a perf item.
   - `Platform`'s 11 bools (`lib.rs:98`) become `Os` and `Browser` enums.
 - **VIEW-7 `render_mention` single source.** `richtext/attachables.rs:390` rebuilds
   `users/_mention.html`. At minimum add a test that the two agree; better, render the template.
@@ -768,6 +891,18 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   `rails_json_escape`/`to_rails_json` (serde_json plus a `replace` pass; used by `messages/json.rs`
   and `autocompletable.rs`) and richtext `ruby::to_json_string` move onto `rails_compat::json`
   (after F-1 and F-2). Floats then follow the JSON gem, as everywhere else after F-2; say so.
+- **VIEW-10 perf: page buffers sized up front (S-8).** Askama's `render()` starts from the template's
+  small size hint, then grows its `String` by `realloc` while ~40 cached message fragments are
+  written in: 3.2% of room_show, 2.1% of sidebar. Add a views helper that renders with
+  `render_into` into a `String` sized from the last size rendered for that template (or the
+  fragments' total plus the hint), and use it for the page renders (`rooms.rs`, `messages.rs`
+  `Index`: a small cross-lane edit in campfire).
+- **VIEW-11 perf: fragment cache keys without formatting (S-8; after VIEW-4).**
+  `message_fragment_key` builds every message's key on every request, hit or miss: three `format!`s
+  and a jiff `strftime` (`fragment_cache::cache_version`). That's 12.2% of messages_page and 4.9% of
+  room_show. Write the key into one reused buffer with hand-written digits (no `strftime`), or look
+  up by a `(id, updated_at)` key and keep the string only as the cache's Rails-compatible name.
+  Keys stay byte-identical (test them against today's `format!` output).
 ### Lane STORE: `crates/storage`, `crates/assets`, `crates/rails_compat` (crypto), `crates/campfire/src/active_storage.rs`
 
 - **STORE-1 One Active Storage verifier.** Delete `storage/src/verifier.rs`'s `Verifier` trait,

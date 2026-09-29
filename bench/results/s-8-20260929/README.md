@@ -259,7 +259,7 @@ all of it.
 | 15 | **DB-14** `Room::original` | reads −1.5…−2% | share |
 | 16 | LIVE-1, **LIVE-9** (cable) | cable: LIVE-1 ≤ ~8% of CPU; LIVE-9 is where the 66% kernel is | share |
 | 17 | WEB-5 (fewer reads) | re-measure after DB-11: its gain was mostly the hops | — |
-| — | KIT-1 (0.4-0.7%), WEB-2 (≤0.9%), STORE-2 (0.2-0.3% construction), KIT-2, VIEW-1 | below T on these targets; keep them for allocations and readability, not as perf | shares |
+| — | KIT-1 (0.4-0.7%), WEB-2 (≤0.9%), STORE-2 (0.2-0.3% construction), VIEW-1 (its copies <0.5%: `raw` 0.2%, fragment `to_vec` 0.1%), KIT-2 (each item too small to see) | below T on these targets; keep them for allocations and readability, not as perf | shares |
 | — | DB-4 (0.0%) | no measurable cost: drop "perf" from it | share |
 | — | DB-1, DB-5, DB-6, STORE-3, WEB-1, VIEW-3 (cache misses only) | not on these targets (new DMs, bulk inserts, uploads, static assets); no data here | — |
 
