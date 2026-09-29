@@ -118,10 +118,10 @@ otherwise stop" in `plans/cleanup.md`.
       kit, cable and campfire enable the feature. Note for F-2: private `json` is inside
       `crypto` too, and `serde_json` is optional; un-gate both when json gains public API (lib.rs
       and Cargo.toml will conflict; keep both sides).
-- [~] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders (refactor/cleanup-f-2,
+- [x] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders (refactor/cleanup-f-2, Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
       8b5bf92 on ca8ac66). Parity 873/874 (1 allowed, baseline) with the cache-fixed build
       (compare-2026-09-29T08-11-48-489Z). Pending: guarded ABBA CPU (screensaver), alloc with S-7's tool.
-- [~] F-3 `rails_compat::rack::byte_ranges` + multipart; fix the assets overflow range (refactor/cleanup-f-3)
+- [x] F-3 `rails_compat::rack::byte_ranges` + multipart; fix the assets overflow range (refactor/cleanup-f-3) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [x] F-4 `rails_compat::ruby::{to_i, cast_integer}`; delete 3 copies (refactor/cleanup-f-4, 4704c8f
       on a0df4b6, review nits folded in; parity re-run after 2895add: 873 pass + 1 allowed,
       compare-2026-09-29T05-04-43-722Z). Production lines +4 (campfire −41, rails_compat +45; 11 are new imports),
@@ -180,7 +180,7 @@ Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fai
 - [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
 ### KIT (`crates/kit`, `crates/routes`)
-- [~] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1)
+- [x] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [ ] KIT-2 perf: per-request allocations (deflater, cache variant, compression, host, remote_ip, formats, log, timeouts)
 - [x] KIT-3 Session dead state (refactor/cleanup-kit-3)
 - [ ] KIT-4 `dispatch` error flow; delete `clone_error`
@@ -194,7 +194,7 @@ Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fai
 ### WEB (`crates/campfire` controllers, concerns, app)
 - [-] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1). Dropped: no measurable time gain, even on the path it changes (static_css_app, the bare app: CPU/req +0.3%, req/s -0.9%, 8 ABBA runs). Only the results are kept (7d9ccbc, `bench/results/web-1-20260929/`); the code commit was not merged.
 - [ ] WEB-2 perf: memoized user-agent parse; byte-offset parser
-- [~] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3)
+- [x] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
 - [ ] WEB-5 perf: ~6 → ~3 DB round trips on room show; `page::bare` without layout load
 - [x] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless` (refactor/cleanup-web-6, 7af9f04 on d23c0b8): production lines campfire -12, db +2 (total -10), tests +50; allocations/request n/a (no perf gate, coordinator's call). Reviewer's two requests applied: room-creation test now covers member+unrestricted 200 and administrator+restricted 200 (each verified to fail against the one-sided rewrite), `can_administer` doc cites reference/app/models/user/role.rb. Tests 659 passed, 0 failed, 7 ignored (seed built, none skipped); clippy clean. Previous commit message's delta (-14/+0/+33) was miscounted; corrected.
@@ -217,7 +217,7 @@ Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fai
 - [ ] LIVE-9 perf (measure first; after LIVE-1, LIVE-2): fan-out writes per delivery; per-connection queue instead of `SelectAll` (S-8)
 
 ### VIEW (`crates/views`, `crates/richtext`)
-- [~] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1)
+- [x] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [ ] VIEW-2 perf: `Attrs` with `Cow` keys and `write!`; the `push_str(&format!)` sites
 - [~] VIEW-3 perf: `SafeList` statics, no double sanitize, `qualified_name` without allocation, `NodeId` (refactor/cleanup-view-3)
 - [ ] VIEW-4 `Cached<V>` + `CachedPartial` for messages/users/boosts
