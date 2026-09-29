@@ -33,7 +33,7 @@ pub fn permanent_expires_at(now: Timestamp) -> Timestamp {
 /// The raw value for `cookies.signed[name] = { value:, expires: expires_at }`.
 /// `cookies.signed.permanent[...]` is `expires_at: Some(permanent_expires_at(now))`.
 pub fn sign(secrets: &Secrets, name: &str, value: &str, expires_at: Option<Timestamp>) -> String {
-    let dumped = json::encode(&Value::String(value.to_string()));
+    let dumped = json::encode(value).into_string();
     signed_cookie_verifier(secrets).generate(&Value::String(dumped), Some(&purpose(name)), expires_at)
 }
 
@@ -59,7 +59,7 @@ pub fn verify_signed_value(secrets: &Secrets, name: &str, raw: &str, now: Timest
 /// The raw value for `cookies.encrypted[name] = { value:, expires: expires_at }`.
 /// The session store writes `_campfire_session` this way with a 20-year `expire_after`.
 pub fn encrypt(secrets: &Secrets, name: &str, value: &Value, expires_at: Option<Timestamp>) -> String {
-    let dumped = json::encode(value);
+    let dumped = json::encode(value).into_string();
     encrypted_cookie_encryptor(secrets).encrypt_and_sign(&Value::String(dumped), Some(&purpose(name)), expires_at)
 }
 
