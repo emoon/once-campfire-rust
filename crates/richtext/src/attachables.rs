@@ -2,12 +2,13 @@
 //! partial, as Action Text, Lexxy and Campfire's extensions do.
 
 use base64::Engine;
+use rails_compat::erb;
 use regex::Regex;
 use std::sync::LazyLock;
 
 use crate::Error;
 use crate::dom::{Dom, NodeId};
-use crate::ruby::{html_escape, is_blank, presence, strip, truncate};
+use crate::ruby::{is_blank, presence, strip, truncate};
 use crate::uri::{self, UriError};
 
 pub const MENTION_CONTENT_TYPE: &str = "application/vnd.campfire.mention";
@@ -406,7 +407,7 @@ pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) 
             if let Some(caption) = &attachment.caption {
                 html.push_str(&format!(
                     "    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n",
-                    html_escape(caption)
+                    erb::escape(caption)
                 ));
             }
             html.push_str("</figure>\n");
@@ -423,18 +424,18 @@ pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) 
                 String::from("<figure class=\"attachment attachment--preview attachment--video\">\n  <video controls=\"controls\"");
             for (name, value) in [("width", width), ("height", height)] {
                 if let Some(v) = value {
-                    html.push_str(&format!(" {name}=\"{}\"", html_escape(v)));
+                    html.push_str(&format!(" {name}=\"{}\"", erb::escape(v)));
                 }
             }
             html.push_str(&format!(
                 ">\n    <source src=\"{}\" type=\"{}\">\n</video>",
-                html_escape(url),
-                html_escape(content_type)
+                erb::escape(url),
+                erb::escape(content_type)
             ));
             if let Some(caption) = &attachment.caption {
                 html.push_str(&format!(
                     "    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n",
-                    html_escape(caption)
+                    erb::escape(caption)
                 ));
             }
             html.push_str("</figure>\n");
@@ -448,11 +449,11 @@ pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) 
 pub fn render_mention(user: &MentionUser) -> String {
     format!(
         "<span class=\"mention\" sgid=\"{}\"><a title=\"{}\" class=\"btn avatar\" data-turbo-frame=\"_top\" href=\"{}\"><img aria-hidden=\"true\" src=\"{}\" width=\"48\" height=\"48\" /></a> {}</span>\n",
-        html_escape(&user.attachable_sgid),
-        html_escape(&user.title),
-        html_escape(&user.user_path),
-        html_escape(&user.avatar_path),
-        html_escape(&user.name),
+        erb::escape(&user.attachable_sgid),
+        erb::escape(&user.title),
+        erb::escape(&user.user_path),
+        erb::escape(&user.avatar_path),
+        erb::escape(&user.name),
     )
 }
 
@@ -462,28 +463,28 @@ pub fn render_opengraph_embed(embed: &OpengraphEmbed) -> String {
     let title = match (&embed.href, &embed.filename) {
         (Some(href), filename) => {
             let text = match filename {
-                Some(f) => html_escape(&truncate(f, 280, "…")),
-                None => html_escape(href),
+                Some(f) => erb::escape(&truncate(f, 280, "…")),
+                None => erb::escape(href),
             };
             format!(
                 "<a rel=\"noreferrer\" target=\"_blank\" href=\"{}\">{}</a>",
-                html_escape(href),
+                erb::escape(href),
                 text
             )
         }
-        (None, Some(f)) => html_escape(&truncate(f, 280, "…")),
+        (None, Some(f)) => erb::escape(&truncate(f, 280, "…")),
         (None, None) => String::new(),
     };
     let mut html = format!(
         "<figure class=\"attachment attachment--content attachment--og\">\n  <actiontext-opengraph-embed>\n    <div class=\"og-embed gap {}\">\n      <div class=\"og-embed__content\">\n        <div class=\"og-embed__title\">\n          {}\n        </div>\n        <div class=\"og-embed__description\">{}</div>\n      </div>\n",
         if embed.twitter_avatar() { "og-embed--twitter-avatar" } else { "" },
         title,
-        html_escape(&truncate(embed.description.as_deref().unwrap_or(""), 560, "…")),
+        erb::escape(&truncate(embed.description.as_deref().unwrap_or(""), 560, "…")),
     );
     if let Some(url) = &embed.url {
         html.push_str(&format!(
             "        <div class=\"og-embed__image\">\n          <img src=\"{}\" class=\"image center\" alt=\"\">\n        </div>\n",
-            html_escape(url)
+            erb::escape(url)
         ));
     }
     html.push_str("    </div>\n  </actiontext-opengraph-embed>\n</figure>\n");
@@ -506,10 +507,10 @@ fn image_tag(url: &str, width: Option<&str>, height: Option<&str>) -> Result<Str
     let mut html = String::from("<img");
     for (name, value) in [("width", width), ("height", height)] {
         if let Some(v) = value {
-            html.push_str(&format!(" {name}=\"{}\"", html_escape(v)));
+            html.push_str(&format!(" {name}=\"{}\"", erb::escape(v)));
         }
     }
-    html.push_str(&format!(" src=\"{}\" />", html_escape(&src)));
+    html.push_str(&format!(" src=\"{}\" />", erb::escape(&src)));
     Ok(html)
 }
 

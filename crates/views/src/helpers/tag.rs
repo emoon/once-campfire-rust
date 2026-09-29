@@ -6,7 +6,7 @@
 
 use std::borrow::Borrow;
 
-use super::html::{Html, Safe, escape, push_escaped};
+use super::html::{Html, Safe, escape, escape_into};
 
 /// `TagHelper::BOOLEAN_ATTRIBUTES`: rendered as `name="name"` when true, omitted when false.
 const BOOLEAN_ATTRIBUTES: &[&str] = &[
@@ -299,7 +299,7 @@ impl Attrs {
                 Value::Bool(flag) => out.push_str(&format!(" {name}=\"{flag}\"")),
                 Value::Text(text) => {
                     out.push_str(&format!(" {name}=\""));
-                    push_escaped(&mut out, text);
+                    escape_into(&mut out, text);
                     out.push('"');
                 }
                 Value::Safe(html) => {

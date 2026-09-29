@@ -16,7 +16,7 @@ import argparse, bisect, collections, json, os, re, shutil, struct, subprocess, 
 CATEGORIES = [
     ("gzip (miniz_oxide/crc32)", r"miniz_oxide|crc32fast|flate2|deflater::"),
     ("sqlite (C)", r"^sqlite3|rusqlite::|libsqlite3_sys::"),
-    ("askama render / view helpers", r"askama|campfire_views::"),
+    ("askama render / view helpers", r"askama|campfire_views::|rails_compat::erb"),
     ("rich text (Action Text pipeline)", r"campfire_richtext|html5ever|ammonia|markup5ever|lol_html|scraper"),
     ("json (serde_json)", r"serde_json"),
     ("crypto / signing (rails_compat)", r"rails_compat|hmac|sha1|sha2|aes|pbkdf2|base64"),

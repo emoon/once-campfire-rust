@@ -194,7 +194,7 @@ fn importmap_tags(load_path: &propshaft::LoadPath, entries: &[(String, String, S
     tags.push(
         preloads
             .iter()
-            .map(|path| format!("<link rel=\"modulepreload\" href=\"{}\">", escape_html(path)))
+            .map(|path| format!("<link rel=\"modulepreload\" href=\"{}\">", rails_compat::erb::escape(path)))
             .collect::<Vec<_>>()
             .join("\n"),
     );
@@ -235,15 +235,6 @@ fn json(s: &str) -> String {
     }
     out.push('"');
     out
-}
-
-/// ERB::Util.html_escape
-fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
 }
 
 fn build_time() -> u64 {
