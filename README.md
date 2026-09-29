@@ -220,8 +220,8 @@ the same on every request, so the app stopped compressing them per request, in t
 
 For a 466 KB room page, gzip and the ETag took ~1,200 µs per request at first, ~460 µs after
 splicing, 42 µs with SHA-256 digests and a CRC over the whole body, and ~25 µs now; the first
-request after a page changes pays ~2 ms, once, to compress its new parts. The decoded body is unchanged, and the compressed page is within 1% of compressing it
-whole.
+request after a page changes pays ~2 ms, once, to compress its new parts. The decoded body is
+unchanged, and the compressed page is within 1% of compressing it whole.
 
 | Route (16 clients) | Before | Spliced gzip | Cached page parts |
 |---|---|---|---|
