@@ -1,0 +1,52 @@
+== 21:09:32 warmup:0 try 1
+[21:09:43] room_show c=16: 3232.2 rps, campfire 1.2053 CPU ms/req
+[21:09:55] messages_page c=16: 2616.7 rps, campfire 1.4973 CPU ms/req
+[21:10:07] post_message c=16: 4750.2 rps, campfire 0.3965 CPU ms/req
+bench/quiet: other CCD 1.9% busy (max 15.0%), bench siblings 24-31 4.9% busy (max 15.0%), screensaver off
+== 21:10:08 base:1 try 1
+[21:10:20] room_show c=16: 3162.1 rps, campfire 1.2026 CPU ms/req
+[21:10:32] messages_page c=16: 2634.5 rps, campfire 1.4876 CPU ms/req
+[21:10:43] post_message c=16: 5064.8 rps, campfire 0.3911 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 5.1% busy (max 15.0%), screensaver off
+== 21:10:44 view-3:1 try 1
+[21:10:55] room_show c=16: 3379.9 rps, campfire 1.1508 CPU ms/req
+[21:11:07] messages_page c=16: 2735.2 rps, campfire 1.4333 CPU ms/req
+[21:11:18] post_message c=16: 5104.3 rps, campfire 0.3873 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 3.8% busy (max 15.0%), screensaver off
+== 21:11:19 view-3:2 try 1
+[21:11:30] room_show c=16: 3377.9 rps, campfire 1.1519 CPU ms/req
+[21:11:42] messages_page c=16: 2746.2 rps, campfire 1.4271 CPU ms/req
+[21:11:53] post_message c=16: 5084.3 rps, campfire 0.386 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 3.7% busy (max 15.0%), screensaver off
+== 21:11:54 base:2 try 1
+[21:12:05] room_show c=16: 3251.2 rps, campfire 1.1974 CPU ms/req
+[21:12:17] messages_page c=16: 2620.4 rps, campfire 1.4955 CPU ms/req
+[21:12:28] post_message c=16: 5083.7 rps, campfire 0.3928 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 3.7% busy (max 15.0%), screensaver off
+== done 21:12:29
+== 21:20:38 warmup:0 try 1
+[21:20:49] room_show c=16: 3242.6 rps, campfire 1.2018 CPU ms/req
+[21:21:01] messages_page c=16: 2602.2 rps, campfire 1.5068 CPU ms/req
+[21:21:13] post_message c=16: 4056.5 rps, campfire 0.4272 CPU ms/req
+bench/quiet: other CCD 4.0% busy (max 15.0%), bench siblings 24-31 8.9% busy (max 15.0%), screensaver off
+== 21:21:14 base:1 try 1
+[21:21:26] room_show c=16: 2589.5 rps, campfire 1.2403 CPU ms/req
+[21:21:37] messages_page c=16: 2269.6 rps, campfire 1.5172 CPU ms/req
+[21:21:49] post_message c=16: 3630.2 rps, campfire 0.4172 CPU ms/req
+bench/quiet: other CCD 2.5% busy (max 15.0%), bench siblings 24-31 9.0% busy (max 15.0%), screensaver off
+== 21:21:49 view-3:1 try 1
+[21:22:01] room_show c=16: 3372.4 rps, campfire 1.1528 CPU ms/req
+[21:22:12] messages_page c=16: 2730.0 rps, campfire 1.4286 CPU ms/req
+[21:22:24] post_message c=16: 4403.0 rps, campfire 0.3885 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 3.9% busy (max 15.0%), screensaver off
+== 21:22:25 view-3:2 try 1
+[21:22:36] room_show c=16: 3354.5 rps, campfire 1.1595 CPU ms/req
+[21:22:47] messages_page c=16: 2719.5 rps, campfire 1.4405 CPU ms/req
+[21:22:59] post_message c=16: 5168.4 rps, campfire 0.3895 CPU ms/req
+bench/quiet: other CCD 2.2% busy (max 15.0%), bench siblings 24-31 4.0% busy (max 15.0%), screensaver off
+== 21:23:00 base:2 try 1
+[21:23:11] room_show c=16: 3247.1 rps, campfire 1.1987 CPU ms/req
+[21:23:22] messages_page c=16: 2633.2 rps, campfire 1.4894 CPU ms/req
+[21:23:34] post_message c=16: 5262.1 rps, campfire 0.3916 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 3.9% busy (max 15.0%), screensaver off
+== done 21:23:35

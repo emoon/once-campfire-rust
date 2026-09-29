@@ -1,0 +1,111 @@
+{
+ "room_show": {
+  "conc": 16,
+  "rps": 3354.5,
+  "cpu_ms_per_req": 1.1595,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 1.0838,
+    "sys_ms": 0.0757,
+    "voluntary": 20.5731,
+    "nonvoluntary": 0.0905
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 1.0835,
+    "sys_ms": 0.076,
+    "syscr": 0.0,
+    "syscw": 2.0057
+   }
+  }
+ },
+ "messages_page": {
+  "conc": 16,
+  "rps": 2719.5,
+  "cpu_ms_per_req": 1.4405,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 1.3692,
+    "sys_ms": 0.0709,
+    "voluntary": 16.1992,
+    "nonvoluntary": 0.1145
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 1.3692,
+    "sys_ms": 0.0713,
+    "syscr": 0.0,
+    "syscw": 2.007
+   }
+  }
+ },
+ "post_message": {
+  "conc": 16,
+  "rps": 5168.4,
+  "cpu_ms_per_req": 0.3895,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0006,
+    "sys_ms": 0.0054,
+    "voluntary": 0.8011,
+    "nonvoluntary": 0.0216
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 0.2029,
+    "sys_ms": 0.0393,
+    "voluntary": 8.6376,
+    "nonvoluntary": 1.9238
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0372,
+    "sys_ms": 0.0385,
+    "voluntary": 3.6109,
+    "nonvoluntary": 0.4619
+   },
+   "blocking pool": {
+    "threads": 56,
+    "user_ms": 0.009,
+    "sys_ms": 0.0027,
+    "voluntary": 0.964,
+    "nonvoluntary": 0.1637
+   },
+   "process": {
+    "user_ms": 0.2909,
+    "sys_ms": 0.0986,
+    "syscr": 48.3402,
+    "syscw": 38.3503
+   }
+  }
+ }
+}

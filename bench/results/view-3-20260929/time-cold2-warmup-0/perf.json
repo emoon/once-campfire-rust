@@ -1,0 +1,111 @@
+{
+ "room_show": {
+  "conc": 16,
+  "rps": 3242.6,
+  "cpu_ms_per_req": 1.2018,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 1.1287,
+    "sys_ms": 0.0728,
+    "voluntary": 19.2334,
+    "nonvoluntary": 0.0925
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 1.1287,
+    "sys_ms": 0.0731,
+    "syscr": 0.0,
+    "syscw": 2.006
+   }
+  }
+ },
+ "messages_page": {
+  "conc": 16,
+  "rps": 2602.2,
+  "cpu_ms_per_req": 1.5068,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 1.4303,
+    "sys_ms": 0.076,
+    "voluntary": 15.0386,
+    "nonvoluntary": 0.1166
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 1.4307,
+    "sys_ms": 0.076,
+    "syscr": 0.0,
+    "syscw": 2.0074
+   }
+  }
+ },
+ "post_message": {
+  "conc": 16,
+  "rps": 4056.5,
+  "cpu_ms_per_req": 0.4272,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0011,
+    "sys_ms": 0.0063,
+    "voluntary": 0.8018,
+    "nonvoluntary": 0.0236
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 0.2098,
+    "sys_ms": 0.0435,
+    "voluntary": 7.831,
+    "nonvoluntary": 1.971
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0395,
+    "sys_ms": 0.0548,
+    "voluntary": 3.7335,
+    "nonvoluntary": 0.4898
+   },
+   "blocking pool": {
+    "threads": 49,
+    "user_ms": 0.011,
+    "sys_ms": 0.0038,
+    "voluntary": 0.9918,
+    "nonvoluntary": 0.1726
+   },
+   "process": {
+    "user_ms": 0.3054,
+    "sys_ms": 0.1218,
+    "syscr": 45.3131,
+    "syscw": 39.4216
+   }
+  }
+ }
+}

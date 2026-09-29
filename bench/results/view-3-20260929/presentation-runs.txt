@@ -1,0 +1,12 @@
+# presentation example, 40,000 iterations, frame-pointer builds under perf (base, then VIEW-3)
+plain      presentation   6767 ns  164 allocs   plain text    591 ns   32 allocs
+paragraphs presentation  10850 ns  239 allocs   plain text   1318 ns   49 allocs
+links      presentation  13502 ns  345 allocs   plain text    927 ns   39 allocs
+formatted  presentation  44859 ns  906 allocs   plain text   7656 ns  199 allocs
+mention    presentation  43832 ns 1022 allocs   plain text   3952 ns  122 allocs
+
+plain      presentation   3764 ns  135 allocs   plain text    599 ns   32 allocs
+paragraphs presentation   8503 ns  200 allocs   plain text   1256 ns   49 allocs
+links      presentation  12136 ns  301 allocs   plain text    939 ns   39 allocs
+formatted  presentation  39136 ns  675 allocs   plain text   7267 ns  195 allocs
+mention    presentation  35227 ns  609 allocs   plain text   3827 ns  112 allocs
