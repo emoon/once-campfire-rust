@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use campfire_richtext::dom::Dom;
+use campfire_richtext::dom::{Dom, NodeId};
 use campfire_richtext::sanitizer::SafeList;
 use campfire_richtext::{
     AttachableResolver, GidLookup, MentionUser, Presentation, RenderContext, SignedLookup, editable_value, mentioned_users,
@@ -129,7 +129,7 @@ fn normalized_dom(html: &str) -> String {
 }
 
 #[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
-fn normalize_into(dom: &Dom, node: usize, out: &mut String) {
+fn normalize_into(dom: &Dom, node: NodeId, out: &mut String) {
     for &child in dom.children(node) {
         if let Some(text) = dom.text(child) {
             let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");

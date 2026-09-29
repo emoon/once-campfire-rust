@@ -151,7 +151,7 @@ fn strip_tags(html: &str) -> Result<String, UnfurlError> {
 
 /// `sanitize` (Rails::HTML5::SafeListSanitizer with its default allowlist).
 fn sanitize(html: &str) -> Result<String, UnfurlError> {
-    sanitizer::sanitize(html, &SafeList::defaults()).map_err(|_| UnfurlError::Raised("ArgumentError"))
+    sanitizer::sanitize(html, SafeList::defaults()).map_err(|_| UnfurlError::Raised("ArgumentError"))
 }
 
 /// A string as `ActiveSupport::JSON` encodes it: JSON with `<`, `>` and `&` escaped (Rails 8.2
