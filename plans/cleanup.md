@@ -245,9 +245,11 @@ workers.
 CPU and throughput runs (`bench/profile cpu`, `bench/run`) are only valid on a quiet desktop. The
 desktop screensaver (`omarchy-screensaver`, two `foot` windows) uses ~5 unpinned CPUs, and on
 2026-09-29 it made room_show 18-25% and post_message 40% slower, with runs 6% apart (S-6). Check
-`pgrep -f omarchy-screensaver` right before and right after each CPU run; if it was running at
+`pgrep -f '[o]marchy-screensaver'` right before and right after each CPU run; if it was running at
 either point, discard that run and wait (poll every few minutes) until it's gone before re-running.
-Allocation counts and parity aren't affected, so run those regardless. Don't stop the screensaver
+Allocation counts and parity aren't affected, so run those regardless. Write the pattern as
+`'[o]marchy-screensaver'`: a plain `omarchy-screensaver` also matches every agent's own polling
+command, which made the check report the screensaver as running when it wasn't (2026-09-29). Don't stop the screensaver
 or any other process outside the repo yourself.
 
 Agents share one scratchpad directory. Keep your logs and temp files in your own subdirectory of it
