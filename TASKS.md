@@ -73,6 +73,7 @@ otherwise stop" in `plans/cleanup.md`.
       (C/SQLite only; see S-7).
       Branch keeps only `bench/results/s-6-20260929/` and a plan note; the pinning diff
       (`PARITY_CPUSET`) is saved there, not applied. Gate recipes unchanged. Images removed.
+- [ ] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order
 - [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
@@ -98,7 +99,9 @@ otherwise stop" in `plans/cleanup.md`.
       kit, cable and campfire enable the feature. Note for F-2: private `json` is inside
       `crypto` too, and `serde_json` is optional; un-gate both when json gains public API (lib.rs
       and Cargo.toml will conflict; keep both sides).
-- [~] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders (refactor/cleanup-f-2)
+- [~] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders (refactor/cleanup-f-2,
+      8b5bf92 on ca8ac66). Parity 873/874 (1 allowed, baseline) with the cache-fixed build
+      (compare-2026-09-29T08-11-48-489Z). Pending: guarded ABBA CPU (screensaver), alloc with S-7's tool.
 - [~] F-3 `rails_compat::rack::byte_ranges` + multipart; fix the assets overflow range (refactor/cleanup-f-3)
 - [x] F-4 `rails_compat::ruby::{to_i, cast_integer}`; delete 3 copies (refactor/cleanup-f-4, 4704c8f
       on a0df4b6, review nits folded in; parity re-run after 2895add: 873 pass + 1 allowed,
@@ -162,7 +165,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
 
 ### WEB (`crates/campfire` controllers, concerns, app)
-- [ ] WEB-1 perf: static assets via `Bytes::from_static`
+- [~] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1)
 - [ ] WEB-2 perf: memoized user-agent parse; byte-offset parser
 - [ ] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
@@ -248,3 +251,19 @@ won't make. They don't block the run and go into the final report.
   (only `kit/tests/http.rs`; Active Storage's proxy serves ranges through `rails_compat::rack`), so
   the flag, `parse_range`, `RangeResult` and their test look dead: delete them, or switch them to
   `rails_compat::rack::byte_ranges` if something should keep them (KIT lane).
+- (F-3, coordinator) `bench/profile cpu` crashed the app twice on 2026-09-29 (10:05 F-3, 10:08 VIEW-1):
+  SIGSEGV in libgcc `_Unwind_Backtrace` from libprofiler's SIGPROF handler (a frame with return
+  address 0xffffffffffffffff), not app code. Retrying works. If it recurs, try `PROFILER_UNWIND`
+  (TCMALLOC_STACKTRACE_METHOD) other than libgcc, or make `cpu` retry a crashed target itself.
+- (VIEW-1) `bench/profile alloc` doesn't count Rust allocations. campfire's global allocator is
+  tikv-jemallocator (`campfire/src/main.rs`, symbols prefixed `_rjem_`), but `alloc` LD_PRELOADs
+  `/usr/lib/libjemalloc.so` and reads that allocator's stats and heap profiles. So the gate's
+  18/19/53/78 per request are C mallocs, mostly sqlite (`sqlite3MemMalloc` is about 107% of the
+  jeprof objects), and the `post_message` bimodality is sqlite's. A Rust-side change can't move
+  them. The embedded jemalloc is built without `stats`, so `_RJEM_MALLOC_CONF` alone prints no
+  counters. VIEW-1 measured with binaries built `--features tikv-jemallocator/stats` and
+  `_RJEM_MALLOC_CONF=stats_print:true,stats_print_opts:J,tcache:false` (script:
+  `bench/results/view-1-20260929/rust_alloc.py`); `post_message` is about 1,150 Rust allocations
+  per request. Suggest an S-WP: make `bench/profile alloc` count the Rust allocator (for example a
+  `stats` build of the measured binaries) and re-baseline. Earlier WPs' "allocs unchanged" only
+  covers C allocations.

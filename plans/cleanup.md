@@ -433,6 +433,18 @@ them fixed in place rather than reverted.
   baseline's alloc table at 3c7a173 (Phase 0 done, nothing from Phase 1), and measure the current
   `refactor/cleanup` tip against it, so the merged F-1, F-4 and DB-10 are checked after the fact.
   Update "Commands for the gates" and the definition of done (which number the gate compares).
+- **S-8 Profile first, then order the perf work (the human's request, 2026-09-29).** The perf WPs
+  came from reading the code, and the gate only asks "not slower". Measure where the time goes:
+  `perf record` with call graphs (user-space stacks work at `perf_event_paranoid=2`; don't change
+  system settings) on room_show, messages_page, sidebar, post_message and the cable fan-out, on a
+  quiet desktop (the screensaver rule applies). Rank functions by inclusive and self cost, and
+  explain the big buckets the S-2 rollup shows (for room_show: ~17% `syscall`/futex, 9% crypto,
+  8% memcpy, 4% memcmp, 18% askama, 16% sqlite). Map each hot spot to the WP that addresses it, or
+  propose a new WP (next free number in its lane) with the expected gain, and propose the order
+  the perf WPs should run in, biggest measured cost first. Also compare `perf` with
+  `bench/profile cpu` (gperftools, which crashed twice in its unwinder) and recommend which the
+  gate should use. Deliverable: `bench/results/s-8-<date>/README.md` plus the plan and TASKS
+  edits on the branch.
 
 ## Phase 1: shared foundations (small, early; lanes depend on them)
 
