@@ -73,6 +73,7 @@ otherwise stop" in `plans/cleanup.md`.
       (C/SQLite only; see S-7).
       Branch keeps only `bench/results/s-6-20260929/` and a plan note; the pinning diff
       (`PARITY_CPUSET`) is saved there, not applied. Gate recipes unchanged. Images removed.
+- [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
       `[lints] workspace = true`. The 99 existing hits carry `#[expect(clippy::…, reason = "existing
@@ -118,17 +119,20 @@ otherwise stop" in `plans/cleanup.md`.
       i64::MIN (was −i64::MAX; the page clamp and `since` saturation hide it). Cross-lane: one
       import path in `campfire/src/active_storage.rs` (STORE). The images `campfire-rust:f-4` and
       `campfire-candidate-f-4` are still there.
-- [~] F-5 `Patch<T>` + `Assignments`; `User`/`Account`/`Room::update`; 7 callers (refactor/cleanup-f-5)
-      Review round done (reviewer approves 789ffe8, one squashed commit); waiting on the re-run
-      parity and alloc gates. Production lines +43 (db +41, campfire +2), tests +28. Per-call
-      allocations base → now: `User::update` 20 → 9, `Account::update` 18 → 7, `Room::update`
-      rename 6 → 4, type change 6 → 6. First-round gates (before the review fix): allocations/request
-      unchanged, CPU and req/s within T/2, parity 873/874. Tests 655 pass / 7 ignored with the seed;
-      clippy clean. Plan notes: `Assignments` is crate-private in `sql.rs` and gained `patch`;
-      `write` takes `(tx, table: &'static str, id, &mut updated_at)` so "touch updated_at only when
-      something changed" lives in one place. `Room::update` keeps its literal UPDATE, via
-      `Patch::apply`. `Role`/`Status` gained `From<_> for rusqlite::types::Value` (DB-3's
-      `sql_enum!` should generate it).
+- [x] F-5 `Patch<T>` + `Assignments`; `User`/`Account`/`Room::update`; 7 callers (refactor/cleanup-f-5)
+      One commit (4ccf1ee on 6c76d78); reviewer approved the code. Production lines +43 (db +41,
+      campfire +2), tests +28. Allocations/request unchanged on the four targets (room_show 18.1,
+      messages_page 19.0, sidebar 53.1, post_message higher run 78.2 on both sides; C/SQLite only
+      until S-7), CPU and req/s within T/2 (first round; no target runs a model update).
+      Per-call allocations counted with a counting allocator (Rust included), base → now:
+      `User::update` 20 → 9, `Account::update` 18 → 7, `Room::update` rename 6 → 4, type change
+      6 → 6. Parity 873/874 (manifest allowed) on the final code; db differential passes end to
+      end; tests 658 pass / 7 ignored with the seed; clippy clean. Numbers in
+      `bench/results/f-5-20260929/`. Plan notes: `Assignments` is crate-private in `sql.rs` and
+      gained `patch`; `write` takes `(tx, table: &'static str, id, &mut updated_at)` so "touch
+      updated_at only when something changed" lives in one place. `Room::update` keeps its literal
+      UPDATE, via `Patch::apply`. `Role`/`Status` gained `From<_> for rusqlite::types::Value`
+      (DB-3's `sql_enum!` should generate it).
 
 ## Phase 2: lanes
 
