@@ -26,7 +26,7 @@
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 
 use rusqlite::{Connection, OpenFlags};
 use tokio::sync::{mpsc, oneshot};
@@ -217,8 +217,9 @@ type Job = Box<dyn FnOnce(&Connection, &Env) + Send>;
 pub struct Database {
     writer: mpsc::Sender<Job>,
     readers: Arc<ReaderPool>,
-    /// Runtime workers inside an inline read (see [`Database::read`]).
+    /// Runtime workers inside an inline read, and how many may be (see [`Database::read`]).
     inline_reads: Arc<AtomicUsize>,
+    inline_read_limit: Arc<OnceLock<usize>>,
     env: Env,
     path: PathBuf,
 }
@@ -261,6 +262,7 @@ impl Database {
             writer: sender,
             readers: Arc::new(ReaderPool::new(readers)),
             inline_reads: Arc::default(),
+            inline_read_limit: Arc::default(),
             env,
             path: config.path,
         })
@@ -309,8 +311,8 @@ impl Database {
     /// task's thread: a read on a warm page cache takes microseconds, less than handing it to the
     /// blocking pool and back (a futex wake each way, most of a page's system time; S-8,
     /// `bench/results/s-8-20260929/`). Only when every reader is busy does it wait for one, on the
-    /// blocking pool. At most half the runtime's workers are ever inside `f` at once, so a slow
-    /// read (a busy database waits up to 5 s) can't stall every worker.
+    /// blocking pool. At most half the runtime's workers (at least one) are ever inside `f` at
+    /// once, so a slow read (a busy database waits up to 5 s) can't stall every worker.
     ///
     /// Reads whose cost grows with the whole database rather than with a page (search, every
     /// user, all of a user's messages, a push per subscriber) use [`Database::read_offloaded`],
@@ -320,7 +322,7 @@ impl Database {
         T: Send + 'static,
         F: FnOnce(&Connection) -> Result<T> + Send + 'static,
     {
-        let Some(slot) = InlineRead::enter(&self.inline_reads, inline_read_limit()) else {
+        let Some(slot) = InlineRead::enter(&self.inline_reads, *self.inline_read_limit.get_or_init(inline_read_limit)) else {
             return self.read_offloaded(f).await;
         };
         let Some(checkout) = self.readers.try_checkout() else {
@@ -535,7 +537,7 @@ struct InlineRead<'a>(&'a AtomicUsize);
 impl<'a> InlineRead<'a> {
     fn enter(inside: &'a AtomicUsize, limit: usize) -> Option<Self> {
         inside
-            .fetch_update(Ordering::Acquire, Ordering::Relaxed, |n| (n < limit).then_some(n + 1))
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| (n < limit).then_some(n + 1))
             .ok()
             .map(|_| Self(inside))
     }
@@ -543,7 +545,7 @@ impl<'a> InlineRead<'a> {
 
 impl Drop for InlineRead<'_> {
     fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::Release);
+        self.0.fetch_sub(1, Ordering::Relaxed);
     }
 }
 
@@ -619,6 +621,7 @@ mod tests {
                 .unwrap(),
             1
         );
+        assert_eq!(db.inline_reads.load(Ordering::SeqCst), 0);
     }
 
     /// With half the workers already inside an inline read, the next read goes to the blocking
@@ -632,6 +635,21 @@ mod tests {
         db.inline_reads.store(1, Ordering::SeqCst);
         assert_eq!(db.read(|_| Ok(std::thread::current().id())).await.unwrap(), caller);
         assert_eq!(db.inline_reads.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_read_with_no_reader_free_gives_its_place_back() {
+        let (_dir, db) = one_reader();
+        let held = db.readers.try_checkout().unwrap();
+        let read = tokio::spawn({
+            let db = db.clone();
+            async move { db.read(|_| Ok(())).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert_eq!(db.inline_reads.load(Ordering::SeqCst), 0);
+        drop(held);
+        read.await.unwrap().unwrap();
+        assert_eq!(db.inline_reads.load(Ordering::SeqCst), 0);
     }
 
     #[test]
