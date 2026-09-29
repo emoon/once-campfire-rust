@@ -21,6 +21,8 @@ pub struct Response {
     pub cached_fragments: Vec<std::sync::Arc<String>>,
     /// The body split at `cached_fragments`, once the kit has finished the response.
     pub(crate) page_parts: Option<std::sync::Arc<crate::deflater::splice::PageParts>>,
+    /// The body's SHA-256, when `Rack::ETag` digested it.
+    pub(crate) body_digest: Option<crate::deflater::BodyDigest>,
 }
 
 pub enum Body {
@@ -58,6 +60,7 @@ impl Response {
             body: Body::Empty,
             cached_fragments: Vec::new(),
             page_parts: None,
+            body_digest: None,
         }
     }
 
