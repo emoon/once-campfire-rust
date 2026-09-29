@@ -470,6 +470,7 @@ dependencies = [
  "campfire_kit",
  "crc32fast",
  "flate2",
+ "foldhash",
  "futures-util",
  "hex",
  "http-body-util",
