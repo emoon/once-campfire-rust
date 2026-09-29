@@ -18,7 +18,7 @@ use crate::controllers::presenters::view_context::Layout;
 pub async fn index(c: &mut Ctx) -> Result {
     concerns::before_actions(c, Before::default()).await?;
     c.respond_to(&[&format::TURBO_STREAM])?;
-    let users = c.app().db.read(User::active_ordered_without_bots).await.map_err(Error::internal)?;
+    let users = c.app().db.read_offloaded(User::active_ordered_without_bots).await.map_err(Error::internal)?;
     let page = Page::new(c.param_str("page"), users.len() as i64, &[500]);
     let secrets = c.app().secrets.clone();
     let users: Vec<_> = page

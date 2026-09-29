@@ -1,0 +1,13 @@
+{
+ "route": "static_css",
+ "requests": 1000,
+ "baseline": {
+  "nrequests": 4295,
+  "nmalloc": 12595
+ },
+ "with_requests": {
+  "nrequests": 4294,
+  "nmalloc": 12594
+ },
+ "allocations_per_request": -0.0
+}

@@ -44,7 +44,7 @@ pub mod users {
         let users = c
             .app()
             .db
-            .read(move |conn| autocompletable_users(conn, room_id, query.as_deref()))
+            .read_offloaded(move |conn| autocompletable_users(conn, room_id, query.as_deref()))
             .await
             .map_err(Error::internal)?;
         let page = Page::new(c.param_str("page"), users.len() as i64, &[20]);

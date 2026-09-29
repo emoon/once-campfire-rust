@@ -21,7 +21,7 @@ pub async fn index(c: &mut Ctx) -> Result {
     let bots: Vec<_> = c
         .app()
         .db
-        .read(move |conn| {
+        .read_offloaded(move |conn| {
             User::active_bots_ordered(conn)?
                 .iter()
                 .map(|bot| presenters::accounts::bot(conn, &secrets, bot))
