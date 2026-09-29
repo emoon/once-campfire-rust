@@ -4,6 +4,7 @@
 pub mod test_notifications;
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::sync::Mutex;
 
 use campfire_db::{CachedStatements, Connection, PushSubscription};
@@ -117,17 +118,16 @@ fn push_subscription_params(c: &Ctx) -> Result<ParamMap> {
 
 /// `Current.user.push_subscriptions.find_by(push_subscription_params)`: only the given keys are
 /// conditions (none at all finds the user's first subscription); nil is `IS NULL`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn find_by(conn: &Connection, user_id: i64, params: &ParamMap) -> campfire_db::Result<Option<PushSubscription>> {
     let mut sql = String::from(r#"SELECT "push_subscriptions"."id" FROM "push_subscriptions" WHERE "push_subscriptions"."user_id" = ?"#);
     let mut values = vec![Value::Integer(user_id)];
     for (key, param) in params.iter() {
         match param.to_s() {
             Some(value) => {
-                sql.push_str(&format!(r#" AND "push_subscriptions"."{key}" = ?"#));
+                write!(sql, r#" AND "push_subscriptions"."{key}" = ?"#).unwrap();
                 values.push(Value::Text(value));
             }
-            None => sql.push_str(&format!(r#" AND "push_subscriptions"."{key}" IS NULL"#)),
+            None => write!(sql, r#" AND "push_subscriptions"."{key}" IS NULL"#).unwrap(),
         }
     }
     sql.push_str(" LIMIT 1");

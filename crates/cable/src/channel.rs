@@ -2,11 +2,12 @@
 use std::sync::Arc;
 
 use futures_util::stream::{AbortHandle, AbortRegistration};
+use rails_compat::json;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::pubsub::Subscriber;
-use crate::{Server, json, naming, protocol};
+use crate::{Server, naming, protocol};
 
 pub type Params = Map<String, Value>;
 
@@ -177,7 +178,7 @@ impl<U: Send + Sync + 'static> Subscription<U> {
     /// Sends `{"identifier":...,"message":...}` to this subscriber only.
     pub fn transmit<T: Serialize + ?Sized>(&mut self, message: &T) {
         self.transmissions
-            .push(protocol::message(&self.encoded_identifier, &json::encode(message)));
+            .push(protocol::message(&self.encoded_identifier, json::encode(message).as_str()));
     }
 }
 

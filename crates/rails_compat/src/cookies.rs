@@ -12,6 +12,8 @@
 //!   carrying `pur: "cookie.<name>"` and `exp` (ISO 8601 with milliseconds, or `null`),
 //! - reading tries purpose `cookie.<name>` first, then *no purpose*, so a value signed without
 //!   metadata (pre-Rails 5.2) is accepted under any cookie name.
+use std::fmt::Write as _;
+
 use jiff::{Timestamp, ToSpan, tz::TimeZone};
 use serde_json::Value;
 
@@ -33,7 +35,7 @@ pub fn permanent_expires_at(now: Timestamp) -> Timestamp {
 /// The raw value for `cookies.signed[name] = { value:, expires: expires_at }`.
 /// `cookies.signed.permanent[...]` is `expires_at: Some(permanent_expires_at(now))`.
 pub fn sign(secrets: &Secrets, name: &str, value: &str, expires_at: Option<Timestamp>) -> String {
-    let dumped = json::encode(&Value::String(value.to_string()));
+    let dumped = json::encode(value).into_string();
     signed_cookie_verifier(secrets).generate(&Value::String(dumped), Some(&purpose(name)), expires_at)
 }
 
@@ -59,7 +61,7 @@ pub fn verify_signed_value(secrets: &Secrets, name: &str, raw: &str, now: Timest
 /// The raw value for `cookies.encrypted[name] = { value:, expires: expires_at }`.
 /// The session store writes `_campfire_session` this way with a 20-year `expire_after`.
 pub fn encrypt(secrets: &Secrets, name: &str, value: &Value, expires_at: Option<Timestamp>) -> String {
-    let dumped = json::encode(value);
+    let dumped = json::encode(value).into_string();
     encrypted_cookie_encryptor(secrets).encrypt_and_sign(&Value::String(dumped), Some(&purpose(name)), expires_at)
 }
 
@@ -97,14 +99,13 @@ pub fn encrypted_cookie_encryptor(secrets: &Secrets) -> MessageEncryptor {
 
 /// `Rack::Utils.escape` (`URI.encode_www_form_component`), which Rack applies to every cookie
 /// value it writes: `*-._` and alphanumerics stay, a space becomes `+`, the rest is `%XX`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn escape(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for &byte in raw.as_bytes() {
         match byte {
             b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'*' | b'-' | b'.' | b'_' => out.push(byte as char),
             b' ' => out.push('+'),
-            _ => out.push_str(&format!("%{byte:02X}")),
+            _ => write!(out, "%{byte:02X}").unwrap(),
         }
     }
     out

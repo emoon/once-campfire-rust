@@ -13,7 +13,7 @@ Mean of two runs a side, c=16 (`time-*`, `time.log`):
 
 post_message gains well past T; the reads are within ±1.3%, inside T/2.
 
-Before DB-11 (`campfire-wt/perf-2`, variants base/off/readers-only, same recipe): post_message
+Before DB-11 (`before-db-11/`, variants base/off/rdr, same recipe): post_message
 −15.5% CPU/req and +12.7% req/s, but room_show and messages_page 2.5-2.7% worse; the `rdr` variant
 (mmap changed for the reader connections only) came out worse than off everywhere. With DB-11's inline
 reads the read cost is gone.

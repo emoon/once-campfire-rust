@@ -194,7 +194,9 @@ impl MessageItem {
             .iter()
             .filter_map(|item| match item {
                 MessageItem::Fragment { html, .. } => Some(html.clone()),
-                MessageItem::View(message) => cache.get(&message_fragment_key(message.id, message.updated_at)),
+                MessageItem::View(message) => {
+                    fragment_cache::with_key(|key| message_fragment_key(key, message.id, message.updated_at), |key| cache.get(key))
+                }
             })
             .collect()
     }
@@ -299,56 +301,48 @@ pub struct MessagePartial<'a> {
 
 /// `render message`: `messages/_message`, whose body is `cache [ message, "presentation-v3" ]`
 /// (and whose collection renders are `cached: true`), so a message version renders once.
-pub fn message(ctx: &ViewContext, message: &MessageView) -> String {
+pub fn message(ctx: &ViewContext, message: &MessageView) -> fragment_cache::Fragment {
     fragment_cache::fetch(
-        || message_fragment_key(message.id, message.updated_at),
+        |key| message_fragment_key(key, message.id, message.updated_at),
         || MessagePartial { ctx, message }.render().expect("messages/_message renders"),
     )
 }
 
 /// [`message`] where a template renders the partial.
-pub fn cached_message(ctx: &ViewContext, message: &MessageView) -> crate::helpers::Html {
+pub fn cached_message(ctx: &ViewContext, message: &MessageView) -> askama::filters::Safe<fragment_cache::Fragment> {
     askama::filters::Safe(self::message(ctx, message))
 }
 
 /// [`cached_message`] for a [`MessageItem`]: a fragment found up front goes out as it is.
-pub fn cached_message_item<'a>(ctx: &ViewContext, item: &'a MessageItem) -> askama::filters::Safe<std::borrow::Cow<'a, str>> {
+pub fn cached_message_item(ctx: &ViewContext, item: &MessageItem) -> askama::filters::Safe<fragment_cache::Fragment> {
     askama::filters::Safe(match item {
-        MessageItem::Fragment { html, .. } => std::borrow::Cow::Borrowed(html.as_str()),
-        MessageItem::View(message) => std::borrow::Cow::Owned(self::message(ctx, message)),
+        MessageItem::Fragment { html, .. } => html.clone(),
+        MessageItem::View(message) => self::message(ctx, message),
     })
 }
 
 /// `messages/_message`'s fragment for this message version, if the current store holds it. The
 /// key needs only the message's id and `updated_at`.
 pub fn cached_message_fragment(id: i64, updated_at: Timestamp) -> Option<fragment_cache::Fragment> {
-    fragment_cache::read(&message_fragment_key(id, updated_at))
+    fragment_cache::read(|key| message_fragment_key(key, id, updated_at))
 }
 
-fn message_fragment_key(id: i64, updated_at: Timestamp) -> String {
-    format!(
-        "views/messages/_message:{}/{}/presentation-v3",
-        message_digest(),
-        fragment_cache::cache_key_with_version("messages", id, updated_at)
-    )
+/// `views/messages/_message:<digest>/messages/<id>-<version>/presentation-v3`.
+fn message_fragment_key(key: &mut String, id: i64, updated_at: Timestamp) {
+    fragment_cache::push_record_fragment_key(key, "messages/_message", message_digest(), "messages", id, updated_at);
+    key.push_str("/presentation-v3");
 }
 
 /// `messages/boosts/_boost`, whose body is `cache boost`.
-pub fn boost(ctx: &ViewContext, boost: &BoostView) -> String {
+pub fn boost(ctx: &ViewContext, boost: &BoostView) -> fragment_cache::Fragment {
     fragment_cache::fetch(
-        || {
-            format!(
-                "views/messages/boosts/_boost:{}/{}",
-                boost_digest(),
-                fragment_cache::cache_key_with_version("boosts", boost.id, boost.updated_at)
-            )
-        },
+        |key| fragment_cache::push_record_fragment_key(key, "messages/boosts/_boost", boost_digest(), "boosts", boost.id, boost.updated_at),
         || BoostPartial { ctx, boost }.render().expect("messages/boosts/_boost renders"),
     )
 }
 
 /// [`boost`] where a template renders the partial.
-pub fn cached_boost(ctx: &ViewContext, boost: &BoostView) -> crate::helpers::Html {
+pub fn cached_boost(ctx: &ViewContext, boost: &BoostView) -> askama::filters::Safe<fragment_cache::Fragment> {
     askama::filters::Safe(self::boost(ctx, boost))
 }
 
@@ -472,4 +466,38 @@ pub struct NewBoost<'a> {
     pub message: &'a MessageView,
     /// `Current.user`.
     pub user: &'a UserView,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(write: impl FnOnce(&mut String)) -> String {
+        let mut key = String::new();
+        write(&mut key);
+        key
+    }
+
+    #[test]
+    fn fragment_keys_match_their_formatted_versions() {
+        for (id, time) in [(1, "2024-06-01T12:00:00.000123456Z"), (987_654, "1999-12-31T23:59:59Z")] {
+            let time: Timestamp = time.parse().unwrap();
+            assert_eq!(
+                key(|key| message_fragment_key(key, id, time)),
+                format!(
+                    "views/messages/_message:{}/{}/presentation-v3",
+                    message_digest(),
+                    fragment_cache::cache_key_with_version("messages", id, time)
+                )
+            );
+            assert_eq!(
+                key(|key| fragment_cache::push_record_fragment_key(key, "messages/boosts/_boost", boost_digest(), "boosts", id, time)),
+                format!(
+                    "views/messages/boosts/_boost:{}/{}",
+                    boost_digest(),
+                    fragment_cache::cache_key_with_version("boosts", id, time)
+                )
+            );
+        }
+    }
 }

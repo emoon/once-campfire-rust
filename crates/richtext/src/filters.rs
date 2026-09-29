@@ -110,6 +110,6 @@ pub fn sanitize_tags(content: Content) -> Content {
 /// Scrubs attributes with Rails' safe-list sanitizer over SanitizeTags' own tags.
 #[expect(clippy::needless_pass_by_value, reason = "existing hit under the S-5 lint floor")]
 pub fn sanitize_attributes(content: Content) -> Result<Content, Error> {
-    let html = sanitizer::sanitize(&content.to_html(), &SafeList::content_filter()).map_err(Error::Parse)?;
+    let html = sanitizer::sanitize(&content.to_html(), SafeList::content_filter()).map_err(Error::Parse)?;
     Content::wrap(&html)
 }

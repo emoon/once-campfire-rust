@@ -4,6 +4,7 @@
 use base64::Engine;
 use rails_compat::erb;
 use regex::Regex;
+use std::fmt::Write as _;
 use std::sync::LazyLock;
 
 use crate::Error;
@@ -385,7 +386,6 @@ impl OpengraphEmbed {
 
 /// `render_action_text_attachment(attachment)`: the attachable's partial, chomped. `render_content`
 /// renders a nested content attachment's own content (`ContentAttachment#to_html`).
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) -> Result<String, Error>) -> Result<String, Error> {
     let html = match &attachment.attachable {
         Attachable::User(user) => render_mention(user),
@@ -405,10 +405,12 @@ pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) 
             html.push_str(&image_tag(url, width.as_deref(), height.as_deref())?);
             html.push('\n');
             if let Some(caption) = &attachment.caption {
-                html.push_str(&format!(
+                write!(
+                    html,
                     "    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n",
                     erb::escape(caption)
-                ));
+                )
+                .unwrap();
             }
             html.push_str("</figure>\n");
             html
@@ -424,19 +426,23 @@ pub fn render_attachment(attachment: &Attachment, render_content: &dyn Fn(&str) 
                 String::from("<figure class=\"attachment attachment--preview attachment--video\">\n  <video controls=\"controls\"");
             for (name, value) in [("width", width), ("height", height)] {
                 if let Some(v) = value {
-                    html.push_str(&format!(" {name}=\"{}\"", erb::escape(v)));
+                    write!(html, " {name}=\"{}\"", erb::escape(v)).unwrap();
                 }
             }
-            html.push_str(&format!(
+            write!(
+                html,
                 ">\n    <source src=\"{}\" type=\"{}\">\n</video>",
                 erb::escape(url),
                 erb::escape(content_type)
-            ));
+            )
+            .unwrap();
             if let Some(caption) = &attachment.caption {
-                html.push_str(&format!(
+                write!(
+                    html,
                     "    <figcaption class=\"attachment__caption\">\n      {}\n    </figcaption>\n",
                     erb::escape(caption)
-                ));
+                )
+                .unwrap();
             }
             html.push_str("</figure>\n");
             html
@@ -458,7 +464,6 @@ pub fn render_mention(user: &MentionUser) -> String {
 }
 
 /// reference/app/views/action_text/attachables/_opengraph_embed.html.erb
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn render_opengraph_embed(embed: &OpengraphEmbed) -> String {
     let title = match (&embed.href, &embed.filename) {
         (Some(href), filename) => {
@@ -482,10 +487,12 @@ pub fn render_opengraph_embed(embed: &OpengraphEmbed) -> String {
         erb::escape(&truncate(embed.description.as_deref().unwrap_or(""), 560, "…")),
     );
     if let Some(url) = &embed.url {
-        html.push_str(&format!(
+        write!(
+            html,
             "        <div class=\"og-embed__image\">\n          <img src=\"{}\" class=\"image center\" alt=\"\">\n        </div>\n",
             erb::escape(url)
-        ));
+        )
+        .unwrap();
     }
     html.push_str("    </div>\n  </actiontext-opengraph-embed>\n</figure>\n");
     html
@@ -495,7 +502,6 @@ static ASSET_URI_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?mi)^[-a-z
 
 /// `image_tag(url, width:, height:)` for a remote image. Sources that aren't URLs go through the
 /// asset pipeline, which raises for anything it doesn't know; a rooted path passes through.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn image_tag(url: &str, width: Option<&str>, height: Option<&str>) -> Result<String, Error> {
     let src = if is_blank(url) {
         String::new()
@@ -507,10 +513,10 @@ fn image_tag(url: &str, width: Option<&str>, height: Option<&str>) -> Result<Str
     let mut html = String::from("<img");
     for (name, value) in [("width", width), ("height", height)] {
         if let Some(v) = value {
-            html.push_str(&format!(" {name}=\"{}\"", erb::escape(v)));
+            write!(html, " {name}=\"{}\"", erb::escape(v)).unwrap();
         }
     }
-    html.push_str(&format!(" src=\"{}\" />", erb::escape(&src)));
+    write!(html, " src=\"{}\" />", erb::escape(&src)).unwrap();
     Ok(html)
 }
 

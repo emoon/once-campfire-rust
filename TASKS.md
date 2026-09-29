@@ -92,7 +92,7 @@ otherwise stop" in `plans/cleanup.md`.
       `bench/lib/perfprof.py`, `bench/lib/stacks.py`; `cpuprof.py` split to share them. Production
       lines +0 (no Rust changes), allocations n/a. Tests and clippy not re-run (no Rust changed);
       parity n/a. Clean session under the lock, screensaver off before and after every step.
-- [~] S-9 The write path and cable slower than published v0.1.1: confirm on this host, find the cause (refactor/cleanup-s-9)
+- [x] S-9 The write path and cable slower than published v0.1.1: answered, no regression (the published table is from another CPU; 080f903 ≈ 9e2a110 here). Results only: `bench/results/s-9-20260929/`
 - [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
@@ -118,10 +118,10 @@ otherwise stop" in `plans/cleanup.md`.
       kit, cable and campfire enable the feature. Note for F-2: private `json` is inside
       `crypto` too, and `serde_json` is optional; un-gate both when json gains public API (lib.rs
       and Cargo.toml will conflict; keep both sides).
-- [~] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders (refactor/cleanup-f-2,
+- [x] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders (refactor/cleanup-f-2, Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
       8b5bf92 on ca8ac66). Parity 873/874 (1 allowed, baseline) with the cache-fixed build
       (compare-2026-09-29T08-11-48-489Z). Pending: guarded ABBA CPU (screensaver), alloc with S-7's tool.
-- [~] F-3 `rails_compat::rack::byte_ranges` + multipart; fix the assets overflow range (refactor/cleanup-f-3)
+- [x] F-3 `rails_compat::rack::byte_ranges` + multipart; fix the assets overflow range (refactor/cleanup-f-3) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [x] F-4 `rails_compat::ruby::{to_i, cast_integer}`; delete 3 copies (refactor/cleanup-f-4, 4704c8f
       on a0df4b6, review nits folded in; parity re-run after 2895add: 873 pass + 1 allowed,
       compare-2026-09-29T05-04-43-722Z). Production lines +4 (campfire −41, rails_compat +45; 11 are new imports),
@@ -158,6 +158,11 @@ otherwise stop" in `plans/cleanup.md`.
 
 ## Phase 2: lanes
 
+Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fail, 1 allowed, as the Phase 0 baseline (2026-09-29).
+Batch parity on 6b98426 (after batch 1, VIEW-3, KIT-9): 873 pass, 0 fail, 1 allowed (2026-09-29).
+Batch parity on 8559e9c (after VIEW-11, VIEW-10): 872 pass, **1 fail**: `rooms/show/direct/group @ chromium-desktop-light`, network layer, the `/users/me/sidebar` body differs (the dark cell of the same state passed). `--only 'rooms/show/direct/*'` then passed 3/3 (`parity/out/recheck-direct-*`). Treated as a one-off; if the next full compare fails it again, bisect VIEW-11/VIEW-10.
+VIEW-2's parity (on top of VIEW-11, VIEW-10): 873 pass, 0 fail, 1 allowed; `rooms/show/direct/group` passed, so the miss above was a one-off (2026-09-30).
+
 ### DB (`crates/db`)
 - [ ] DB-1 perf: N+1 in `Room::find_direct_for`
 - [ ] DB-2 Existing enums instead of string/integer literals
@@ -174,11 +179,11 @@ otherwise stop" in `plans/cleanup.md`.
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
 - [x] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (refactor/cleanup-perf-1, merged a493fe6). c=16 ABBA: CPU/req −8.7…−12.3%, req/s +7.7…+20.2% on all four targets; no cap on inline reads (see "For the human"). db +53, campfire +3 lines
 - [x] DB-12 perf: no `mmap_size` (refactor/cleanup-db-12, merged). c=16 ABBA on DB-11: post_message CPU/req −12.8%, req/s +8.9%; reads ±1.3%. db −1 line
-- [~] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)` (refactor/cleanup-db-13)
+- [-] DB-13 perf: column indices once per query (refactor/cleanup-db-13). Dropped: no target gains more than T (8 ABBA runs on fc1aef6: messages_page CPU/req −2.9%, room_show −1.4%, sidebar −2.0%, post_message +2.2%). Results kept (`bench/results/db-13-20260929/`); code not merged.
 - [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
 ### KIT (`crates/kit`, `crates/routes`)
-- [~] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1)
+- [x] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [ ] KIT-2 perf: per-request allocations (deflater, cache variant, compression, host, remote_ip, formats, log, timeouts)
 - [x] KIT-3 Session dead state (refactor/cleanup-kit-3)
 - [ ] KIT-4 `dispatch` error flow; delete `clone_error`
@@ -186,26 +191,27 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] KIT-6 Typed `FrontConfig`, `Disposition`, `Redirect.status`, bool structs
 - [ ] KIT-7 Routes: `&'static str` for constant paths
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
-- [ ] KIT-9 perf: splice without rehashing (text identity, recorded fragment offsets, combined CRCs) (S-8)
+- [x] KIT-9 perf: splice without rehashing (BLAKE3 text identity, combined CRCs) (refactor/cleanup-kit-9, merged). 8 ABBA runs: room_show and messages_page CPU/req −3.3%. kit +60 lines
+- [ ] KIT-9b perf: record fragment offsets while rendering instead of `find`/`starts_with` over the body (6.1% of room_show, 6.6% of messages_page in S-8). Split from KIT-9: needs a recording writer through askama's `render()`, the page helpers and `Response`, composed across the frame layout's copy of the content
 - [x] KIT-10 perf: reuse gzip output for repeated bodies (refactor/cleanup-kit-10, merged). c=16 ABBA, 8 runs: sidebar CPU/req −48.5%, req/s +91%; others ±1%. Encoder pooling left out (−0.5% of post_message, under T). kit +72 lines
 
 ### WEB (`crates/campfire` controllers, concerns, app)
 - [-] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1). Dropped: no measurable time gain, even on the path it changes (static_css_app, the bare app: CPU/req +0.3%, req/s -0.9%, 8 ABBA runs). Only the results are kept (7d9ccbc, `bench/results/web-1-20260929/`); the code commit was not merged.
 - [ ] WEB-2 perf: memoized user-agent parse; byte-offset parser
-- [~] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3)
+- [x] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
 - [ ] WEB-5 perf: ~6 → ~3 DB round trips on room show; `page::bare` without layout load
 - [x] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless` (refactor/cleanup-web-6, 7af9f04 on d23c0b8): production lines campfire -12, db +2 (total -10), tests +50; allocations/request n/a (no perf gate, coordinator's call). Reviewer's two requests applied: room-creation test now covers member+unrestricted 200 and administrator+restricted 200 (each verified to fail against the one-sided rewrite), `can_administer` doc cites reference/app/models/user/role.rb. Tests 659 passed, 0 failed, 7 ignored (seed built, none skipped); clippy clean. Previous commit message's delta (-14/+0/+33) was miscounted; corrected.
 - [ ] WEB-7 `page::render_partial` for the 12 detached renders
-- [ ] WEB-8 Presenters: SQL to db (after DB-2), dedupe, per-message perf fixes
+- [ ] WEB-8 Presenters: SQL to db (after DB-2), dedupe. The perf parts were tried and dropped (no target > T; `bench/results/web-8-20260929/`, branch refactor/cleanup-web-8)
 - [ ] WEB-9 perf (measure): `RegexSet` router (after KIT-1)
 - [ ] WEB-10 Redirect helper, bool params, precomputed version headers; `update_message` matches on `Assignment` (F-5)
 - [ ] WEB-11 De-flake `presenters::accounts::tests::manages_bots` and `accounts::tests::serves_the_account_logo_and_avatars` (302 under load; F-2, VIEW-3)
-- [ ] WEB-12 perf: request log off the request path (buffered, non-blocking, lossless) (S-8)
+- [-] WEB-12 perf: request log off the request path (refactor/cleanup-web-12). Dropped: no gain (ABBA on 6b98426: CPU/req +0.9…+1.5% on all four targets). Measured with stdout to a file; a pipe (Docker) is untested. Results kept (`bench/results/web-12-20260929/`); code not merged.
 
 ### LIVE (`crates/cable`, campfire channels, integrations, jobs)
 - [ ] LIVE-1 perf: hub lock not held while sending
-- [ ] LIVE-2 perf: encode per-member broadcasts once
+- [-] LIVE-2 perf: encode per-member broadcasts once (refactor/cleanup-live-2). Dropped: post_message req/s −4.0% (> T) though CPU/req −1.9% (8 ABBA runs on 8559e9c). Not merged; a retry should time encode-once apart from moving broadcasts out of the read, plus the cable suite. `bench/results/live-2-20260929/`
 - [ ] LIVE-3 `Broadcasting` newtype; `Typing` enum (with VIEW-5)
 - [ ] LIVE-4 Split `connection::run`; `Command` enum
 - [ ] LIVE-5 Web push: no boxed handler; `permitted_endpoint_host`; tokio worker (optional)
@@ -215,17 +221,17 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] LIVE-9 perf (measure first; after LIVE-1, LIVE-2): fan-out writes per delivery; per-connection queue instead of `SelectAll` (S-8)
 
 ### VIEW (`crates/views`, `crates/richtext`)
-- [~] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1)
-- [ ] VIEW-2 perf: `Attrs` with `Cow` keys and `write!`; the `push_str(&format!)` sites
-- [~] VIEW-3 perf: `SafeList` statics, no double sanitize, `qualified_name` without allocation, `NodeId` (refactor/cleanup-view-3)
+- [x] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
+- [x] VIEW-2 perf: `Attrs` and string building (refactor/cleanup-view-2, merged 286b2e9). sidebar CPU/req −12.1%, room_show −4.0%. views +193 lines
+- [x] VIEW-3 perf: richtext statics, fewer sanitize passes, allocation-free names (refactor/cleanup-view-3, merged b603f22). Cold fragment cache, 8 ABBA runs: room_show CPU/req −4.6%, req/s +10.1%; messages_page −4.3%, +7.6%; warm targets within T. Parity 873/874. richtext +50 lines
 - [ ] VIEW-4 `Cached<V>` + `CachedPartial` for messages/users/boosts
 - [ ] VIEW-5 One `DomId` and one `param_key` (with LIVE-3)
 - [ ] VIEW-6 Borrowed `ViewContext`; static asset paths; `Platform` enums
 - [ ] VIEW-7 `render_mention` agrees with `_mention.html` (test or render)
 - [ ] VIEW-8 perf (last): `ParsedBody`, parse each message body once
 - [ ] VIEW-9 views `rails_json_escape`/`to_rails_json` and richtext `to_json_string` on `rails_compat::json` (after F-1, F-2)
-- [ ] VIEW-10 perf: page buffers sized up front (touches the page renders in campfire) (S-8)
-- [ ] VIEW-11 perf (after VIEW-4): fragment cache keys without `format!`/`strftime` (S-8)
+- [x] VIEW-10 perf: page buffers sized up front (refactor/cleanup-view-10, merged). 8 ABBA runs: room_show CPU/req −4.4%, messages_page −3.1%
+- [x] VIEW-11 perf: fragment cache keys without `format!`/`strftime` (refactor/cleanup-view-11, merged a13b19d; done without VIEW-4). messages_page CPU/req −9.0%, room_show −5.0%. views +63, campfire −8 lines
 
 ### STORE (`crates/storage`, `crates/assets`, rails_compat crypto, `campfire/src/active_storage.rs`)
 - [ ] STORE-1 One Active Storage verifier; vectors test the production one
@@ -284,7 +290,17 @@ won't make. They don't block the run and go into the final report.
   SQLITE_BUSY for up to 5 s) holds a runtime worker; with WAL, readers don't wait on the writer, so
   this needs something unusual (WAL recovery). Say if you want the cap anyway.
 
+- (WEB-8 review) Predates the cleanup: Rails' `message_tag` evaluates `plain_text_body.all_emoji?`
+  in the div's attributes before `avatar_tag` (`reference/app/helpers/messages_helper.rb:34`), so a
+  message with both a non-UTF-8 body and a missing creator fails the page in Rails; the port renders
+  the unrenderable view. Keep (and list under Known differences) or match Rails?
+
 ## Found while working
+
+- (2026-09-29, VIEW-11 run) `database::tests::the_checkpointer_copies_the_wal_into_the_database`
+  failed once in a full workspace run ("the WAL was never checkpointed", 10 s deadline), then
+  passed 3/3 alone and in the next full run. A 10 s miss is more than load explains: look for a
+  lost wake-up between `note_wal_size`/`wal_grew_to` and the checkpointer thread.
 
 - (F-3) kit `response.rs` has a fourth byte-range parser, `parse_range` (single range, strict
   `u64` parse, not Rack's rules), behind `SendOptions::ranges`. No production caller sets `ranges`

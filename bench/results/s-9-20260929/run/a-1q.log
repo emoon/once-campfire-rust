@@ -1,0 +1,34 @@
+date: 2026-09-29T17:35:12+02:00
+host: 7.2.3-arch1-3, AMD Ryzen 9 9950X3D 16-Core Processor, 32 threads, 60GB
+server cpus: 8-11 (nproc 4); loadgen cpus: 12-15; network: host
+env: WEB_CONCURRENCY=3 JOB_CONCURRENCY=3 RAILS_MAX_THREADS=5 
+rust extra env: 
+rust image: campfire-rust:s-9-a sha256:bba76e9ee0be84d204f0b8285a61a77aece7b66873d14d5c977ff2c33121e688 2026-09-29T11:34:38.632554571+02:00
+rust HEAD: 7ef98d2 (dirty: 0 files)
+[17:36:12] load before run: 3.35 6.38 7.19 (waited 60s)
+[17:36:12] rust rep 1: starting (load: 3.35 6.38 7.19)
+[17:36:23] rust rep 1: cold start 425ms, idle 52MB (anon 11MB)
+[17:36:33] rust rep 1: room_show c=1 5550.5 rps p50 0.169 p99 0.273 {'200': 44405} err 0
+[17:36:41] rust rep 1: room_show c=16 22744.5 rps p50 0.668 p99 1.555 {'200': 181972} err 0
+[17:36:49] rust rep 1: room_show c=64 22642.7 rps p50 2.799 p99 4.815 {'200': 181192} err 0
+[17:36:59] rust rep 1: messages_page c=1 6181.8 rps p50 0.152 p99 0.243 {'200': 49455} err 0
+[17:37:07] rust rep 1: messages_page c=16 25908.3 rps p50 0.576 p99 1.456 {'200': 207281} err 0
+[17:37:15] rust rep 1: messages_page c=64 26647.0 rps p50 2.349 p99 4.119 {'200': 213222} err 0
+[17:37:25] rust rep 1: sidebar c=1 3221.1 rps p50 0.3 p99 0.429 {'200': 25770} err 0
+[17:37:33] rust rep 1: sidebar c=16 13900.2 rps p50 1.109 p99 2.301 {'200': 111218} err 0
+[17:37:41] rust rep 1: sidebar c=64 14278.0 rps p50 4.455 p99 7.575 {'200': 114280} err 0
+[17:37:51] rust rep 1: search c=1 6525.9 rps p50 0.143 p99 0.241 {'200': 52208} err 0
+[17:37:59] rust rep 1: search c=16 26278.6 rps p50 0.561 p99 1.491 {'200': 210241} err 0
+[17:38:07] rust rep 1: search c=64 27604.0 rps p50 2.263 p99 3.983 {'200': 220882} err 0
+[17:38:17] rust rep 1: avatar c=1 78259.5 rps p50 0.011 p99 0.02 {'200': 626079} err 0
+[17:38:25] rust rep 1: avatar c=16 359438.7 rps p50 0.033 p99 0.129 {'200': 2875603} err 0
+[17:38:33] rust rep 1: avatar c=64 365679.3 rps p50 0.133 p99 1.295 {'200': 2926201} err 0
+[17:38:43] rust rep 1: static_css c=1 84487.3 rps p50 0.011 p99 0.019 {'200': 675902} err 0
+[17:38:51] rust rep 1: static_css c=16 385881.0 rps p50 0.032 p99 0.121 {'200': 3087151} err 0
+[17:38:59] rust rep 1: static_css c=64 393122.5 rps p50 0.128 p99 1.132 {'200': 3145506} err 0
+[17:39:09] rust rep 1: up c=1 31862.8 rps p50 0.029 p99 0.057 {'200': 254905} err 0
+[17:39:17] rust rep 1: up c=16 147692.7 rps p50 0.108 p99 0.201 {'200': 1181607} err 0
+[17:39:25] rust rep 1: up c=64 143996.6 rps p50 0.426 p99 0.975 {'200': 1152114} err 0
+[17:39:36] rust rep 1: post_message c=1 2068.7 rps p50 0.386 p99 1.514 {'200': 16570} err 0
+[17:39:44] rust rep 1: post_message c=16 4804.3 rps p50 2.293 p99 43.135 {'200': 38442} err 0
+[17:39:52] rust rep 1: post_message c=64 4747.1 rps p50 9.959 p99 56.575 {'200': 38021} err 0

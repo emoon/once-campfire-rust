@@ -1,0 +1,30 @@
+     5.61%  [.] <campfire_richtext::dom::Dom>::serialize_node
+     4.03%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<usize, campfire_richtext::dom::Sink>>>::step
+     3.35%  [.] 0x000000000018f473
+     3.09%  [.] <tendril::tendril::Tendril<tendril::fmt::UTF8>>::push_bytes_without_validating
+     2.97%  [.] <tendril::tendril::Tendril<tendril::fmt::UTF8>>::pop_front_char
+     2.72%  [.] <campfire_richtext::dom::Dom>::parse_nodes
+     2.67%  [.] 0x00000000000a6e8b
+     2.41%  [.] markup5ever::interface::tree_builder::create_element::<campfire_richtext::dom::Sink>
+     2.40%  [.] regex_automata::hybrid::search::find_fwd
+     2.39%  [.] <alloc::raw_vec::RawVecInner>::finish_grow
+     2.24%  [.] <html5ever::tree_builder::TreeBuilder<usize, campfire_richtext::dom::Sink> as html5ever::tokenizer::interface::TokenSink>::process_token
+     2.14%  [.] 0x000000000018f413
+     2.10%  [.] <string_cache::atom::Atom<web_atoms::LocalNameStaticSet> as core::convert::From<alloc::borrow::Cow<str>>>::from
+     1.97%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<usize, campfire_richtext::dom::Sink>>>::pop_except_from
+     1.94%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<usize, campfire_richtext::dom::Sink>>>::discard_tag
+     1.92%  [.] cfree
+     1.83%  [.] 0x000000000018f439
+     1.71%  [.] malloc
+     1.71%  [.] <campfire_richtext::dom::Dom>::attr
+     1.61%  [.] campfire_richtext::dom::parse_with_html5ever
+     1.55%  [.] <html5ever::tree_builder::TreeBuilder<usize, campfire_richtext::dom::Sink>>::step
+     1.55%  [.] 0x000000000018f484
+     1.33%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<usize, campfire_richtext::dom::Sink>>>::data_state_simd_fast_path
+     1.31%  [.] <campfire_richtext::dom::Dom as core::clone::Clone>::clone
+     1.30%  [.] <alloc::raw_vec::RawVecInner>::finish_grow
+     1.27%  [.] <campfire_richtext::dom::Sink>::new_node
+     1.15%  [.] <regex_automata::meta::strategy::Core as regex_automata::meta::strategy::Strategy>::search
+     1.13%  [.] <alloc::vec::Vec<markup5ever::interface::Attribute> as core::clone::Clone>::clone
+     1.10%  [.] <campfire_richtext::dom::Sink>::insert_at
+     1.08%  [.] <markup5ever::util::buffer_queue::BufferQueue>::next

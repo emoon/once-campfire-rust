@@ -9,7 +9,8 @@ use axum::http::{Request as HttpRequest, header};
 use campfire_kit::exceptions::ErrorPages;
 use campfire_kit::format::{HTML, JSON, TURBO_STREAM};
 use campfire_kit::{
-    Cookie, Ctx, ExpiresIn, Freshness, Kit, KitConfig, Redirect, Result, SendOptions, StatusCode, action, front, halt, testing,
+    Cookie, Ctx, ExpiresIn, Freshness, Kit, KitConfig, Param, ParamMap, Redirect, Result, SendOptions, StatusCode, action, front, halt,
+    testing,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -51,6 +52,16 @@ async fn echo(c: &mut Ctx) -> Result {
         "remote_ip": c.request.remote_ip()?,
     });
     c.json(StatusCode::OK, &body)
+}
+
+/// Routes inside the action, as Campfire's route table does, and lists `params` in order.
+async fn routed(c: &mut Ctx) -> Result {
+    let mut path_params = ParamMap::new();
+    path_params.insert("id", Param::from("7"));
+    path_params.insert("action", Param::from("show"));
+    c.set_path_params(path_params);
+    let params: Vec<String> = c.params.iter().map(|(k, v)| format!("{k}={}", v.as_str().unwrap_or("?"))).collect();
+    Ok(c.html(params.join("&")))
 }
 
 async fn upload(c: &mut Ctx) -> Result {
@@ -234,6 +245,7 @@ fn app_with(config: KitConfig) -> Router {
             "/echo/{id}",
             campfire_kit::get(echo).post(action(echo)).patch(action(echo)).delete(action(echo)),
         )
+        .route("/routed/{*path}", campfire_kit::get(routed).post(action(routed)))
         .route("/upload", campfire_kit::patch(upload).post(action(upload)))
         .route(
             "/session",
@@ -409,6 +421,18 @@ async fn params_merge_query_over_body_and_path_over_both() {
     let json = reply.json();
     assert_eq!(json["params"], json!({"a": {"b": ["1", "2"]}, "b": "query", "id": "9"}));
     assert_eq!(json["raw"], "a[b][]=1&a[b][]=2&b=body&id=body");
+}
+
+#[tokio::test]
+async fn set_path_params_ends_as_if_merged_from_scratch() {
+    let app = app();
+    // The route's own `path` param gives way to the query's, and body keys keep their place.
+    let reply = send(&app, form_post("/routed/a/b?path=query&id=q&c=3", "id=body&z=1&path=body")).await;
+    assert_eq!(reply.text(), "id=7&z=1&path=query&c=3&action=show");
+    let reply = send(&app, form_post("/routed/a/b", "path=body")).await;
+    assert_eq!(reply.text(), "path=body&id=7&action=show");
+    let reply = send(&app, get("/routed/a/b?c=3").body(AxumBody::empty()).unwrap()).await;
+    assert_eq!(reply.text(), "c=3&id=7&action=show");
 }
 
 #[tokio::test]

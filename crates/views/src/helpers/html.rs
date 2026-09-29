@@ -13,9 +13,10 @@ pub use rails_compat::erb::{escape, escape_into};
 /// An html_safe string.
 pub type Html = Safe<String>;
 
-/// `raw` / `String#html_safe`.
-pub fn raw(html: impl AsRef<str>) -> Html {
-    Safe(html.as_ref().to_string())
+/// `raw` / `String#html_safe`: `html` as it is, not copied (a rendered page, a `&'static` tag
+/// string, a cached fragment).
+pub fn raw<T: fmt::Display>(html: T) -> Safe<T> {
+    Safe(html)
 }
 
 /// `h(text)` as an html_safe value.

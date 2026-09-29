@@ -4,6 +4,7 @@
 //! text is kept (as a single space) because it can affect inline layout.
 
 use std::cell::RefCell;
+use std::fmt::Write as _;
 
 use html5ever::tendril::StrTendril;
 use html5ever::tokenizer::{
@@ -106,7 +107,6 @@ pub fn normalize_html(html: &str) -> Vec<String> {
 }
 
 /// A readable report of the first differences between two normalized documents, or `None`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn diff(expected: &[String], actual: &[String]) -> Option<String> {
     if expected == actual {
         return None;
@@ -126,7 +126,7 @@ pub fn diff(expected: &[String], actual: &[String]) -> Option<String> {
         let e = expected.get(index).map(String::as_str).unwrap_or("<end>");
         let a = actual.get(index).map(String::as_str).unwrap_or("<end>");
         let marker = if e == a { " " } else { "!" };
-        report.push_str(&format!("{marker} rails: {e}\n{marker} rust:  {a}\n"));
+        write!(report, "{marker} rails: {e}\n{marker} rust:  {a}\n").unwrap();
     }
     Some(report)
 }

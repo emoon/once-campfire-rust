@@ -6,6 +6,8 @@
 //! in that serializer. With the cookie jars' `NullSerializer` (and in Rails 7.0) it's the legacy
 //! "dual-serialized" one, `{"_rails":{"message":"<base64 of the dumped value>","exp":..,"pur":..}}`,
 //! which always carries `exp` and `pur`, as `null` when unset.
+use std::fmt::Write as _;
+
 use jiff::Timestamp;
 use serde_json::Value;
 
@@ -32,7 +34,7 @@ impl Serializer {
                 other => panic!("the null serializer only signs strings, got {other}"),
             },
             Serializer::Json => json::generate(value).into_bytes(),
-            Serializer::JsonWithFallback { .. } => json::encode(value).into_bytes(),
+            Serializer::JsonWithFallback { .. } => json::encode(value).into_string().into_bytes(),
         }
     }
 
@@ -63,7 +65,7 @@ impl Serializer {
     pub(crate) fn encode_json(&self, value: &Value) -> String {
         match self {
             Serializer::Json => json::generate(value),
-            _ => json::encode(value),
+            _ => json::encode(value).into_string(),
         }
     }
 
@@ -91,7 +93,6 @@ pub(crate) fn serialize_with_metadata(
 
 /// Like [`serialize_with_metadata`] for a value the caller already dumped with `serializer`
 /// (so the caller controls key order and escaping).
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub(crate) fn serialize_dumped_with_metadata(
     serializer: Serializer,
     dumped: &[u8],
@@ -108,10 +109,10 @@ pub(crate) fn serialize_dumped_with_metadata(
     if serializer.uses_envelope() {
         let mut out = format!(r#"{{"_rails":{{"data":{}"#, String::from_utf8_lossy(dumped));
         if let Some(expiry) = expiry {
-            out.push_str(&format!(r#","exp":{}"#, serializer.encode_json(&expiry)));
+            write!(out, r#","exp":{}"#, serializer.encode_json(&expiry)).unwrap();
         }
         if let Some(purpose) = purpose {
-            out.push_str(&format!(r#","pur":{}"#, serializer.encode_json(&purpose)));
+            write!(out, r#","pur":{}"#, serializer.encode_json(&purpose)).unwrap();
         }
         out.push_str("}}");
         out.into_bytes()

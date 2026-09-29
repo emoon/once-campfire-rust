@@ -206,40 +206,41 @@ impl From<SidebarDirect> for SidebarDirectItem {
 /// `users/sidebars/rooms/_direct` for `membership`, whose body is `cache membership` (and which
 /// `users/sidebars/show` renders with `cached: true`): the first rendering of a membership
 /// version is what later renders reuse.
-pub fn direct_room(ctx: &ViewContext, membership: &SidebarDirect) -> String {
+pub fn direct_room(ctx: &ViewContext, membership: &SidebarDirect) -> crate::fragment_cache::Fragment {
     crate::fragment_cache::fetch(
-        || direct_room_fragment_key(membership.membership_id, membership.membership_updated_at),
+        |key| direct_room_fragment_key(key, membership.membership_id, membership.membership_updated_at),
         || {
-            SidebarDirectPartial {
-                ctx,
-                membership: membership.clone(),
-            }
-            .render()
-            .expect("users/sidebars/rooms/_direct renders")
+            SidebarDirectPartial { ctx, membership }
+                .render()
+                .expect("users/sidebars/rooms/_direct renders")
         },
     )
 }
 
 /// [`direct_room`] where a template renders the partial.
-pub fn cached_direct_room<'a>(ctx: &ViewContext, item: &'a SidebarDirectItem) -> askama::filters::Safe<std::borrow::Cow<'a, str>> {
+pub fn cached_direct_room(ctx: &ViewContext, item: &SidebarDirectItem) -> askama::filters::Safe<crate::fragment_cache::Fragment> {
     askama::filters::Safe(match item {
-        SidebarDirectItem::Fragment(html) => std::borrow::Cow::Borrowed(html.as_str()),
-        SidebarDirectItem::View(membership) => std::borrow::Cow::Owned(direct_room(ctx, membership)),
+        SidebarDirectItem::Fragment(html) => html.clone(),
+        SidebarDirectItem::View(membership) => direct_room(ctx, membership),
     })
 }
 
 /// The `users/sidebars/rooms/_direct` fragment for this membership version, if the current store
 /// holds it.
 pub fn cached_direct_room_fragment(membership_id: i64, updated_at: jiff::Timestamp) -> Option<crate::fragment_cache::Fragment> {
-    crate::fragment_cache::read(&direct_room_fragment_key(membership_id, updated_at))
+    crate::fragment_cache::read(|key| direct_room_fragment_key(key, membership_id, updated_at))
 }
 
-fn direct_room_fragment_key(membership_id: i64, updated_at: jiff::Timestamp) -> String {
-    format!(
-        "views/users/sidebars/rooms/_direct:{}/{}",
+/// `views/users/sidebars/rooms/_direct:<digest>/memberships/<id>-<version>`.
+fn direct_room_fragment_key(key: &mut String, membership_id: i64, updated_at: jiff::Timestamp) {
+    crate::fragment_cache::push_record_fragment_key(
+        key,
+        "users/sidebars/rooms/_direct",
         direct_room_digest(),
-        crate::fragment_cache::cache_key_with_version("memberships", membership_id, updated_at)
-    )
+        "memberships",
+        membership_id,
+        updated_at,
+    );
 }
 
 fn direct_room_digest() -> &'static str {
@@ -314,7 +315,7 @@ impl Page for SidebarShow<'_> {}
 #[template(path = "users/sidebars/rooms/_direct.html")]
 pub struct SidebarDirectPartial<'a> {
     pub ctx: &'a ViewContext<'a>,
-    pub membership: SidebarDirect,
+    pub membership: &'a SidebarDirect,
 }
 
 /// `users/sidebars/rooms/_shared.html.erb` on its own (broadcast and rendered by rooms controllers).
@@ -322,4 +323,24 @@ pub struct SidebarDirectPartial<'a> {
 #[template(path = "users/sidebars/rooms/_shared.html")]
 pub struct SidebarSharedPartial {
     pub room: SidebarRoom,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_room_keys_match_their_formatted_version() {
+        let time: jiff::Timestamp = "2024-06-01T12:00:00.000123Z".parse().unwrap();
+        let mut key = String::new();
+        direct_room_fragment_key(&mut key, 42, time);
+        assert_eq!(
+            key,
+            format!(
+                "views/users/sidebars/rooms/_direct:{}/{}",
+                direct_room_digest(),
+                crate::fragment_cache::cache_key_with_version("memberships", 42, time)
+            )
+        );
+    }
 }

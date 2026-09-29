@@ -9,6 +9,8 @@
 //! The app plugs `rails_compat`'s message verifier in through the [`Verifier`] trait;
 //! [`AppMessageVerifier`] is a self-contained implementation the golden-vector tests use.
 
+use std::fmt::Write as _;
+
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use hmac::{Hmac, Mac};
@@ -44,13 +46,12 @@ impl AppMessageVerifier {
 }
 
 impl Verifier for AppMessageVerifier {
-    #[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
     fn generate(&self, data_json: &str, purpose: &str, expires_at: Option<jiff::Timestamp>) -> String {
         let mut envelope = format!("{{\"_rails\":{{\"data\":{data_json}");
         if let Some(expires_at) = expires_at {
-            envelope.push_str(&format!(",\"exp\":{}", Json::String(iso8601_ms(expires_at)).encode()));
+            write!(envelope, ",\"exp\":{}", Json::String(iso8601_ms(expires_at)).encode()).unwrap();
         }
-        envelope.push_str(&format!(",\"pur\":{}}}}}", Json::String(purpose.to_string()).encode()));
+        write!(envelope, ",\"pur\":{}}}}}", Json::String(purpose.to_string()).encode()).unwrap();
         let data = STANDARD.encode(envelope);
         let digest = self.digest(&data);
         format!("{data}--{digest}")

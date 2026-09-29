@@ -1,6 +1,7 @@
 //! The Action Cable protocol, driven over a real socket.
 mod support;
 
+use std::fmt::Write as _;
 use std::time::Duration;
 
 use campfire_cable::Config;
@@ -358,7 +359,6 @@ async fn turbo_streams_channel_verifies_and_guards_stream_names() {
     client.assert_silent().await;
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 async fn http_get(url: &str, headers: &[(&str, &str)]) -> (u16, Option<String>, String) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let url = url.strip_prefix("http://").unwrap();
@@ -366,7 +366,7 @@ async fn http_get(url: &str, headers: &[(&str, &str)]) -> (u16, Option<String>, 
     let mut stream = tokio::net::TcpStream::connect(host).await.unwrap();
     let mut request = format!("GET /{path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n");
     for (name, value) in headers {
-        request.push_str(&format!("{name}: {value}\r\n"));
+        write!(request, "{name}: {value}\r\n").unwrap();
     }
     request.push_str("\r\n");
     stream.write_all(request.as_bytes()).await.unwrap();

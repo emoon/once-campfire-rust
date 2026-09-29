@@ -219,7 +219,16 @@ fn webhook_payload() {
         json["message"]["body"],
         serde_json::json!({ "html": "First post!", "plain": "First post!" })
     );
-    assert!(payload.starts_with(r#"{"user":{"id":"#));
+    // Key order as written in `Webhook#payload`.
+    assert_eq!(
+        payload,
+        format!(
+            r#"{{"user":{{"id":{},"name":"Jason"}},"room":{{"id":{},"name":"Designers","path":"/rooms/1/bot/key/messages"}},"message":{{"id":{},"body":{{"html":"First post!","plain":"First post!"}},"path":"/rooms/1/@2"}}}}"#,
+            id("jason"),
+            id("designers"),
+            id("first")
+        )
+    );
 }
 
 // User::Role

@@ -1,0 +1,30 @@
+     4.63%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<campfire_richtext::dom::NodeId, campfire_richtext::dom::Sink>>>::step
+     3.77%  [.] <tendril::tendril::Tendril<tendril::fmt::UTF8>>::push_bytes_without_validating
+     3.74%  [.] 0x000000000018f473
+     3.37%  [.] <campfire_richtext::dom::Dom>::serialize_node
+     3.25%  [.] <alloc::raw_vec::RawVecInner>::finish_grow
+     3.17%  [.] <tendril::tendril::Tendril<tendril::fmt::UTF8>>::pop_front_char
+     3.16%  [.] <campfire_richtext::dom::Dom>::parse_nodes
+     2.90%  [.] markup5ever::interface::tree_builder::create_element::<campfire_richtext::dom::Sink>
+     2.87%  [.] 0x00000000000a6e8b
+     2.81%  [.] regex_automata::hybrid::search::find_fwd
+     2.49%  [.] <string_cache::atom::Atom<web_atoms::LocalNameStaticSet> as core::convert::From<alloc::borrow::Cow<str>>>::from
+     2.24%  [.] 0x000000000018f413
+     2.24%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<campfire_richtext::dom::NodeId, campfire_richtext::dom::Sink>>>::discard_tag
+     2.19%  [.] <html5ever::tree_builder::TreeBuilder<campfire_richtext::dom::NodeId, campfire_richtext::dom::Sink> as html5ever::tokenizer::interface::TokenSink>::process_token
+     2.06%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<campfire_richtext::dom::NodeId, campfire_richtext::dom::Sink>>>::pop_except_from
+     2.06%  [.] <html5ever::tree_builder::TreeBuilder<campfire_richtext::dom::NodeId, campfire_richtext::dom::Sink>>::step
+     2.04%  [.] 0x000000000018f439
+     1.90%  [.] cfree
+     1.69%  [.] campfire_richtext::dom::parse_with_html5ever
+     1.63%  [.] <html5ever::tokenizer::Tokenizer<html5ever::tree_builder::TreeBuilder<campfire_richtext::dom::NodeId, campfire_richtext::dom::Sink>>>::data_state_simd_fast_path
+     1.45%  [.] <alloc::vec::Vec<markup5ever::interface::Attribute> as core::clone::Clone>::clone
+     1.42%  [.] <campfire_richtext::dom::Dom as core::clone::Clone>::clone
+     1.31%  [.] 0x000000000018f484
+     1.26%  [.] <campfire_richtext::dom::Sink>::insert_at
+     1.24%  [.] core::ptr::drop_glue::<markup5ever::interface::QualName>
+     1.21%  [.] <campfire_richtext::dom::Sink>::new_node
+     1.17%  [.] malloc
+     1.16%  [.] campfire_richtext::autolink::auto_link
+     1.14%  [.] <regex_automata::nfa::thompson::backtrack::BoundedBacktracker>::search_imp
+     1.13%  [.] <markup5ever::util::buffer_queue::BufferQueue>::next

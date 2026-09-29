@@ -4,16 +4,17 @@
 //! A page is split into parts that cover it end to end: its cached fragments (each with the few
 //! bytes of text before it, when that follows another fragment) and the text in between (the
 //! layout). Each part is compressed once, against the part before it as a preset dictionary, and
-//! kept: deflate back-references can reach anything in the last 32 KB of output, so a piece is
-//! valid wherever the same predecessor comes right before it. Pages render the same until what
-//! they show changes (there are no per-request CSRF tokens), so from one request to the next a page
-//! is a run of stored pieces: gzip costs a CRC and some copying, and the ETag a hash of the parts'
-//! digests instead of the whole body. Compressing each part on its own would lose what consecutive
-//! messages share and make a room page ~4× larger; chained like this it's within 1% of compressing
-//! the page whole.
+//! kept with the part's CRC-32: deflate back-references can reach anything in the last 32 KB of
+//! output, so a piece is valid wherever the same predecessor comes right before it. Pages render
+//! the same until what they show changes (there are no per-request CSRF tokens), so from one
+//! request to the next a page is a run of stored pieces: gzip costs some copying and combining
+//! their CRCs, and the ETag a hash of the parts' digests instead of the whole body. Compressing
+//! each part on its own would lose what consecutive messages share and make a room page ~4×
+//! larger; chained like this it's within 1% of compressing the page whole.
 //!
-//! Fragments are known by identity (the `Arc` the fragment cache hands out), text by its SHA-256.
-//! A stored piece that depends on a fragment holds a `Weak` to it, so while the piece exists that
+//! Fragments are known by identity (the `Arc` the fragment cache hands out), text by its BLAKE3
+//! digest (as collision-resistant as SHA-256, and several times faster on a page's layout). A
+//! stored piece that depends on a fragment holds a `Weak` to it, so while the piece exists that
 //! address can't come back as a different fragment.
 
 use std::collections::HashMap;
@@ -22,7 +23,6 @@ use std::sync::{Arc, LazyLock, Mutex, Weak};
 
 use bytes::Bytes;
 use flate2::{Compress, Compression, FlushCompress};
-use sha2::{Digest, Sha256};
 
 use super::{Generations, lock};
 
@@ -40,7 +40,7 @@ const PIECES_PER_FRAGMENT: usize = 4;
 /// A bound on the bytes of stored text pieces (a room page's layout is ~10 KB compressed).
 const MAX_TEXT_PIECE_BYTES: usize = 16 << 20;
 
-type Sha = [u8; 32];
+type Digest = [u8; 32];
 
 /// A page's body split at its cached fragments, with each part's identity.
 #[derive(Debug)]
@@ -53,12 +53,12 @@ pub struct PageParts {
 enum Part {
     Text {
         range: Range<usize>,
-        sha: Sha,
+        digest: Digest,
     },
     /// `range` starts with the glue (the text since the previous fragment) and ends with the fragment.
     Fragment {
         fragment: Arc<String>,
-        sha: Sha,
+        digest: Digest,
         glue: usize,
         range: Range<usize>,
     },
@@ -69,7 +69,14 @@ enum Part {
 enum Before {
     Nothing,
     Fragment(usize),
-    Text(Sha),
+    Text(Digest),
+}
+
+/// A part compressed: raw deflate ending on a sync flush, and the part's CRC.
+#[derive(Clone)]
+struct Piece {
+    deflated: Bytes,
+    crc: Crc,
 }
 
 impl Part {
@@ -83,7 +90,7 @@ impl Part {
     /// a dictionary: a fragment's own bytes (never its glue), or the text.
     fn as_before<'a>(&self, body: &'a [u8]) -> (Before, &'a [u8]) {
         match self {
-            Part::Text { range, sha } => (Before::Text(*sha), &body[range.clone()]),
+            Part::Text { range, digest } => (Before::Text(*digest), &body[range.clone()]),
             Part::Fragment { fragment, range, .. } => (
                 Before::Fragment(fragment_key(fragment)),
                 &body[range.end - fragment.len()..range.end],
@@ -100,10 +107,10 @@ impl PageParts {
         if located.is_empty() {
             return None;
         }
-        let shas = fragment_shas(located.iter().map(|(fragment, _)| *fragment));
+        let digests = fragment_digests(located.iter().map(|(fragment, _)| *fragment));
         let mut parts = Vec::with_capacity(located.len() * 2 + 1);
         let mut position = 0;
-        for ((fragment, start), sha) in located.into_iter().zip(shas) {
+        for ((fragment, start), digest) in located.into_iter().zip(digests) {
             let follows_fragment = matches!(parts.last(), Some(Part::Fragment { .. }));
             let glue = if follows_fragment && start - position <= MAX_GLUE {
                 start - position
@@ -116,7 +123,7 @@ impl PageParts {
             let end = start + fragment.len();
             parts.push(Part::Fragment {
                 fragment: fragment.clone(),
-                sha,
+                digest,
                 glue,
                 range: start - glue..end,
             });
@@ -133,66 +140,69 @@ impl PageParts {
         self.len == body.len()
     }
 
-    /// The weak ETag's value: 32 hex digits of a SHA-256 over the parts (the same body split the
-    /// same way always gets the same one), as `Rack::ETag`'s is of the body.
+    /// The weak ETag's value: 32 hex digits of a BLAKE3 hash over the parts (the same body split
+    /// the same way always gets the same one), as `Rack::ETag`'s is of the body.
     pub fn etag(&self, body: &[u8]) -> String {
-        let mut hasher = Sha256::new();
+        let mut hasher = blake3::Hasher::new();
         for part in &self.parts {
             match part {
-                Part::Text { range, sha } => {
+                Part::Text { range, digest } => {
                     hasher.update(b"T");
-                    hasher.update((range.len() as u64).to_le_bytes());
-                    hasher.update(sha);
+                    hasher.update(&(range.len() as u64).to_le_bytes());
+                    hasher.update(digest);
                 }
                 Part::Fragment {
-                    sha,
+                    digest,
                     glue,
                     range,
                     fragment,
                 } => {
                     hasher.update(b"F");
-                    hasher.update((*glue as u64).to_le_bytes());
+                    hasher.update(&(*glue as u64).to_le_bytes());
                     hasher.update(&body[range.start..range.start + glue]);
-                    hasher.update((fragment.len() as u64).to_le_bytes());
-                    hasher.update(sha);
+                    hasher.update(&(fragment.len() as u64).to_le_bytes());
+                    hasher.update(digest);
                 }
             }
         }
-        hex::encode(&hasher.finalize()[..16])
+        hex::encode(&hasher.finalize().as_bytes()[..16])
     }
 
     /// The whole gzip member for `body`, decoding to exactly `body`. `mtime` and the Unix OS code
     /// go in the header, as `Zlib::GzipWriter` writes them.
     pub fn gzip(&self, body: &[u8], mtime: u32) -> Vec<u8> {
         let pieces = self.pieces(body);
-        let mut out = Vec::with_capacity(pieces.iter().map(Bytes::len).sum::<usize>() + 20);
+        let mut out = Vec::with_capacity(pieces.iter().map(|piece| piece.deflated.len()).sum::<usize>() + 20);
         out.extend_from_slice(&[0x1f, 0x8b, 8, 0]);
         out.extend_from_slice(&mtime.to_le_bytes());
         out.extend_from_slice(&[0, 3]);
         for piece in &pieces {
-            out.extend_from_slice(piece);
+            out.extend_from_slice(&piece.deflated);
         }
         // An empty final block (fixed Huffman), after the sync flushes that ended every piece.
         out.extend_from_slice(&[0x03, 0x00]);
-        // One pass over the whole body is cheaper than combining a CRC per piece.
-        out.extend_from_slice(&crc32fast::hash(body).to_le_bytes());
+        let crc = Crc::concatenated(pieces.iter().map(|piece| piece.crc));
+        // `fits` checks only the length: a body changed after the parts were taken would otherwise
+        // decode to the old bytes instead of failing its CRC.
+        debug_assert_eq!(crc, crc32fast::hash(body), "the body changed after its parts were taken");
+        out.extend_from_slice(&crc.to_le_bytes());
         out.extend_from_slice(&(body.len() as u32).to_le_bytes());
         out
     }
 
-    /// Each part's compressed piece: stored ones where they fit, the rest compressed and stored.
-    fn pieces(&self, body: &[u8]) -> Vec<Bytes> {
+    /// Each part's piece: stored ones where they fit, the rest compressed and stored.
+    fn pieces(&self, body: &[u8]) -> Vec<Piece> {
         let befores: Vec<(Before, &[u8])> = std::iter::once((Before::Nothing, &b""[..]))
             .chain(self.parts.iter().map(|part| part.as_before(body)))
             .collect();
-        let mut pieces: Vec<Option<Bytes>> = {
+        let mut pieces: Vec<Option<Piece>> = {
             let fragments = lock(&FRAGMENTS);
             let texts = &mut lock(&TEXT_PIECES);
             self.parts
                 .iter()
                 .zip(&befores)
                 .map(|(part, (before, _))| match part {
-                    Part::Text { sha, .. } => texts.get(&(*sha, *before)).map(|piece| piece.deflated),
+                    Part::Text { digest, .. } => texts.get(&(*digest, *before)).map(|text| text.piece),
                     Part::Fragment { fragment, glue, range, .. } => {
                         let glue = &body[range.start..range.start + glue];
                         fragments
@@ -208,16 +218,20 @@ impl PageParts {
             if piece.is_some() {
                 continue;
             }
-            let deflated = compress(dictionary, &body[part.range().clone()]);
+            let bytes = &body[part.range().clone()];
+            let compressed = Piece {
+                deflated: compress(dictionary, bytes),
+                crc: Crc::of(bytes),
+            };
             let pin = match index.checked_sub(1).map(|previous| &self.parts[previous]) {
                 Some(Part::Fragment { fragment, .. }) => Some(Arc::downgrade(fragment)),
                 _ => None,
             };
             match part {
-                Part::Text { sha, .. } => new_texts.push((
-                    (*sha, *before),
+                Part::Text { digest, .. } => new_texts.push((
+                    (*digest, *before),
                     TextPiece {
-                        deflated: deflated.clone(),
+                        piece: compressed.clone(),
                         _pin: pin,
                     },
                 )),
@@ -227,17 +241,17 @@ impl PageParts {
                         before: *before,
                         _pin: pin,
                         glue: body[range.start..range.start + glue].into(),
-                        deflated: deflated.clone(),
+                        piece: compressed.clone(),
                     },
                 )),
             }
-            *piece = Some(deflated);
+            *piece = Some(compressed);
         }
         if !new_texts.is_empty() {
             let mut texts = lock(&TEXT_PIECES);
-            for (key, piece) in new_texts {
-                let size = piece.deflated.len();
-                texts.insert(key, piece, size);
+            for (key, text) in new_texts {
+                let size = text.piece.deflated.len();
+                texts.insert(key, text, size);
             }
         }
         if !new_fragments.is_empty() {
@@ -253,8 +267,8 @@ impl PageParts {
 }
 
 fn text_part(body: &[u8], range: Range<usize>) -> Part {
-    let sha = Sha256::digest(&body[range.clone()]).into();
-    Part::Text { range, sha }
+    let digest = blake3::hash(&body[range.clone()]).into();
+    Part::Text { range, digest }
 }
 
 /// Where each fragment is, searching after the previous one; fragments not found are skipped.
@@ -313,13 +327,83 @@ fn compress(dictionary: &[u8], text: &[u8]) -> Bytes {
     out.into()
 }
 
+// --- CRC-32 from the pieces' --------------------------------------------------------------------
+
+/// gzip's CRC-32 of a part, kept so a page's comes from its parts' without reading the body: the
+/// CRC of `a ‖ b` is the CRC of `a` times x^(8·|b|), plus the CRC of `b`, as polynomials over GF(2)
+/// modulo the CRC's (zlib's `crc32_combine_op`). A part keeps its x^(8·|b|) too, so each step is
+/// one multiplication; `crc32fast::Hasher::combine` works it out from the length every time, which
+/// for a room page's parts costs more than a CRC of the whole page.
+#[derive(Clone, Copy)]
+struct Crc {
+    value: u32,
+    shift: u32,
+}
+
+/// The CRC-32 polynomial, in the reflected bit order gzip's CRC uses (bit 31 is x^0).
+const POLYNOMIAL: u32 = 0xedb8_8320;
+
+/// x^(2^k) modulo the polynomial, for k in 0..32 (zlib's `x2n_table`).
+const X_TO_THE_2_TO_THE: [u32; 32] = {
+    let mut table = [0; 32];
+    let mut power = 1 << 30; // x^1
+    let mut k = 0;
+    while k < 32 {
+        table[k] = power;
+        power = multiply(power, power);
+        k += 1;
+    }
+    table
+};
+
+impl Crc {
+    fn of(bytes: &[u8]) -> Self {
+        Self {
+            value: crc32fast::hash(bytes),
+            shift: x_to_the_8(bytes.len() as u64),
+        }
+    }
+
+    /// The CRC of `crcs`' parts, one after the other.
+    fn concatenated(crcs: impl Iterator<Item = Crc>) -> u32 {
+        crcs.fold(0, |value, next| multiply(value, next.shift) ^ next.value)
+    }
+}
+
+/// x^(8·n) modulo the polynomial (zlib's `x2nmodp(n, 3)`). x's order divides 2^32 − 1, so
+/// x^(2^32) is x^(2^0).
+fn x_to_the_8(mut n: u64) -> u32 {
+    let mut power = 1 << 31; // x^0
+    let mut k = 3;
+    while n != 0 {
+        if n & 1 == 1 {
+            power = multiply(X_TO_THE_2_TO_THE[k % 32], power);
+        }
+        n >>= 1;
+        k += 1;
+    }
+    power
+}
+
+/// `a` times `b` modulo the polynomial (zlib's `multmodp`), without branching on the bits.
+const fn multiply(a: u32, mut b: u32) -> u32 {
+    let mut product = 0;
+    let mut bit = 32;
+    while bit > 0 {
+        bit -= 1;
+        product ^= b & ((a >> bit) & 1).wrapping_neg();
+        b = (b >> 1) ^ (POLYNOMIAL & (b & 1).wrapping_neg());
+    }
+    product
+}
+
 // --- What's remembered -------------------------------------------------------------------------
 
-/// A fragment seen in a page: its SHA-256, and its pieces for the predecessors it's followed, most
+/// A fragment seen in a page: its digest, and its pieces for the predecessors it's followed, most
 /// recently stored last.
 struct KnownFragment {
     fragment: Weak<String>,
-    sha: Sha,
+    digest: Digest,
     pieces: Vec<Arc<FragmentPiece>>,
 }
 
@@ -328,15 +412,16 @@ struct FragmentPiece {
     /// Keeps a predecessor fragment's address from being reused while this piece refers to it.
     _pin: Option<Weak<String>>,
     glue: Box<[u8]>,
-    deflated: Bytes,
+    /// The glue and the fragment.
+    piece: Piece,
 }
 
 impl KnownFragment {
-    fn piece_after(&self, before: Before, glue: &[u8]) -> Option<Bytes> {
+    fn piece_after(&self, before: Before, glue: &[u8]) -> Option<Piece> {
         self.pieces
             .iter()
             .find(|piece| piece.before == before && *piece.glue == *glue)
-            .map(|piece| piece.deflated.clone())
+            .map(|piece| piece.piece.clone())
     }
 
     /// Stores `piece`, dropping the oldest when there are already [`PIECES_PER_FRAGMENT`].
@@ -352,22 +437,22 @@ impl KnownFragment {
 
 #[derive(Clone)]
 struct TextPiece {
-    deflated: Bytes,
+    piece: Piece,
     _pin: Option<Weak<String>>,
 }
 
 static FRAGMENTS: LazyLock<Mutex<HashMap<usize, KnownFragment>>> = LazyLock::new(Mutex::default);
-static TEXT_PIECES: LazyLock<Mutex<Generations<(Sha, Before), TextPiece>>> =
+static TEXT_PIECES: LazyLock<Mutex<Generations<(Digest, Before), TextPiece>>> =
     LazyLock::new(|| Mutex::new(Generations::new(MAX_TEXT_PIECE_BYTES)));
 
 fn fragment_key(fragment: &Arc<String>) -> usize {
     Arc::as_ptr(fragment) as usize
 }
 
-/// Each fragment's SHA-256, hashing (and remembering) the ones not seen before. A remembered
+/// Each fragment's digest, hashing (and remembering) the ones not seen before. A remembered
 /// entry at the same address is the same fragment while its `Weak` keeps the address taken.
 #[expect(clippy::significant_drop_tightening, reason = "existing hit under the S-5 lint floor")]
-fn fragment_shas<'a>(fragments: impl Iterator<Item = &'a Arc<String>> + Clone) -> Vec<Sha> {
+fn fragment_digests<'a>(fragments: impl Iterator<Item = &'a Arc<String>> + Clone) -> Vec<Digest> {
     let mut known = lock(&FRAGMENTS);
     let missing = fragments.clone().filter(|f| !known.contains_key(&fragment_key(f))).count();
     if known.len() + missing > MAX_FRAGMENTS {
@@ -382,10 +467,10 @@ fn fragment_shas<'a>(fragments: impl Iterator<Item = &'a Arc<String>> + Clone) -
                 .entry(fragment_key(fragment))
                 .or_insert_with(|| KnownFragment {
                     fragment: Arc::downgrade(fragment),
-                    sha: Sha256::digest(fragment.as_bytes()).into(),
+                    digest: blake3::hash(fragment.as_bytes()).into(),
                     pieces: Vec::new(),
                 })
-                .sha
+                .digest
         })
         .collect()
 }
@@ -518,6 +603,49 @@ mod tests {
             .chain(["</p>".into()])
             .collect();
         assert_ne!(etag(&body), etag(&glued));
+    }
+
+    /// What `gzip` sent before KIT-9 took the CRC from the pieces': every part compressed against
+    /// the one before it, and one CRC over the whole body.
+    fn gzip_before_kit_9(body: &str, fragments: &[Arc<String>], mtime: u32) -> Vec<u8> {
+        let body = body.as_bytes();
+        let parts = PageParts::new(body, fragments).expect("fragments in the body");
+        let mut out = vec![0x1f, 0x8b, 8, 0];
+        out.extend_from_slice(&mtime.to_le_bytes());
+        out.extend_from_slice(&[0, 3]);
+        let mut dictionary = &b""[..];
+        for part in &parts.parts {
+            out.extend_from_slice(&compress(dictionary, &body[part.range().clone()]));
+            dictionary = part.as_before(body).1;
+        }
+        out.extend_from_slice(&[0x03, 0x00]);
+        out.extend_from_slice(&crc32fast::hash(body).to_le_bytes());
+        out.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        out
+    }
+
+    #[test]
+    fn the_same_bytes_as_before_kit_9() {
+        let messages: Vec<_> = (700..780).map(message).collect();
+        let head: String = (0..400).map(|n| format!("<link rel=\"preload\" href=\"/a/{n}.js\">")).collect();
+        let tail: String = (0..200).map(|n| format!("<footer data-n=\"{n}\"></footer>")).collect();
+        let body = page(&head, &messages, &tail);
+        let spliced = |body: &str| PageParts::new(body.as_bytes(), &messages).unwrap().gzip(body.as_bytes(), 77);
+        assert_eq!(spliced(&body), gzip_before_kit_9(&body, &messages, 77), "first request");
+        assert_eq!(spliced(&body), gzip_before_kit_9(&body, &messages, 77), "from stored pieces");
+        // A new layout around the same fragments: new text pieces, stored fragment ones.
+        let changed = page(&format!("{head}!"), &messages, &tail);
+        assert_eq!(spliced(&changed), gzip_before_kit_9(&changed, &messages, 77));
+    }
+
+    #[test]
+    fn crcs_concatenate() {
+        let bytes: Vec<u8> = (0..100_000u32).map(|n| (n.wrapping_mul(2_654_435_761) >> 24) as u8).collect();
+        for cuts in [&[][..], &[0, 0, 1], &[1, 2, 3, 4, 5], &[1000, 1001, 70_000, 99_999, 100_000]] {
+            let bounds: Vec<usize> = std::iter::once(0).chain(cuts.iter().copied()).chain([bytes.len()]).collect();
+            let crcs = bounds.windows(2).map(|range| Crc::of(&bytes[range[0]..range[1]]));
+            assert_eq!(Crc::concatenated(crcs), crc32fast::hash(&bytes), "cut at {cuts:?}");
+        }
     }
 
     #[test]

@@ -154,6 +154,22 @@ impl Ctx {
         self.params.str(key)
     }
 
+    /// `request.path_parameters=`, for an app that routes inside the action. Updates `params` in
+    /// place rather than merging body and query params again, ending as if merged from scratch:
+    /// a key the old path params set goes back to its query or body value, or away.
+    pub fn set_path_params(&mut self, path_params: ParamMap) {
+        for key in self.path_params.keys() {
+            match self.query_params.get(key).or_else(|| self.request_params.get(key)) {
+                Some(value) => self.params.insert(key, value.clone()),
+                None => {
+                    self.params.remove(key);
+                }
+            }
+        }
+        self.params.merge(&path_params);
+        self.path_params = path_params;
+    }
+
     /// `wrap_parameters format: [:json]`: for a JSON request, nest the body params under `key`
     /// unless it's already there. `include` is the model's attribute names when it has a model.
     pub fn wrap_parameters(&mut self, key: &str, include: Option<&[&str]>) {

@@ -14,6 +14,7 @@ pub mod pwa;
 pub mod rooms;
 pub mod searches;
 pub mod sessions;
+pub mod sized;
 pub mod users;
 pub mod welcome;
 

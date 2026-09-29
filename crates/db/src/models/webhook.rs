@@ -1,7 +1,9 @@
 //! `reference/app/models/webhook.rb`: the row and the payload. Delivery (HTTP, replies)
 //! lives in the app.
 
+use rails_compat::json;
 use rusqlite::{Connection, Row, params};
+use serde::Serialize;
 
 use crate::database::Tx;
 use crate::error::Result;
@@ -100,21 +102,61 @@ impl Webhook {
         let html = message.body_html(conn)?;
         let plain = without_recipient_mentions(&message.plain_text_body(conn, rich_text)?, &recipient);
 
-        // Hash order as written in `Webhook#payload`, encoded like `ActiveSupport::JSON`.
-        let body = format!(
-            r#"{{"user":{{"id":{},"name":{}}},"room":{{"id":{},"name":{},"path":{}}},"message":{{"id":{},"body":{{"html":{},"plain":{}}},"path":{}}}}}"#,
-            creator.id,
-            json_string(&creator.name),
-            room.id,
-            room.name.as_deref().map(json_string).unwrap_or_else(|| "null".into()),
-            json_string(room_bot_messages_path),
-            message.id,
-            html.as_deref().map(json_string).unwrap_or_else(|| "null".into()),
-            json_string(&plain),
-            json_string(message_path),
-        );
-        Ok(body)
+        let payload = Payload {
+            user: PayloadUser {
+                id: creator.id,
+                name: &creator.name,
+            },
+            room: PayloadRoom {
+                id: room.id,
+                name: room.name.as_deref(),
+                path: room_bot_messages_path,
+            },
+            message: PayloadMessage {
+                id: message.id,
+                body: PayloadBody {
+                    html: html.as_deref(),
+                    plain: &plain,
+                },
+                path: message_path,
+            },
+        };
+        Ok(json::encode(&payload).into_string())
     }
+}
+
+// `Webhook#payload`'s hash, fields in its order.
+#[derive(Serialize)]
+struct Payload<'a> {
+    user: PayloadUser<'a>,
+    room: PayloadRoom<'a>,
+    message: PayloadMessage<'a>,
+}
+
+#[derive(Serialize)]
+struct PayloadUser<'a> {
+    id: i64,
+    name: &'a str,
+}
+
+#[derive(Serialize)]
+struct PayloadRoom<'a> {
+    id: i64,
+    name: Option<&'a str>,
+    path: &'a str,
+}
+
+#[derive(Serialize)]
+struct PayloadMessage<'a> {
+    id: i64,
+    body: PayloadBody<'a>,
+    path: &'a str,
+}
+
+#[derive(Serialize)]
+struct PayloadBody<'a> {
+    html: Option<&'a str>,
+    plain: &'a str,
 }
 
 /// Removes `@Recipient` mentions and leading/trailing (Unicode) whitespace.
@@ -122,23 +164,4 @@ fn without_recipient_mentions(body: &str, recipient: &User) -> String {
     body.replace(&recipient.attachable_plain_text_representation(), "")
         .trim_matches(char::is_whitespace)
         .to_string()
-}
-
-/// `ActiveSupport::JSON.encode` of a string: JSON with `<`, `>` and `&` escaped as `\uXXXX`.
-/// U+2028 and U+2029 stay raw (`load_defaults 8.2` turns `escape_js_separators_in_json` off;
-/// probed in the reference image).
-pub fn json_string(s: &str) -> String {
-    let encoded = serde_json::to_string(s).expect("strings encode");
-    encoded.replace('<', "\\u003c").replace('>', "\\u003e").replace('&', "\\u0026")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::json_string;
-
-    /// `{ a: "\u2028<>&" }.to_json` in the reference image.
-    #[test]
-    fn json_strings_escape_html_but_not_line_separators() {
-        assert_eq!(json_string("\u{2028}<>&\u{2029}"), "\"\u{2028}\\u003c\\u003e\\u0026\u{2029}\"");
-    }
 }

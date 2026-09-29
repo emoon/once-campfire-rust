@@ -1,6 +1,8 @@
 //! `ActionDispatch::Http::ContentDisposition.format` and the Journey path escaping used for the
 //! `*filename` glob in Active Storage routes.
 
+use std::fmt::Write as _;
+
 use crate::tables::APPROXIMATIONS;
 
 /// `ContentDisposition.format(disposition:, filename:)` where `filename` is already sanitized.
@@ -36,7 +38,6 @@ pub fn transliterate(s: &str) -> String {
     out
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn percent_escape(s: &str, keep: impl Fn(u8) -> bool) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -46,7 +47,7 @@ fn percent_escape(s: &str, keep: impl Fn(u8) -> bool) -> String {
             out.push(c);
         } else {
             for b in bytes {
-                out.push_str(&format!("%{b:02X}"));
+                write!(out, "%{b:02X}").unwrap();
             }
         }
     }

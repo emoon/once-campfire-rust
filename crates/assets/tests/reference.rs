@@ -254,3 +254,24 @@ fn multiple_ranges_are_multipart() {
     assert!(body.starts_with("\r\n--AaB03x\r\ncontent-type: audio/mpeg\r\ncontent-range: bytes 0-1/"));
     assert!(body.ends_with("\r\n--AaB03x--\r\n"));
 }
+
+#[test]
+fn a_range_ending_past_i64_is_the_whole_file() {
+    // Rack's `to_i` reads the end as a Bignum, and clamps it to the last byte like any end past the
+    // file.
+    let whole = get("/robots.txt");
+    let response = campfire_assets::serve(&campfire_assets::StaticRequest {
+        method: "GET",
+        path: "/robots.txt",
+        range: Some("bytes=0-99999999999999999999"),
+        ..Default::default()
+    })
+    .unwrap();
+    assert_eq!(response.status, 206);
+    let size = whole.body.len();
+    assert_eq!(
+        response.header("content-range"),
+        Some(format!("bytes 0-{}/{size}", size - 1).as_str())
+    );
+    assert_eq!(response.body, whole.body);
+}
