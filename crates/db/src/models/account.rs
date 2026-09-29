@@ -5,7 +5,8 @@ use serde_json::{Map, Value};
 
 use crate::database::Tx;
 use crate::error::{Error, OptionalExt, Result};
-use crate::sql::{self, CachedStatements, query_one};
+use crate::patch::Patch;
+use crate::sql::{self, Assignments, CachedStatements, query_one};
 use crate::time::Timestamp;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -166,41 +167,26 @@ impl Account {
     pub fn update(
         &mut self,
         tx: &mut Tx<'_>,
-        name: Option<&str>,
-        custom_styles: Option<Option<&str>>,
+        name: Option<String>,
+        custom_styles: Patch<String>,
         settings: Option<&[(&str, &str)]>,
     ) -> Result<()> {
-        let mut sets: Vec<(&str, Box<dyn rusqlite::ToSql>)> = Vec::new();
-        if let Some(name) = name.filter(|n| *n != self.name) {
-            self.name = name.into();
-            sets.push(("name", Box::new(name.to_string())));
+        let mut sets = Assignments::default();
+        if let Some(name) = name {
+            sets.change("name", &mut self.name, name);
         }
-        if let Some(styles) = custom_styles.map(|s| s.map(str::to_string)).filter(|s| *s != self.custom_styles) {
-            self.custom_styles = styles.clone();
-            sets.push(("custom_styles", Box::new(styles)));
-        }
+        sets.patch("custom_styles", &mut self.custom_styles, custom_styles);
         if let Some(values) = settings {
             let original = self.settings();
             let mut updated = original.clone();
             updated.assign(values)?;
             if self.settings_json.is_none() || updated != original {
                 let json = updated.to_json();
-                self.settings_json = Some(json.clone());
-                sets.push(("settings", Box::new(json)));
+                sets.set("settings", json.clone());
+                self.settings_json = Some(json);
             }
         }
-        if sets.is_empty() {
-            return Ok(());
-        }
-        let now = tx.now();
-        self.updated_at = now;
-        sets.push(("updated_at", Box::new(now)));
-        let assignments: Vec<String> = sets.iter().map(|(c, _)| format!(r#""{c}" = ?"#)).collect();
-        let sql = format!(r#"UPDATE "accounts" SET {} WHERE "accounts"."id" = ?"#, assignments.join(", "));
-        let mut values: Vec<&dyn rusqlite::ToSql> = sets.iter().map(|(_, v)| v.as_ref()).collect();
-        values.push(&self.id);
-        tx.conn().execute_cached(&sql, values.as_slice())?;
-        Ok(())
+        sets.write(tx, "accounts", self.id, &mut self.updated_at)
     }
 
     pub fn reload(&mut self, conn: &Connection) -> Result<()> {

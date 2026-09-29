@@ -1,10 +1,11 @@
 //! `Accounts::CustomStylesController` (reference/app/controllers/accounts/custom_styles_controller.rb).
 
-use campfire_kit::{Ctx, Error, Param, Redirect, Result, StatusCode, format, permit_keys};
+use campfire_kit::{Ctx, Error, Redirect, Result, StatusCode, format, permit_keys};
 use campfire_views::accounts;
 
 use crate::app::AppCtx;
 use crate::concerns::{self, Before};
+use crate::controllers::presenters::accounts::string_attribute;
 use crate::controllers::presenters::page::framed_page;
 
 /// `before_action :ensure_can_administer, :set_account`
@@ -27,12 +28,10 @@ pub async fn update(c: &mut Ctx) -> Result {
     concerns::ensure_can_administer(c)?;
     let mut account = super::current_account(c).await?;
     let params = c.params.require("account")?.permit(&permit_keys(&["custom_styles"]));
-    let custom_styles = params
-        .contains_key("custom_styles")
-        .then(|| params.get("custom_styles").and_then(Param::to_s));
+    let custom_styles = string_attribute(&params, "custom_styles");
     c.app()
         .db
-        .write(move |tx| account.update(tx, None, custom_styles.as_ref().map(|styles| styles.as_deref()), None))
+        .write(move |tx| account.update(tx, None, custom_styles, None))
         .await
         .map_err(Error::internal)?;
     let location = c.url_for(&campfire_routes::edit_account_custom_styles());

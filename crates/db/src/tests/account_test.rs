@@ -1,7 +1,7 @@
 //! `test/models/account_test.rb`, `test/models/account/joinable_test.rb`
 
 use super::*;
-use crate::Account;
+use crate::{Account, Patch};
 
 fn signal(t: &TestDb) -> Account {
     t.read(|c| Ok(Account::first(c)?.unwrap()))
@@ -19,7 +19,7 @@ fn settings() {
     assert_eq!(settings.to_json(), r#"{"restrict_room_creation_to_administrators":true}"#);
 
     let mut a = account.clone();
-    t.write(move |tx| a.update(tx, None, None, Some(&[("restrict_room_creation_to_administrators", "true")])));
+    t.write(move |tx| a.update(tx, None, Patch::Keep, Some(&[("restrict_room_creation_to_administrators", "true")])));
     account.reload_from(&t);
     assert!(account.settings().restrict_room_creation_to_administrators());
     assert_eq!(
@@ -33,7 +33,14 @@ fn settings() {
     assert_eq!(settings.to_json(), r#"{"restrict_room_creation_to_administrators":false}"#);
 
     let mut a = account.clone();
-    t.write(move |tx| a.update(tx, None, None, Some(&[("restrict_room_creation_to_administrators", "false")])));
+    t.write(move |tx| {
+        a.update(
+            tx,
+            None,
+            Patch::Keep,
+            Some(&[("restrict_room_creation_to_administrators", "false")]),
+        )
+    });
     account.reload_from(&t);
     assert!(!account.settings().restrict_room_creation_to_administrators());
 }
@@ -43,7 +50,7 @@ fn updating_other_attributes_leaves_null_settings_alone() {
     // What Rails does: `update!(name:)` on the fixture account doesn't write settings.
     let t = TestDb::new();
     let mut account = signal(&t);
-    t.write(move |tx| account.update(tx, Some("X"), None, None));
+    t.write(move |tx| account.update(tx, Some("X".into()), Patch::Keep, None));
     let account = signal(&t);
     assert_eq!(account.name, "X");
     assert_eq!(account.settings_json, None);
@@ -54,7 +61,7 @@ fn unknown_settings_are_rejected() {
     let t = TestDb::new();
     let mut account = signal(&t);
     assert!(
-        t.try_write(move |tx| account.update(tx, None, None, Some(&[("nope", "1")])))
+        t.try_write(move |tx| account.update(tx, None, Patch::Keep, Some(&[("nope", "1")])))
             .is_err()
     );
 }

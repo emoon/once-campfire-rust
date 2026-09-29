@@ -1,14 +1,15 @@
 //! `reference/app/models/user.rb` and `user/*.rb` (Role, Bot, Bannable, Mentionable; Avatar
 //! and Transferable are signed ids, which live in `rails_compat`).
 
-use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, Value, ValueRef};
 use rusqlite::{Connection, Row, params};
 
 use crate::database::Tx;
 use crate::error::{OptionalExt, Result};
 use crate::events::Event;
 use crate::models::{Ban, Membership, Message, Session, Webhook};
-use crate::sql::{self, CachedStatements, placeholders, query_all, query_one};
+use crate::patch::Patch;
+use crate::sql::{self, Assignments, CachedStatements, placeholders, query_all, query_one};
 use crate::time::{SQLITE_NOW, Timestamp};
 
 /// `enum :role, %i[ member administrator bot ]`
@@ -75,6 +76,12 @@ macro_rules! integer_enum_sql {
             }
         }
 
+        impl From<$ty> for Value {
+            fn from(value: $ty) -> Self {
+                Value::Integer(value as i64)
+            }
+        }
+
         impl FromSql for $ty {
             fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
                 match value.as_i64()? {
@@ -115,16 +122,16 @@ pub struct NewUser {
     pub bot_token: Option<String>,
 }
 
-/// Attributes for `user.update`. `None` leaves an attribute alone.
+/// Attributes for `user.update`. `None` and `Patch::Keep` leave an attribute alone.
 #[derive(Debug, Clone, Default)]
 pub struct UserChanges {
     pub name: Option<String>,
-    pub email_address: Option<Option<String>>,
+    pub email_address: Patch<String>,
     pub password_digest: Option<PasswordDigest>,
     pub role: Option<Role>,
     pub status: Option<Status>,
-    pub bio: Option<Option<String>>,
-    pub bot_token: Option<Option<String>>,
+    pub bio: Patch<String>,
+    pub bot_token: Patch<String>,
 }
 
 const INSERT: &str = r#"INSERT INTO "users" ("bio", "bot_token", "created_at", "email_address", "name", "password_digest", "role", "status", "updated_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING "id""#;
@@ -341,47 +348,24 @@ impl User {
     /// `user.update(attributes)`: writes only what changed, and nothing at all (not even
     /// `updated_at`) when nothing did.
     pub fn update(&mut self, tx: &mut Tx<'_>, changes: UserChanges) -> Result<()> {
-        let mut sets: Vec<(&str, Box<dyn rusqlite::ToSql>)> = Vec::new();
-        if let Some(name) = changes.name.filter(|n| *n != self.name) {
-            self.name = name.clone();
-            sets.push(("name", Box::new(name)));
+        let mut sets = Assignments::default();
+        if let Some(name) = changes.name {
+            sets.change("name", &mut self.name, name);
         }
-        if let Some(email) = changes.email_address.filter(|e| *e != self.email_address) {
-            self.email_address = email.clone();
-            sets.push(("email_address", Box::new(email)));
-        }
+        sets.patch("email_address", &mut self.email_address, changes.email_address);
         if let Some(digest) = changes.password_digest.map(PasswordDigest::into_string) {
-            self.password_digest = Some(digest.clone());
-            sets.push(("password_digest", Box::new(digest)));
+            sets.set("password_digest", digest.clone());
+            self.password_digest = Some(digest);
         }
-        if let Some(role) = changes.role.filter(|r| *r != self.role) {
-            self.role = role;
-            sets.push(("role", Box::new(role)));
+        if let Some(role) = changes.role {
+            sets.change("role", &mut self.role, role);
         }
-        if let Some(status) = changes.status.filter(|s| *s != self.status) {
-            self.status = status;
-            sets.push(("status", Box::new(status)));
+        if let Some(status) = changes.status {
+            sets.change("status", &mut self.status, status);
         }
-        if let Some(bio) = changes.bio.filter(|b| *b != self.bio) {
-            self.bio = bio.clone();
-            sets.push(("bio", Box::new(bio)));
-        }
-        if let Some(token) = changes.bot_token.filter(|t| *t != self.bot_token) {
-            self.bot_token = token.clone();
-            sets.push(("bot_token", Box::new(token)));
-        }
-        if sets.is_empty() {
-            return Ok(());
-        }
-        let now = tx.now();
-        self.updated_at = now;
-        sets.push(("updated_at", Box::new(now)));
-        let assignments: Vec<String> = sets.iter().map(|(c, _)| format!(r#""{c}" = ?"#)).collect();
-        let sql = format!(r#"UPDATE "users" SET {} WHERE "users"."id" = ?"#, assignments.join(", "));
-        let mut values: Vec<&dyn rusqlite::ToSql> = sets.iter().map(|(_, v)| v.as_ref()).collect();
-        values.push(&self.id);
-        tx.conn().execute_cached(&sql, values.as_slice())?;
-        Ok(())
+        sets.patch("bio", &mut self.bio, changes.bio);
+        sets.patch("bot_token", &mut self.bot_token, changes.bot_token);
+        sets.write(tx, "users", self.id, &mut self.updated_at)
     }
 
     /// `update_bot!`: the webhook first, then the user, in one transaction.
@@ -402,7 +386,7 @@ impl User {
         self.update(
             tx,
             UserChanges {
-                bot_token: Some(Some(generate_bot_token())),
+                bot_token: Patch::Set(generate_bot_token()),
                 ..Default::default()
             },
         )
@@ -429,7 +413,7 @@ impl User {
             tx,
             UserChanges {
                 status: Some(Status::Deactivated),
-                email_address: Some(email),
+                email_address: email.map_or(Patch::Clear, Patch::Set),
                 ..Default::default()
             },
         )

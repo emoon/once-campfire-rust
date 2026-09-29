@@ -210,7 +210,7 @@ fn message_params(c: &Ctx) -> Result<MessageParams> {
 /// removes it (`Attached::Changes::DeleteOne`), anything else raises.
 pub(crate) fn attachment_assignment(permitted: &campfire_kit::ParamMap) -> Result<Option<Assignment>> {
     match Assignment::from_params(permitted, "attachment")? {
-        Assignment::Unchanged => Ok(None),
+        Assignment::Keep => Ok(None),
         assignment => Ok(Some(assignment)),
     }
 }
@@ -251,7 +251,7 @@ pub(crate) async fn create_message(c: &Ctx, room: &Room, attributes: MessagePara
     let creator_id = require_current_user(c)?.id;
     let room_id = room.id;
     let attachment = match attributes.attachment {
-        Some(Assignment::Create(upload)) => Some(upload.stage(c.app()).await?),
+        Some(Assignment::Set(upload)) => Some(upload.stage(c.app()).await?),
         Some(Assignment::Invalid) => return Err(invalid_attachment()),
         _ => None,
     };
@@ -366,7 +366,7 @@ fn touch_attachment_records(tx: &mut campfire_db::Tx<'_>, blob_id: i64) -> campf
 pub(crate) async fn update_message(c: &Ctx, message: Message, attributes: MessageParams) -> Result<Message> {
     let attachment = match attributes.attachment {
         Some(Assignment::Invalid) => return Err(invalid_attachment()),
-        Some(Assignment::Create(upload)) => Some(Some(upload.stage(c.app()).await?)),
+        Some(Assignment::Set(upload)) => Some(Some(upload.stage(c.app()).await?)),
         Some(_) => Some(None),
         None => None,
     };

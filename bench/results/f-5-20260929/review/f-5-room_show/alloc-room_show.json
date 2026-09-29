@@ -1,0 +1,13 @@
+{
+ "route": "room_show",
+ "requests": 1000,
+ "baseline": {
+  "nrequests": 4294,
+  "nmalloc": 12594
+ },
+ "with_requests": {
+  "nrequests": 4334,
+  "nmalloc": 30647
+ },
+ "allocations_per_request": 18.1
+}

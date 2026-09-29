@@ -16,8 +16,10 @@ pub mod rich_text;
 pub mod schema;
 pub mod time;
 
+mod patch;
 mod sql;
 
+pub use patch::Patch;
 pub use sql::CachedStatements;
 
 pub use database::{Config, Database, Env, Tx, run_write};

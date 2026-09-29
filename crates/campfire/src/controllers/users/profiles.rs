@@ -1,7 +1,7 @@
 //! `Users::ProfilesController` (reference/app/controllers/users/profiles_controller.rb): the
 //! signed-in user's own profile.
 
-use campfire_db::UserChanges;
+use campfire_db::{Patch, UserChanges};
 use campfire_kit::{Ctx, Error, Redirect, Result, StatusCode, format, permit_keys};
 use campfire_views::users;
 
@@ -51,18 +51,19 @@ pub async fn update(c: &mut Ctx) -> Result {
         .params
         .require("user")?
         .permit(&permit_keys(&["name", "avatar", "email_address", "password", "bio"]));
-    let present = |key: &str| string_attribute(&params, key).flatten();
+    // `.compact` drops nil attributes, so nil keeps the attribute rather than clearing it.
+    let present = |key: &str| string_attribute(&params, key).into_value();
     let changes = UserChanges {
         name: present("name"),
-        email_address: present("email_address").map(Some),
+        email_address: present("email_address").map_or(Patch::Keep, Patch::Set),
         // `password=` ignores a blank password.
         password_digest: concerns::password_digest(c, present("password").filter(|password| !password.is_empty())).await?,
-        bio: present("bio").map(Some),
+        bio: present("bio").map_or(Patch::Keep, Patch::Set),
         ..UserChanges::default()
     };
     let avatar = match Assignment::from_params(&params, "avatar")? {
         // `.compact` drops a nil avatar before it's assigned.
-        Assignment::Delete if params.get("avatar").is_none_or(|p| p.is_null()) => Assignment::Unchanged,
+        Assignment::Clear if params.get("avatar").is_none_or(|p| p.is_null()) => Assignment::Keep,
         assignment => assignment,
     };
     // `params[:user][:avatar] ? ... : "✓"`: any non-nil value counts.

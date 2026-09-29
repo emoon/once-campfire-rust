@@ -2,7 +2,7 @@
 //! unless `CAMPFIRE_RUBY_FIXTURES_DB` is set) a row-for-row comparison with one.
 
 use super::*;
-use crate::{Membership, Message, Role, Room, RoomType, Session, User};
+use crate::{Membership, Message, Patch, Role, Room, RoomType, Session, User};
 
 #[test]
 fn ids_are_label_crcs() {
@@ -167,7 +167,7 @@ fn export_database_for_rails() {
         crate::Search::record(tx, user.id, "hovercraft")?;
         Room::create_for(tx, RoomType::Closed, Some("Rust Room"), user.id, &[user.id, id("david")])?;
         let mut account = crate::Account::first(tx.conn())?.unwrap();
-        account.update(tx, None, None, Some(&[("restrict_room_creation_to_administrators", "true")]))?;
+        account.update(tx, None, Patch::Keep, Some(&[("restrict_room_creation_to_administrators", "true")]))?;
         Ok(())
     })
     .unwrap();

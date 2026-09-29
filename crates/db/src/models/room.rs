@@ -7,6 +7,7 @@ use crate::database::Tx;
 use crate::error::{Errors, OptionalExt, Result};
 use crate::events::Event;
 use crate::models::{Membership, Message, User};
+use crate::patch::Patch;
 use crate::sql::{self, CachedStatements, placeholders, query_all, query_one};
 use crate::time::{SQLITE_NOW, Timestamp};
 
@@ -217,26 +218,22 @@ impl Room {
 
     /// `room.update!(name:, type:)`. A direct room can't change type
     /// (`direct_rooms_keep_their_type`). Becoming open grants every active user after commit.
-    pub fn update(&mut self, tx: &mut Tx<'_>, name: Option<Option<&str>>, room_type: Option<RoomType>) -> Result<()> {
-        let name = name.map(|n| n.map(str::to_string)).filter(|n| *n != self.name);
+    pub fn update(&mut self, tx: &mut Tx<'_>, name: Patch<String>, room_type: Option<RoomType>) -> Result<()> {
         let room_type = room_type.filter(|t| *t != self.room_type);
-
         if room_type.is_some() && self.room_type == RoomType::Direct {
             let mut errors = Errors::default();
             errors.add("type", "can't be changed for a direct room");
             return errors.into_result();
         }
-        if name.is_none() && room_type.is_none() {
+        let renamed = name.apply(&mut self.name);
+        if let Some(room_type) = room_type {
+            self.room_type = room_type;
+        }
+        if !renamed && room_type.is_none() {
             return Ok(());
         }
 
         let now = tx.now();
-        if let Some(name) = &name {
-            self.name = name.clone();
-        }
-        if let Some(room_type) = room_type {
-            self.room_type = room_type;
-        }
         self.updated_at = now;
         tx.conn().execute_cached(
             r#"UPDATE "rooms" SET "name" = ?, "type" = ?, "updated_at" = ? WHERE "rooms"."id" = ?"#,

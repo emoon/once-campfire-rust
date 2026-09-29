@@ -1,7 +1,7 @@
 //! `test/models/room_test.rb`, `rooms/direct_test.rb`, `rooms/open_test.rb`
 
 use super::*;
-use crate::{Involvement, Membership, Message, Room, RoomType, User};
+use crate::{Involvement, Membership, Message, Patch, Room, RoomType, User};
 
 fn member_ids(t: &TestDb, room_id: i64) -> Vec<i64> {
     t.read(|c| Room::find(c, room_id)?.user_ids(c))
@@ -84,7 +84,7 @@ fn granted_memberships_are_stamped_by_sqlite() {
 fn direct_rooms_keep_their_type() {
     let t = TestDb::new();
     let mut direct = room(&t, "david_and_jason");
-    let result = t.try_write(move |tx| direct.update(tx, None, Some(RoomType::Open)));
+    let result = t.try_write(move |tx| direct.update(tx, Patch::Keep, Some(RoomType::Open)));
     match result {
         Err(crate::Error::RecordInvalid(errors)) => {
             assert_eq!(errors.on("type"), ["can't be changed for a direct room"])
@@ -157,11 +157,34 @@ fn open_room_grants_access_to_all_users_after_creation() {
 fn open_room_grants_access_to_all_users_after_becoming_open() {
     let t = TestDb::new();
     let mut watercooler = room(&t, "watercooler");
-    t.write(move |tx| watercooler.update(tx, None, Some(RoomType::Open)));
+    t.write(move |tx| watercooler.update(tx, Patch::Keep, Some(RoomType::Open)));
     assert_eq!(member_ids(&t, id("watercooler")).len() as i64, t.read(User::count));
     assert_eq!(room(&t, "watercooler").room_type, RoomType::Open);
     let stored: String = t.read(|c| Ok(c.query_row("SELECT type FROM rooms WHERE id = ?", [id("watercooler")], |r| r.get(0))?));
     assert_eq!(stored, "Rooms::Open");
+}
+
+#[test]
+fn update_writes_nothing_unless_something_changed() {
+    let t = TestDb::new();
+    let pets = room(&t, "pets");
+    t.travel(60);
+    let (mut unchanged, name, room_type) = (pets.clone(), pets.name.clone(), pets.room_type);
+    t.write(move |tx| unchanged.update(tx, name.map_or(Patch::Clear, Patch::Set), Some(room_type)));
+    assert_eq!(
+        room(&t, "pets"),
+        pets,
+        "nothing changed, so nothing is written, not even updated_at"
+    );
+
+    let mut cleared = pets.clone();
+    let updated = t.write(move |tx| {
+        cleared.update(tx, Patch::Clear, None)?;
+        Ok(cleared)
+    });
+    assert_eq!(updated.name, None);
+    assert!(updated.updated_at > pets.updated_at);
+    assert_eq!(room(&t, "pets"), updated);
 }
 
 #[test]
