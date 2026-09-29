@@ -125,9 +125,9 @@ impl FragmentCache {
         })
     }
 
-    /// `Rails.cache.fetch(key) { render }` for a rendered fragment.
-    pub fn fetch(&self, key: &str, render: impl FnOnce() -> String) -> String {
-        String::clone(&self.fetch_value(key, || Fragment::new(fitted(render()))))
+    /// `Rails.cache.fetch(key) { render }` for a rendered fragment, shared with the store.
+    pub fn fetch(&self, key: &str, render: impl FnOnce() -> String) -> Fragment {
+        self.fetch_value(key, || Fragment::new(fitted(render())))
     }
 
     /// `Rails.cache.fetch(key) { value }` for any cloneable value (Jbuilder caches the hash it
@@ -272,10 +272,10 @@ pub fn current() -> Option<Arc<FragmentCache>> {
 }
 
 /// `cache key do render end` against the current store (uncached without one).
-pub fn fetch(key: impl FnOnce() -> String, render: impl FnOnce() -> String) -> String {
+pub fn fetch(key: impl FnOnce() -> String, render: impl FnOnce() -> String) -> Fragment {
     match current() {
         Some(cache) => cache.fetch(&key(), render),
-        None => render(),
+        None => Fragment::new(render()),
     }
 }
 
@@ -362,9 +362,9 @@ mod tests {
     #[test]
     fn the_first_rendering_is_reused() {
         let cache = FragmentCache::new(BIG);
-        assert_eq!(cache.fetch("a", || "first".into()), "first");
-        assert_eq!(cache.fetch("a", || "second".into()), "first");
-        assert_eq!(cache.fetch("b", || "other".into()), "other");
+        assert_eq!(*cache.fetch("a", || "first".into()), "first");
+        assert_eq!(*cache.fetch("a", || "second".into()), "first");
+        assert_eq!(*cache.fetch("b", || "other".into()), "other");
     }
 
     #[test]
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn a_value_larger_than_the_store_is_returned_but_not_kept() {
         let cache = FragmentCache::new(entry(10));
-        assert_eq!(cache.fetch("a", || "x".repeat(100)), "x".repeat(100));
+        assert_eq!(*cache.fetch("a", || "x".repeat(100)), "x".repeat(100));
         assert_eq!(cache.len(), 0);
         assert_eq!(cache.bytes(), 0);
     }
@@ -444,7 +444,7 @@ mod tests {
             cache.fetch(key, || "x".repeat(100));
         }
         let big = "y".repeat(3 * entry(100));
-        assert_eq!(cache.fetch("big", || big.clone()), big);
+        assert_eq!(*cache.fetch("big", || big.clone()), big);
         assert_eq!(cache.len(), 3, "the big value isn't kept");
         assert_eq!(cache.get::<Fragment>("big"), None);
         for key in ["a", "b", "c"] {
@@ -463,7 +463,7 @@ mod tests {
                 scope.spawn(move || {
                     for i in 0..5000 {
                         let hot = cache.fetch(&format!("{}", i % 8), || "x".repeat(200));
-                        assert_eq!(hot, "x".repeat(200));
+                        assert_eq!(*hot, "x".repeat(200));
                         cache.fetch(&format!("cold/{t}/{i}"), || "y".repeat(200));
                         assert!(cache.bytes() <= max);
                     }
@@ -510,10 +510,10 @@ mod tests {
         let outer = with(&cache, || {
             fetch(|| "outer".into(), || format!("[{}]", fetch(|| "inner".into(), || "x".into())))
         });
-        assert_eq!(outer, "[x]");
+        assert_eq!(*outer, "[x]");
         assert_eq!(cache.len(), 2);
         assert!(current().is_none(), "the store is only current inside `with`");
-        assert_eq!(fetch(|| "outer".into(), || "uncached".into()), "uncached");
+        assert_eq!(*fetch(|| "outer".into(), || "uncached".into()), "uncached");
     }
 
     #[test]

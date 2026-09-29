@@ -206,25 +206,22 @@ impl From<SidebarDirect> for SidebarDirectItem {
 /// `users/sidebars/rooms/_direct` for `membership`, whose body is `cache membership` (and which
 /// `users/sidebars/show` renders with `cached: true`): the first rendering of a membership
 /// version is what later renders reuse.
-pub fn direct_room(ctx: &ViewContext, membership: &SidebarDirect) -> String {
+pub fn direct_room(ctx: &ViewContext, membership: &SidebarDirect) -> crate::fragment_cache::Fragment {
     crate::fragment_cache::fetch(
         || direct_room_fragment_key(membership.membership_id, membership.membership_updated_at),
         || {
-            SidebarDirectPartial {
-                ctx,
-                membership: membership.clone(),
-            }
-            .render()
-            .expect("users/sidebars/rooms/_direct renders")
+            SidebarDirectPartial { ctx, membership }
+                .render()
+                .expect("users/sidebars/rooms/_direct renders")
         },
     )
 }
 
 /// [`direct_room`] where a template renders the partial.
-pub fn cached_direct_room<'a>(ctx: &ViewContext, item: &'a SidebarDirectItem) -> askama::filters::Safe<std::borrow::Cow<'a, str>> {
+pub fn cached_direct_room(ctx: &ViewContext, item: &SidebarDirectItem) -> askama::filters::Safe<crate::fragment_cache::Fragment> {
     askama::filters::Safe(match item {
-        SidebarDirectItem::Fragment(html) => std::borrow::Cow::Borrowed(html.as_str()),
-        SidebarDirectItem::View(membership) => std::borrow::Cow::Owned(direct_room(ctx, membership)),
+        SidebarDirectItem::Fragment(html) => html.clone(),
+        SidebarDirectItem::View(membership) => direct_room(ctx, membership),
     })
 }
 
@@ -314,7 +311,7 @@ impl Page for SidebarShow<'_> {}
 #[template(path = "users/sidebars/rooms/_direct.html")]
 pub struct SidebarDirectPartial<'a> {
     pub ctx: &'a ViewContext<'a>,
-    pub membership: SidebarDirect,
+    pub membership: &'a SidebarDirect,
 }
 
 /// `users/sidebars/rooms/_shared.html.erb` on its own (broadcast and rendered by rooms controllers).
