@@ -92,7 +92,7 @@ otherwise stop" in `plans/cleanup.md`.
       `bench/lib/perfprof.py`, `bench/lib/stacks.py`; `cpuprof.py` split to share them. Production
       lines +0 (no Rust changes), allocations n/a. Tests and clippy not re-run (no Rust changed);
       parity n/a. Clean session under the lock, screensaver off before and after every step.
-- [~] S-9 The write path and cable slower than published v0.1.1: confirm on this host, find the cause (refactor/cleanup-s-9)
+- [x] S-9 The write path and cable slower than published v0.1.1: answered, no regression (the published table is from another CPU; 080f903 ≈ 9e2a110 here). Results only: `bench/results/s-9-20260929/`
 - [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
