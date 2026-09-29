@@ -173,7 +173,7 @@ otherwise stop" in `plans/cleanup.md`.
       code; parity and perf gates don't apply). `differential.sh` runs all four steps, ending in
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
 - [x] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (refactor/cleanup-perf-1, merged a493fe6). c=16 ABBA: CPU/req −8.7…−12.3%, req/s +7.7…+20.2% on all four targets; no cap on inline reads (see "For the human"). db +53, campfire +3 lines
-- [~] DB-12 perf (measure; after DB-11): `mmap_size` (post_message's remap per commit) (refactor/cleanup-db-12, on DB-11; perf-2's variant runs are the pre-DB-11 evidence)
+- [x] DB-12 perf: no `mmap_size` (refactor/cleanup-db-12, merged). c=16 ABBA on DB-11: post_message CPU/req −12.8%, req/s +8.9%; reads ±1.3%. db −1 line
 - [~] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)` (refactor/cleanup-db-13)
 - [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
