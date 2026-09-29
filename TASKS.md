@@ -40,12 +40,12 @@ otherwise stop" in `plans/cleanup.md`.
 
 ## Phase 0: safety net (serial; blocks everything)
 
-- [r] S-1 Toolchain on Rust 1.98.1; clippy clean on it (refactor/cleanup). cargo and mise both
+- [x] S-1 Toolchain on Rust 1.98.1; clippy clean on it (refactor/cleanup). cargo and mise both
       report 1.98.1; default clippy is clean with no change (the richtext `nonminimal_bool`
       warning seen on 1.93 no longer fires). Tests with the seed: 652 passed, 0 failed, 7 ignored
       (need a live reference app or a Ruby-made DB); no seed skips left, only the storage vectors'
       libvips/ffmpeg version-dependent byte comparisons (host 8.18.6 / n9.0.1).
-- [r] S-2 (refactor/cleanup) Seed, reference and candidate images; integration tests actually
+- [x] S-2 (refactor/cleanup) Seed, reference and candidate images; integration tests actually
       run; baselines (parity lean gate, `bench/profile` alloc and cpu, `bench/run --apps rust`)
       in `bench/results/cleanup-baseline-20260928/`. Seed-backed tests: 53 skipped before the seed,
       0 after (652 pass, 7 ignored). Parity 873/874 (manifest allowed). T = 3% (room_show,
@@ -55,16 +55,16 @@ otherwise stop" in `plans/cleanup.md`.
       container can't follow the link, so every cell that reads the seed's labels errored), `git worktree remove --force`, copy the
       base binary, post_message twice, explicit cpu and `bench/run` recipes, `LOAD_WAIT_SECS=60`,
       cargo pinned off the benchmark CCD (`taskset -c 0-7,16-23`), DB-5's differential runner.
-- [r] S-3 (refactor/cleanup) `bench/loc` script, with the baseline recorded (in
+- [x] S-3 (refactor/cleanup) `bench/loc` script, with the baseline recorded (in
       `bench/results/cleanup-baseline-20260928/README.md`: 33,807 production lines incl. 1,771 of
       templates, 4,557 comment lines, 15,449 test lines before S-4's `cargo fmt`; 36,407 /
       4,557 / 17,537 after it).
       `bench/loc --against refactor/cleanup` prints the per-crate delta for commit messages.
-- [r] S-4 (refactor/cleanup) (approved) `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`.
+- [x] S-4 (refactor/cleanup) (approved) `rustfmt.toml` + one `cargo fmt` commit + `.git-blame-ignore-revs`.
       fmt commit 63b72b1 (233 files, 1,635 hunks; production lines 34,234 → 36,776). The vendored
       html5ever is a workspace member, so `crates/richtext/vendor/rustfmt.toml` disables formatting
       there; `cargo fmt` is safe to run anywhere now. Tests (seed built) and clippy clean after.
-- [r] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
+- [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
       `[lints] workspace = true`. The 99 existing hits carry `#[expect(clippy::…, reason = "existing
       hit under the S-5 lint floor")]` on their 81 enclosing fns (48 format_push_string, 25
@@ -93,6 +93,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] DB-7 `NewRoom`, `NewPushSubscription`, `ClientInfo`, `Pushes`; consistent id order
 - [ ] DB-8 perf: allocation-free timestamp encode/parse; signed counter update
 - [ ] DB-9 Clock read once, `is_*` predicates, dead code
+- [ ] DB-10 `differential.sh`: ignore the app-added `index_messages_on_room_id_and_created_at` (before DB-5)
 
 ### KIT (`crates/kit`, `crates/routes`)
 - [ ] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`)
@@ -171,14 +172,11 @@ otherwise stop" in `plans/cleanup.md`.
 Items the coordinator moved here from "Found while working": behavior changes or calls it
 won't make. They don't block the run and go into the final report.
 
-## Found while working
-
-- (S-2) `reference-tools/db/differential.sh` stops at its schema-identity diff: it doesn't know
-  about `index_messages_on_room_id_and_created_at`, which the app adds on boot on purpose (README,
-  "One more index"). Its three Rust tests pass; the last step (Rails on the Rust-written database)
-  never runs. Tooling fix: filter that index out of the Rust side of the diff.
 - (S-2) `post_message` allocations are bimodal: the same binary measures 78.7 or 77.2 per request
   (5 of 14 runs landed low). The gate works around it (run twice, compare the higher run); the cause
   (probably a timing-dependent job or broadcast path) is unexplained.
 - Verify: `Layout::render` reads (and so sweeps) the flash even for `layout false` renders; Rails
   wouldn't. Possible parity edge (see WEB-5).
+
+## Found while working
+

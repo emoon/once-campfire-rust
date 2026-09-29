@@ -484,6 +484,11 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   - Rename predicates `Room::open/closed/direct` → `is_open/…` (16 sites).
   - Delete dead code: `Blob::create`, `Message::content_type`/`sound`/`ContentType` (test-only; move
     them to tests if still needed), and `Webhook::create`'s always-`Some` `url`.
+- **DB-10 `differential.sh` knows the app's extra index** (found in S-2; do it before DB-5). The
+  script stops at its schema-identity diff because the Rust side has
+  `index_messages_on_room_id_and_created_at`, which the app adds on boot on purpose (README, "One
+  more index"). Filter that index out of the Rust side of the diff, so the last step (Rails on the
+  Rust-written database) runs again. Tooling only; no production code changes.
 
 ### Lane KIT: `crates/kit`, `crates/routes`
 
