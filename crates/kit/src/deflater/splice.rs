@@ -13,11 +13,14 @@
 //! larger; chained like this it's within 1% of compressing the page whole.
 //!
 //! Fragments are known by identity (the `Arc` the fragment cache hands out), text by its BLAKE3
-//! digest (as collision-resistant as SHA-256, and several times faster on a page's layout). A
-//! stored piece that depends on a fragment holds a `Weak` to it, so while the piece exists that
-//! address can't come back as a different fragment.
+//! digest (as collision-resistant as SHA-256). A stored piece that depends on a fragment holds a
+//! `Weak` to it, so while the piece exists that address can't come back as a different fragment.
+//! Text is hashed with BLAKE3 only the first time it's seen: after that it's found by a fast
+//! non-cryptographic hash and confirmed by comparing it with the stored copy byte for byte, which
+//! costs a room page's layout ~4× less than hashing it again.
 
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 use std::ops::Range;
 use std::sync::{Arc, LazyLock, Mutex, Weak};
 
@@ -39,6 +42,8 @@ const MAX_FRAGMENTS: usize = 8 * 1024;
 const PIECES_PER_FRAGMENT: usize = 4;
 /// A bound on the bytes of stored text pieces (a room page's layout is ~10 KB compressed).
 const MAX_TEXT_PIECE_BYTES: usize = 16 << 20;
+/// A bound on the bytes of text kept to recognise it by (a room page's layout is ~55 KB).
+const MAX_KNOWN_TEXT_BYTES: usize = 16 << 20;
 
 type Digest = [u8; 32];
 
@@ -267,7 +272,7 @@ impl PageParts {
 }
 
 fn text_part(body: &[u8], range: Range<usize>) -> Part {
-    let digest = blake3::hash(&body[range.clone()]).into();
+    let digest = text_digest(&body[range.clone()]);
     Part::Text { range, digest }
 }
 
@@ -441,12 +446,40 @@ struct TextPiece {
     _pin: Option<Weak<String>>,
 }
 
+/// Text seen in a page, kept to tell whether text with the same fast hash is the same text.
+struct KnownText {
+    text: Box<[u8]>,
+    digest: Digest,
+}
+
 static FRAGMENTS: LazyLock<Mutex<HashMap<usize, KnownFragment>>> = LazyLock::new(Mutex::default);
 static TEXT_PIECES: LazyLock<Mutex<Generations<(Digest, Before), TextPiece>>> =
     LazyLock::new(|| Mutex::new(Generations::new(MAX_TEXT_PIECE_BYTES)));
+/// Known text by its fast hash. The seed is random so that text can't be made to collide on
+/// purpose; a collision would only cost a BLAKE3 hash and the other text's entry.
+static KNOWN_TEXTS: LazyLock<Mutex<Generations<u64, Arc<KnownText>>>> =
+    LazyLock::new(|| Mutex::new(Generations::new(MAX_KNOWN_TEXT_BYTES)));
+static TEXT_HASHER: LazyLock<foldhash::fast::RandomState> = LazyLock::new(Default::default);
 
 fn fragment_key(fragment: &Arc<String>) -> usize {
     Arc::as_ptr(fragment) as usize
+}
+
+/// The BLAKE3 digest of `text`: the one it had when it was first seen, if it's known (the same
+/// bytes, not just the same fast hash), or else hashed and remembered.
+fn text_digest(text: &[u8]) -> Digest {
+    let key = TEXT_HASHER.hash_one(text);
+    let known = lock(&KNOWN_TEXTS).get(&key);
+    if let Some(known) = known
+        && *known.text == *text
+    {
+        return known.digest;
+    }
+    let digest = blake3::hash(text).into();
+    let known = Arc::new(KnownText { text: text.into(), digest });
+    // The text plus its entry: the `Arc`'s counts, the digest and the map slot.
+    lock(&KNOWN_TEXTS).insert(key, known, text.len() + std::mem::size_of::<KnownText>() + 64);
+    digest
 }
 
 /// Each fragment's digest, hashing (and remembering) the ones not seen before. A remembered
@@ -636,6 +669,51 @@ mod tests {
         // A new layout around the same fragments: new text pieces, stored fragment ones.
         let changed = page(&format!("{head}!"), &messages, &tail);
         assert_eq!(spliced(&changed), gzip_before_kit_9(&changed, &messages, 77));
+    }
+
+    #[test]
+    fn a_one_byte_change_in_the_middle_is_new_text() {
+        let messages: Vec<_> = (800..820).map(message).collect();
+        let head: String = (0..2000).map(|n| format!("<meta name=\"m{n}\">")).collect();
+        let mut changed = head.clone().into_bytes();
+        changed[head.len() / 2] ^= 1;
+        let changed = String::from_utf8(changed).unwrap();
+        let (body, changed) = (page(&head, &messages, "</p>"), page(&changed, &messages, "</p>"));
+        let parts = |body: &str| PageParts::new(body.as_bytes(), &messages).unwrap();
+        let first_digest = |body: &str| match &parts(body).parts[0] {
+            Part::Text { range, digest } => {
+                assert_eq!(*digest, *blake3::hash(&body.as_bytes()[range.clone()]).as_bytes());
+                *digest
+            }
+            Part::Fragment { .. } => panic!("the page starts with text"),
+        };
+        for _ in 0..2 {
+            assert_ne!(first_digest(&body), first_digest(&changed));
+            assert_ne!(parts(&body).etag(body.as_bytes()), parts(&changed).etag(changed.as_bytes()));
+            for body in [&body, &changed] {
+                let gz = parts(body).gzip(body.as_bytes(), 5);
+                assert_eq!(gz, gzip_before_kit_9(body, &messages, 5));
+                assert_eq!(gunzip(&gz), body.as_bytes());
+            }
+        }
+    }
+
+    #[test]
+    fn text_is_known_by_its_bytes_not_its_fast_hash() {
+        let (text, other) = (b"<p>known text</p>".repeat(100), b"<p>other text</p>".repeat(100));
+        let digest = text_digest(&text);
+        assert_eq!(digest, *blake3::hash(&text).as_bytes());
+        let key = TEXT_HASHER.hash_one(&text[..]);
+        assert_eq!(lock(&KNOWN_TEXTS).get(&key).unwrap().digest, digest, "remembered");
+        assert_eq!(text_digest(&text), digest, "and found again");
+        // Another text under the same fast hash, as if they collided.
+        let impostor = Arc::new(KnownText {
+            text: other[..].into(),
+            digest: blake3::hash(&other).into(),
+        });
+        lock(&KNOWN_TEXTS).insert(key, impostor, other.len());
+        assert_eq!(text_digest(&text), digest);
+        assert_eq!(*lock(&KNOWN_TEXTS).get(&key).unwrap().text, text[..], "and replaced");
     }
 
     #[test]
