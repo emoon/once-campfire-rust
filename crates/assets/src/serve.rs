@@ -3,7 +3,7 @@
 //! from reference/config/environments/production.rb (`public_file_server.headers`).
 
 use crate::embedded;
-use rails_compat::rack::{MULTIPART_BOUNDARY, Multipart, Part, Spelling, byte_ranges};
+use rails_compat::rack::{MULTIPART_BOUNDARY, Multipart, Part, Spelling, byte_ranges, content_length};
 use std::borrow::Cow;
 
 /// The last `config.public_file_server.headers` assignment in production.rb wins.
@@ -135,8 +135,9 @@ fn serve_file(request: &StaticRequest, file: &'static [u8], content_headers: Con
                 content_type: &content_headers[0].1,
                 size,
             };
-            let mut bytes = Vec::new();
-            for part in multipart.parts(&ranges) {
+            let parts = multipart.parts(&ranges);
+            let mut bytes = Vec::with_capacity(content_length(&parts) as usize);
+            for part in parts {
                 match part {
                     Part::Text(text) => bytes.extend_from_slice(text.as_bytes()),
                     Part::Range(start, end) => bytes.extend_from_slice(slice(file, start, end)),

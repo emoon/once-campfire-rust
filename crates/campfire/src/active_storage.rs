@@ -424,7 +424,7 @@ fn stream_parts(path: PathBuf, parts: Vec<Part>) -> impl futures_util::Stream<It
     let state = (parts.into_iter(), path, None::<tokio::io::Take<tokio::fs::File>>);
     futures_util::stream::try_unfold(state, |(mut parts, path, mut reading)| async move {
         loop {
-            if let Some(reader) = reading.as_mut() {
+            if let Some(reader) = reading.as_mut().filter(|reader| reader.limit() > 0) {
                 let mut chunk = vec![0; CHUNK];
                 let read = reader.read(&mut chunk).await?;
                 if read > 0 {

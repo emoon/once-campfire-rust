@@ -9,10 +9,6 @@ pub const MULTIPART_BOUNDARY: &str = "AaB03x";
 
 /// `Rack::Utils.get_byte_ranges(http_range, size)`: inclusive `(start, end)` ranges. `None` means
 /// serve the whole body (no header, a malformed one, or an empty body), and an empty list means 416.
-///
-/// Numbers are Ruby's `String#to_i`, which saturates past `i64` here where Ruby has Bignums. That
-/// only shows in a backwards range between two such numbers, which is dropped where Rack ignores
-/// the header.
 pub fn byte_ranges(header: Option<&str>, size: u64) -> Option<Vec<(u64, u64)>> {
     if size == 0 {
         return None;
@@ -23,9 +19,9 @@ pub fn byte_ranges(header: Option<&str>, size: u64) -> Option<Vec<(u64, u64)>> {
     }
     let last = size - 1;
     let mut ranges = Vec::new();
-    for range_spec in split_ranges(spec) {
+    for range in split_ranges(spec) {
         // `range_spec.split('-')`, whose trailing empty fields Ruby drops.
-        let (r0, rest) = range_spec.split_once('-')?;
+        let (r0, rest) = range.split_once('-')?;
         let r1 = rest
             .contains(|c: char| c != '-')
             .then(|| &rest[..rest.find('-').unwrap_or(rest.len())]);
@@ -33,10 +29,11 @@ pub fn byte_ranges(header: Option<&str>, size: u64) -> Option<Vec<(u64, u64)>> {
             (size.saturating_sub(number(r1?)), last)
         } else {
             let start = number(r0);
-            match r1.map(number) {
+            match r1 {
                 None => (start, last),
-                Some(end) if end < start => return None,
-                Some(end) => (start, end.min(last)),
+                // Exact: past i64, `number` makes both ends the same.
+                Some(r1) if ruby::cmp_to_i(r1, r0).is_lt() => return None,
+                Some(r1) => (start, number(r1).min(last)),
             }
         };
         if start <= end {
@@ -180,6 +177,22 @@ mod tests {
         assert_eq!(byte_ranges(Some("bytes= 2- 3"), 10), Some(vec![(2, 3)]));
         assert_eq!(byte_ranges(Some("bytes=x-3"), 10), Some(vec![(0, 3)]));
         assert_eq!(byte_ranges(Some("bytes=2-x"), 10), None);
+    }
+
+    #[test]
+    fn numbers_past_i64_compare_exactly() {
+        assert_eq!(byte_ranges(Some("bytes=9223372036854775808-9223372036854775807"), 10), None);
+        assert_eq!(byte_ranges(Some("bytes=99999999999999999999-99999999999999999998"), 10), None);
+        let fuzzed = "bytes=9999999999999999999999999999999999999999d99999999999999999999-9999999999999999999910+";
+        assert_eq!(byte_ranges(Some(fuzzed), 1), None);
+        assert_eq!(
+            byte_ranges(Some("bytes=99999999999999999999-99999999999999999999"), 10),
+            Some(vec![])
+        );
+        assert_eq!(
+            byte_ranges(Some("bytes=9223372036854775807-99999999999999999999"), 10),
+            Some(vec![])
+        );
     }
 
     #[test]
