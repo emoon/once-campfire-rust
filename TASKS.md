@@ -190,7 +190,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [~] KIT-10 perf: reuse gzip output for repeated bodies; reuse deflate encoders (S-8) (refactor/cleanup-kit-10)
 
 ### WEB (`crates/campfire` controllers, concerns, app)
-- [-] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1). Reopened on the coordinator's call: `[r]` as a readability change if static_css_app shows no time gain. Re-timing with `bench/profile perf --freq 0` in `bench/quiet` on the current tip.
+- [-] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1). Dropped: no measurable time gain, even on the path it changes (static_css_app, the bare app: CPU/req +0.3%, req/s -0.9%, 8 ABBA runs). Only the results are kept (7d9ccbc, `bench/results/web-1-20260929/`); the code commit was not merged.
 - [ ] WEB-2 perf: memoized user-agent parse; byte-offset parser
 - [~] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3)
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
