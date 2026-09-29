@@ -288,6 +288,11 @@ won't make. They don't block the run and go into the final report.
   SQLITE_BUSY for up to 5 s) holds a runtime worker; with WAL, readers don't wait on the writer, so
   this needs something unusual (WAL recovery). Say if you want the cap anyway.
 
+- (WEB-8 review) Predates the cleanup: Rails' `message_tag` evaluates `plain_text_body.all_emoji?`
+  in the div's attributes before `avatar_tag` (`reference/app/helpers/messages_helper.rb:34`), so a
+  message with both a non-UTF-8 body and a missing creator fails the page in Rails; the port renders
+  the unrenderable view. Keep (and list under Known differences) or match Rails?
+
 ## Found while working
 
 - (2026-09-29, VIEW-11 run) `database::tests::the_checkpointer_copies_the_wal_into_the_database`
