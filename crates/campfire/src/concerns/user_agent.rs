@@ -4,12 +4,15 @@
 //! `platform`, `os`, `bot?` and `mobile?` are answered.
 //!
 //! Where the gem raises (a `NoMethodError` on nil, say), the `try_*` methods return `Err(Raised)`;
-//! the plain methods fall back to nil. Ruby's `\d` and `\s` are ASCII-only and so are the
-//! hand-written matchers here. `^` and `$` are treated as string anchors: a header value cannot
-//! contain a newline.
+//! the plain methods fall back to nil. Ruby's `\d` and `\s` are ASCII-only and so are the regexps
+//! and matchers here. `^` and `$` are treated as string anchors: a header value cannot contain a
+//! newline.
 
+use regex_automata::Input;
+use regex_automata::meta::Regex;
 use std::cmp::Ordering;
 use std::fmt;
+use std::sync::LazyLock;
 
 /// The gem raised (NoMethodError/ArgumentError) instead of answering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -336,7 +339,7 @@ impl Kind {
             Kind::Edge => products.last().is_some_and(|p| p.product == "Edge"),
             Kind::InternetExplorer => first.is_some_and(|p| {
                 p.comment.is_some()
-                    && (p.comment_at(1).is_some_and(|c| c.contains("MSIE")) || p.joined_comment().is_some_and(|c| trident_rv(&c)))
+                    && (p.comment_at(1).is_some_and(|c| c.contains("MSIE")) || p.joined_comment().is_some_and(|c| TRIDENT_RV.is_match(&c)))
             }),
             Kind::Opera => first.is_some_and(|p| p.product == "Opera") || products.last().is_some_and(|p| p.product == "OPR"),
             Kind::WechatBrowser => products.iter().any(|p| p.product.to_lowercase().contains("micromessenger")),
@@ -350,9 +353,9 @@ impl Kind {
             Kind::PodcastAddict => {
                 products.len() >= 3 && products[0].product == "Podcast" && products[1].product == "Addict" && products[2].product == "-"
             }
-            Kind::Webkit => products.iter().any(|p| {
-                p.product.to_lowercase() == "applewebkit" || p.comment.iter().flatten().any(|c| webkit_comment_version(c).is_some())
-            }),
+            Kind::Webkit => products
+                .iter()
+                .any(|p| p.product.to_lowercase() == "applewebkit" || p.comment.iter().flatten().any(|c| WEBKIT_VERSION.is_match(c))),
             Kind::Gecko => first.is_some_and(|p| p.product == "Mozilla"),
             Kind::WindowsMediaPlayer => products.iter().any(|p| {
                 ["NSPlayer", "Windows-Media-Player", "WMFSDK"].contains(&p.product.as_str())
@@ -506,7 +509,7 @@ impl Agent {
             Kind::Edge | Kind::Vivaldi => self.last().map(|p| p.version.clone()),
             Kind::InternetExplorer => {
                 let joined = self.application().and_then(Product::joined_comment).unwrap_or_default();
-                Some(Version::new(ie_version(&joined).unwrap_or("")))
+                Some(Version::new(group(&IE_VERSION, &joined, 1).unwrap_or("")))
             }
             Kind::Opera => self.opera_version(),
             Kind::WechatBrowser => Some(self.detect_product("MicroMessenger").ok_or(Raised)?.version.clone()),
@@ -544,7 +547,7 @@ impl Agent {
         if self.opera_mini() {
             // `rescue Version.new` covers a comment without an "Opera Mini/<version>".
             let comment = self.application_comment().into_iter().flatten().find(|c| c.contains("Opera Mini"));
-            let version = comment.and_then(|c| capture_after(c, "Opera Mini/", |c| c.is_ascii_digit() || c == '.'));
+            let version = comment.and_then(|c| group(&OPERA_MINI_VERSION, c, 1));
             Some(Version::new(version.unwrap_or("")))
         } else if let Some(product) = self.detect_product("Version") {
             Some(product.version.clone())
@@ -575,10 +578,7 @@ impl Agent {
         if let Some(product) = self.detect_product("Version") {
             return product.version.clone();
         }
-        if let Some(ios) = self
-            .webkit_os()
-            .as_deref()
-            .and_then(|os| capture_after(os, "iOS ", |c| c.is_ascii_digit() || c == '.'))
+        if let Some(ios) = self.webkit_os().as_deref().and_then(|os| group(&IOS_SAFARI_VERSION, os, 1))
             && self.webkit_browser() == "Safari"
         {
             return Version::new(&ios.replace('_', "."));
@@ -595,7 +595,7 @@ impl Agent {
         self.products
             .iter()
             .flat_map(|p| p.comment.iter().flatten())
-            .find_map(|c| webkit_comment_version(c))
+            .find_map(|c| group(&WEBKIT_VERSION, c, 1))
             .map(Version::new)
     }
 
@@ -701,12 +701,12 @@ impl Agent {
                     .products
                     .iter()
                     .flat_map(|p| p.comment.iter().flatten())
-                    .find_map(|c| windows_os(c));
+                    .find_map(|c| group(&WINDOWS_OS, c, 0));
                 Some(normalize_os(matched.unwrap_or("")))
             }
             Kind::InternetExplorer => {
                 let joined = self.application().and_then(Product::joined_comment).unwrap_or_default();
-                Some(normalize_os(windows_os(&joined).unwrap_or("")))
+                Some(normalize_os(group(&WINDOWS_OS, &joined, 0).unwrap_or("")))
             }
             Kind::Opera => {
                 let Some(comment) = self.application_comment() else {
@@ -737,7 +737,7 @@ impl Agent {
             at(0).map(normalize_os)
         } else if at(2).is_none() || at(1).is_some_and(|c| c.contains("Android")) {
             at(1).map(normalize_os)
-        } else if let Some(ios) = comment.iter().find(|c| ios_version(c).is_some()) {
+        } else if let Some(ios) = comment.iter().find(|c| IOS_VERSION.is_match(c)) {
             Some(normalize_os(ios))
         } else {
             at(2).map(normalize_os)
@@ -773,11 +773,11 @@ impl Agent {
     /// `ITunes#full_os`: the comment was cut at the first ")", so "(Build 7601" gets it back.
     fn itunes_full_os(&self) -> Option<String> {
         let full_os = self.application_comment().filter(|c| c.len() > 1)?[1].clone();
-        let chars: Vec<char> = full_os.chars().collect();
-        let n = chars.len();
-        let reopened =
-            n >= 11 && chars[n - 11..n - 4].iter().copied().eq("(Build ".chars()) && chars[n - 4..].iter().all(char::is_ascii_digit);
-        Some(if reopened { format!("{full_os})") } else { full_os })
+        Some(if BUILD_WITHOUT_PAREN.is_match(&full_os) {
+            format!("{full_os})")
+        } else {
+            full_os
+        })
     }
 
     fn playstation_os(&self) -> Option<String> {
@@ -903,7 +903,7 @@ fn chrome_os(comment: &[String]) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// OperatingSystems and hand-written regexps
+// OperatingSystems and the gem's regexps
 
 /// `UserAgent::OperatingSystems.normalize_os`.
 fn normalize_os(os: &str) -> String {
@@ -926,145 +926,65 @@ fn normalize_os(os: &str) -> String {
     if let Some(windows) = windows {
         return windows.into();
     }
-    if let Some(version) = mac_os_x_version(os) {
-        return match version {
-            Some(version) => format!("OS X {}", version.replace('_', ".")),
-            None => "OS X".into(),
+    if let Some(version) = group(&MAC_OS_X, os, 1) {
+        return if version.is_empty() {
+            "OS X".into()
+        } else {
+            format!("OS X {}", version.replace('_', "."))
         };
     }
-    if let Some(version) = ios_version(os) {
+    if let Some(version) = group(&IOS_VERSION, os, 1) {
         return format!("iOS {}", version.replace('_', "."));
     }
-    if let Some(version) = chrome_os_version(os) {
+    if let Some(version) = group(&CHROME_OS, os, 2) {
         return format!("ChromeOS {version}");
     }
     os.to_string()
 }
 
-fn is_version_char(b: u8) -> bool {
-    b.is_ascii_digit() || b == b'.'
-}
+// Ruby's `\d` and `\s` are ASCII-only, so the patterns spell them `[0-9]` and `(?-u:\s)`, and
+// `[^\s]` as `[^\t\n\x0B\x0C\r ]`.
 
-/// Length of the run of bytes at the start of `s` satisfying `f`.
-fn run(s: &[u8], f: impl Fn(u8) -> bool) -> usize {
-    s.iter().take_while(|&&b| f(b)).count()
-}
+/// `/(?:Intel|PPC) Mac OS X\s*([0-9_\.]+)?/`. The group is `*` rather than `+)?`, so no version is
+/// an empty group instead of a missing one: `\s*` can't give it back any characters either way.
+static MAC_OS_X: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:Intel|PPC) Mac OS X(?-u:\s)*([0-9_.]*)").unwrap());
 
-/// `/(?:Intel|PPC) Mac OS X\s*([0-9_\.]+)?/`: `Some(capture)` when it matches.
-fn mac_os_x_version(os: &str) -> Option<Option<&str>> {
-    os.char_indices().map(|(i, _)| i).find_map(|i| {
-        let rest = &os[i..];
-        let after = rest.strip_prefix("Intel Mac OS X").or_else(|| rest.strip_prefix("PPC Mac OS X"))?;
-        let after = &after[run(after.as_bytes(), |b| is_ruby_space(b as char))..];
-        let digits = run(after.as_bytes(), |b| b.is_ascii_digit() || b == b'_' || b == b'.');
-        Some((digits > 0).then(|| &after[..digits]))
-    })
-}
+/// `IOS_VERSION_REGEX`.
+static IOS_VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"CPU (?:iPhone |iPod )?OS ([0-9_]+) like Mac OS X").unwrap());
 
-/// `IOS_VERSION_REGEX = /CPU (?:iPhone |iPod )?OS ([\d_]+) like Mac OS X/`.
-fn ios_version(os: &str) -> Option<&str> {
-    os.char_indices().map(|(i, _)| i).find_map(|i| {
-        let rest = os[i..].strip_prefix("CPU ")?;
-        [rest.strip_prefix("iPhone "), rest.strip_prefix("iPod "), Some(rest)]
-            .into_iter()
-            .flatten()
-            .find_map(|rest| {
-                let rest = rest.strip_prefix("OS ")?;
-                let digits = run(rest.as_bytes(), |b| b.is_ascii_digit() || b == b'_');
-                (digits > 0 && rest[digits..].starts_with(" like Mac OS X")).then(|| &rest[..digits])
-            })
-    })
-}
+/// `/CrOS\s([^\s]+)\s(\d+(\.\d+)*)/`.
+static CHROME_OS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"CrOS(?-u:\s)([^\t\n\x0B\x0C\r ]+)(?-u:\s)([0-9]+(?:\.[0-9]+)*)").unwrap());
 
-/// `/CrOS\s([^\s]+)\s(\d+(\.\d+)*)/`: the second capture.
-fn chrome_os_version(os: &str) -> Option<&str> {
-    os.char_indices().map(|(i, _)| i).find_map(|i| {
-        let rest = os[i..].strip_prefix("CrOS")?.as_bytes();
-        let is_space = |b: u8| is_ruby_space(b as char);
-        if rest.first().is_none_or(|&b| !is_space(b)) {
-            return None;
-        }
-        let word = run(&rest[1..], |b| !is_space(b));
-        if word == 0 {
-            return None;
-        }
-        let at = 1 + word;
-        if rest.get(at).is_none_or(|&b| !is_space(b)) {
-            return None;
-        }
-        let start = at + 1;
-        let mut end = start + run(&rest[start..], |b| b.is_ascii_digit());
-        if end == start {
-            return None;
-        }
-        while rest.get(end) == Some(&b'.') && rest.get(end + 1).is_some_and(u8::is_ascii_digit) {
-            end += 1 + run(&rest[end + 1..], |b| b.is_ascii_digit());
-        }
-        let offset = os.len() - rest.len();
-        Some(&os[offset + start..offset + end])
-    })
-}
+/// `Edge::OS_REGEXP`, also InternetExplorer's `os`.
+static WINDOWS_OS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Windows NT [0-9.]+|Windows Phone (?:OS )?[0-9.]+").unwrap());
 
-/// `/Windows NT [\d\.]+|Windows Phone (OS )?[\d\.]+/`: the matched text.
-fn windows_os(s: &str) -> Option<&str> {
-    s.char_indices().map(|(i, _)| i).find_map(|i| {
-        let rest = &s[i..];
-        let tail = if let Some(after) = rest.strip_prefix("Windows NT ") {
-            Some(after)
-        } else if let Some(after) = rest.strip_prefix("Windows Phone ") {
-            after
-                .strip_prefix("OS ")
-                .filter(|a| run(a.as_bytes(), is_version_char) > 0)
-                .or(Some(after))
-        } else {
-            None
-        }?;
-        let digits = run(tail.as_bytes(), is_version_char);
-        (digits > 0).then(|| &rest[..rest.len() - tail.len() + digits])
-    })
-}
+/// `/Trident.+rv:/` in InternetExplorer's `extend?`.
+static TRIDENT_RV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Trident.+rv:").unwrap());
 
-/// `joined_comment =~ /Trident.+rv:/`.
-fn trident_rv(s: &str) -> bool {
-    s.match_indices("Trident").any(|(i, _)| {
-        let rest = &s[i + "Trident".len()..];
-        let line = rest.split('\n').next().unwrap_or("");
-        line.match_indices("rv:").any(|(j, _)| j >= 1)
-    })
-}
+/// `[/(MSIE\s|rv:)([\d\.]+)/, 2]` in InternetExplorer's `version`.
+static IE_VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:MSIE(?-u:\s)|rv:)([0-9.]+)").unwrap());
 
-/// `joined_comment[/(MSIE\s|rv:)([\d\.]+)/, 2]`.
-fn ie_version(s: &str) -> Option<&str> {
-    s.char_indices().map(|(i, _)| i).find_map(|i| {
-        let rest = &s[i..];
-        let tail = rest
-            .strip_prefix("MSIE")
-            .filter(|after| after.chars().next().is_some_and(is_ruby_space))
-            .map(|after| &after[1..])
-            .or_else(|| rest.strip_prefix("rv:"))?;
-        let digits = run(tail.as_bytes(), is_version_char);
-        (digits > 0).then(|| &tail[..digits])
-    })
-}
+/// `/Opera Mini\/([\d\.]+)/` in Opera's `version`.
+static OPERA_MINI_VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Opera Mini/([0-9.]+)").unwrap());
 
-/// The capture of `/<prefix>([class]+)/` at its leftmost match.
-fn capture_after<'a>(s: &'a str, prefix: &str, class: impl Fn(char) -> bool) -> Option<&'a str> {
-    s.match_indices(prefix).find_map(|(i, _)| {
-        let tail = &s[i + prefix.len()..];
-        let len: usize = tail.chars().take_while(|&c| class(c)).map(char::len_utf8).sum();
-        (len > 0).then(|| &tail[..len])
-    })
-}
+/// `/iOS ([\d\.]+)/` in Webkit's `version`.
+static IOS_SAFARI_VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"iOS ([0-9.]+)").unwrap());
 
-/// `WEBKIT_VERSION_REGEXP = /\A(?<webkit>AppleWebKit)\/(?<version>[\d\.]+)/i`: the version.
-fn webkit_comment_version(comment: &str) -> Option<&str> {
-    let name: String = comment.chars().take(11).collect();
-    if name.chars().count() != 11 || name.to_lowercase() != "applewebkit" {
-        return None;
-    }
-    let tail = comment[name.len()..].strip_prefix('/')?;
-    let digits = run(tail.as_bytes(), is_version_char);
-    (digits > 0).then(|| &tail[..digits])
+/// `/\(Build [0-9][0-9][0-9][0-9]\z/` in ITunes' `full_os`.
+static BUILD_WITHOUT_PAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\(Build [0-9]{4}\z").unwrap());
+
+/// `Webkit::WEBKIT_VERSION_REGEXP`.
+static WEBKIT_VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\AAppleWebKit/([0-9.]+)").unwrap());
+
+/// Group `index` (at most 2; 0 is the whole match) of the leftmost match: Ruby's
+/// `haystack[regexp, index]`. These run per request, and `regex::Regex::captures` allocates on
+/// every call, hit or miss, so the group is read through regex-automata's slots on the stack.
+fn group<'h>(regex: &Regex, haystack: &'h str, index: usize) -> Option<&'h str> {
+    let mut slots = [None; 6];
+    let slots = &mut slots[..2 * index + 2];
+    regex.search_slots(&Input::new(haystack), slots)?;
+    Some(&haystack[slots[2 * index]?.get()..slots[2 * index + 1]?.get()])
 }
 
 /// `Webkit::BuildVersions`: Safari versions before Safari 3 reported only the WebKit build.
@@ -1186,6 +1106,18 @@ pub(crate) mod tests {
         }
 
         assert!(failures.is_empty(), "{} mismatches:\n{}", failures.len(), failures.join("\n"));
+    }
+
+    #[test]
+    fn regexps_keep_ruby_ascii_classes() {
+        // Ruby's `\d` and `\s` don't match a fullwidth digit, an Arabic-Indic digit or NBSP.
+        assert_eq!(normalize_os("Intel Mac OS X \u{ff11}0_15"), "OS X");
+        assert_eq!(
+            normalize_os("CPU iPhone OS \u{661}\u{668}_6 like Mac OS X"),
+            "CPU iPhone OS \u{661}\u{668}_6 like Mac OS X"
+        );
+        assert_eq!(normalize_os("CrOS\u{a0}x86_64 14541.0.0"), "CrOS\u{a0}x86_64 14541.0.0");
+        assert_eq!(normalize_os("CrOS x86_64 14541.0.0"), "ChromeOS 14541.0.0");
     }
 
     #[test]
