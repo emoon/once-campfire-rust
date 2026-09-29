@@ -25,8 +25,7 @@
 
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex};
 
 use rusqlite::{Connection, OpenFlags};
 use tokio::sync::{mpsc, oneshot};
@@ -217,9 +216,6 @@ type Job = Box<dyn FnOnce(&Connection, &Env) + Send>;
 pub struct Database {
     writer: mpsc::Sender<Job>,
     readers: Arc<ReaderPool>,
-    /// Runtime workers inside an inline read, and how many may be (see [`Database::read`]).
-    inline_reads: Arc<AtomicUsize>,
-    inline_read_limit: Arc<OnceLock<usize>>,
     env: Env,
     path: PathBuf,
 }
@@ -261,8 +257,6 @@ impl Database {
         Ok(Self {
             writer: sender,
             readers: Arc::new(ReaderPool::new(readers)),
-            inline_reads: Arc::default(),
-            inline_read_limit: Arc::default(),
             env,
             path: config.path,
         })
@@ -311,8 +305,10 @@ impl Database {
     /// task's thread: a read on a warm page cache takes microseconds, less than handing it to the
     /// blocking pool and back (a futex wake each way, most of a page's system time; S-8,
     /// `bench/results/s-8-20260929/`). Only when every reader is busy does it wait for one, on the
-    /// blocking pool. At most half the runtime's workers (at least one) are ever inside `f` at
-    /// once, so a slow read (a busy database waits up to 5 s) can't stall every worker.
+    /// blocking pool. At most as many runtime workers as there are readers are ever inside `f`.
+    /// Capping inline reads at half the workers, or all but one, cost 5-25% req/s and most of the
+    /// p99 gain, since every read past the cap pays the hop again
+    /// (`bench/results/perf-1-20260929/README.md`).
     ///
     /// Reads whose cost grows with the whole database rather than with a page (search, every
     /// user, all of a user's messages, a push per subscriber) use [`Database::read_offloaded`],
@@ -322,17 +318,12 @@ impl Database {
         T: Send + 'static,
         F: FnOnce(&Connection) -> Result<T> + Send + 'static,
     {
-        let Some(slot) = InlineRead::enter(&self.inline_reads, *self.inline_read_limit.get_or_init(inline_read_limit)) else {
-            return self.read_offloaded(f).await;
-        };
         let Some(checkout) = self.readers.try_checkout() else {
-            drop(slot);
             return self.read_offloaded(f).await;
         };
         // A panicking read is an error, as it is from the blocking pool, not an unwinding task.
         let result =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| checkout.run(f))).unwrap_or_else(|panic| Err(read_panicked(&*panic)));
-        drop(slot);
         // Give the worker's other tasks their turn, as the hop to the blocking pool did. A request
         // that ran from read to read without yielding raised other connections' p99 at c=64 by
         // 8-15% (`bench/results/perf-1-20260929/`); the yield costs no thread handoff.
@@ -525,30 +516,6 @@ impl Drop for Checkout<'_> {
     }
 }
 
-/// How many runtime workers may be inside an inline read at once: half of them, at least one.
-fn inline_read_limit() -> usize {
-    let workers = tokio::runtime::Handle::try_current().map_or(1, |runtime| runtime.metrics().num_workers());
-    (workers / 2).max(1)
-}
-
-/// A runtime worker's place among those inside an inline read, given up on drop.
-struct InlineRead<'a>(&'a AtomicUsize);
-
-impl<'a> InlineRead<'a> {
-    fn enter(inside: &'a AtomicUsize, limit: usize) -> Option<Self> {
-        inside
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| (n < limit).then_some(n + 1))
-            .ok()
-            .map(|_| Self(inside))
-    }
-}
-
-impl Drop for InlineRead<'_> {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::Relaxed);
-    }
-}
-
 /// The error for a read that panicked, as the blocking pool reports one (`JoinError`).
 fn read_panicked(panic: &(dyn std::any::Any + Send)) -> Error {
     match panic
@@ -621,45 +588,6 @@ mod tests {
                 .unwrap(),
             1
         );
-        assert_eq!(db.inline_reads.load(Ordering::SeqCst), 0);
-    }
-
-    /// With half the workers already inside an inline read, the next read goes to the blocking
-    /// pool, whether or not a reader is free.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn a_read_is_offloaded_while_half_the_workers_read_inline() {
-        let (_dir, db) = one_reader();
-        db.inline_reads.store(2, Ordering::SeqCst);
-        let caller = std::thread::current().id();
-        assert_ne!(db.read(|_| Ok(std::thread::current().id())).await.unwrap(), caller);
-        db.inline_reads.store(1, Ordering::SeqCst);
-        assert_eq!(db.read(|_| Ok(std::thread::current().id())).await.unwrap(), caller);
-        assert_eq!(db.inline_reads.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn a_read_with_no_reader_free_gives_its_place_back() {
-        let (_dir, db) = one_reader();
-        let held = db.readers.try_checkout().unwrap();
-        let read = tokio::spawn({
-            let db = db.clone();
-            async move { db.read(|_| Ok(())).await }
-        });
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-        assert_eq!(db.inline_reads.load(Ordering::SeqCst), 0);
-        drop(held);
-        read.await.unwrap().unwrap();
-        assert_eq!(db.inline_reads.load(Ordering::SeqCst), 0);
-    }
-
-    #[test]
-    fn an_inline_read_gives_its_place_back() {
-        let inside = AtomicUsize::new(0);
-        let first = InlineRead::enter(&inside, 1).unwrap();
-        assert!(InlineRead::enter(&inside, 1).is_none());
-        drop(first);
-        assert!(InlineRead::enter(&inside, 1).is_some());
-        assert_eq!(inside.load(Ordering::SeqCst), 0);
     }
 
     /// A connection returned while a checkout waits is that checkout's (it's woken for it), so a
