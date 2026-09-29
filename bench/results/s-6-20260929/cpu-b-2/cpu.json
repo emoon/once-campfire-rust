@@ -1,0 +1,22 @@
+{
+ "room_show": {
+  "conc": 16,
+  "rps": 20803.7,
+  "cpu_ms_per_req": 0.1765
+ },
+ "messages_page": {
+  "conc": 16,
+  "rps": 25118.6,
+  "cpu_ms_per_req": 0.1475
+ },
+ "sidebar": {
+  "conc": 16,
+  "rps": 13154.0,
+  "cpu_ms_per_req": 0.2828
+ },
+ "post_message": {
+  "conc": 16,
+  "rps": 4253.0,
+  "cpu_ms_per_req": 0.4798
+ }
+}
