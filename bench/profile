@@ -125,6 +125,7 @@ def cpu():
                 toggle()
                 b.log(f"{t} c={conc}: {r['rps']} rps, campfire {r['cpu_ms_per_req']['campfire']} CPU ms/req")
                 summary[t] = {"conc": conc, "rps": r["rps"], "cpu_ms_per_req": r["cpu_ms_per_req"]["campfire"]}
+            app.ensure_running()
             done.append(t)
             time.sleep(0.5)
     finally:
@@ -272,6 +273,7 @@ def perf():
                               "per_request": per_request(before, after, r["latency"]["n"])}
             if rec:
                 rec.stop()
+            app.ensure_running()
             done.append(t)
             time.sleep(0.5)
     finally:
@@ -347,6 +349,7 @@ def heap():
 
         res = run_cable_toggled(app, sess, a.clients, on_phase)
         sampler.stop()
+        app.ensure_running()
     finally:
         app.stop()
     dumps = sorted(glob.glob(prefix + ".*.heap"), key=os.path.getmtime)
