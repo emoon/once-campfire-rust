@@ -187,15 +187,16 @@ enum BrowserRule {
 
 impl BrowserRule {
     /// Looked up by the lowercased browser name. `BrowserBlocker#normalized_browser_name` renames
-    /// "internet explorer" to "ie" first, so Rails also blocks a browser whose own name is "IE";
-    /// this doesn't (a known gap, predating this enum).
+    /// "internet explorer" to "ie" before `minimum_browser_version_for_browser` reads VERSIONS
+    /// (actionpack's `action_controller/metal/allow_browser.rb`), so a browser whose own name is
+    /// "IE" is blocked too.
     fn for_browser(browser: &str) -> Self {
         match browser {
             "safari" => BrowserRule::Minimum("17.2"),
             "chrome" => BrowserRule::Minimum("120"),
             "firefox" => BrowserRule::Minimum("121"),
             "opera" => BrowserRule::Minimum("104"),
-            "internet explorer" => BrowserRule::AlwaysBlocked,
+            "internet explorer" | "ie" => BrowserRule::AlwaysBlocked,
             _ => BrowserRule::Unguarded,
         }
     }
@@ -244,6 +245,13 @@ mod tests {
         }
 
         assert!(failures.is_empty(), "{} mismatches:\n{}", failures.len(), failures.join("\n"));
+    }
+
+    #[test]
+    fn blocks_a_browser_named_ie_as_rails_does() {
+        assert!(browser_blocked(Some("IE/5.0")));
+        assert!(browser_blocked(Some("ie/5.0 (Windows)")));
+        assert!(!browser_blocked(Some("IE/5.0 (compatible; bot)")));
     }
 
     #[test]
