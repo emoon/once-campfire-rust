@@ -477,7 +477,8 @@ fn text_digest(text: &[u8]) -> Digest {
     }
     let digest = blake3::hash(text).into();
     let known = Arc::new(KnownText { text: text.into(), digest });
-    lock(&KNOWN_TEXTS).insert(key, known, text.len());
+    // The text plus its entry: the `Arc`'s counts, the digest and the map slot.
+    lock(&KNOWN_TEXTS).insert(key, known, text.len() + std::mem::size_of::<KnownText>() + 64);
     digest
 }
 
