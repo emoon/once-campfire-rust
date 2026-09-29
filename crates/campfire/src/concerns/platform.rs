@@ -167,21 +167,36 @@ fn try_browser_blocked(user_agent: Option<&str>) -> Rb<bool> {
     };
 
     let browser = agent.try_browser()?.ok_or(Raised)?.to_lowercase();
-    // `nil` means the browser isn't version-guarded; `Some(None)` is `ie: false`, always blocked.
-    let minimum = match browser.as_str() {
-        "safari" => Some(Some("17.2")),
-        "chrome" => Some(Some("120")),
-        "firefox" => Some(Some("121")),
-        "opera" => Some(Some("104")),
-        "internet explorer" => Some(None),
-        _ => None,
+    let below_minimum = match BrowserRule::for_browser(&browser) {
+        BrowserRule::Unguarded => return Ok(false),
+        BrowserRule::AlwaysBlocked => true,
+        BrowserRule::Minimum(minimum) => version < Version::new(minimum),
     };
-
-    let Some(minimum) = minimum else {
-        return Ok(false);
-    };
-    let below_minimum = minimum.is_none_or(|minimum| version < Version::new(minimum));
     Ok(below_minimum && !agent.is_bot())
+}
+
+/// A browser's entry in `AllowBrowser::VERSIONS`.
+enum BrowserRule {
+    /// No entry: any version is allowed.
+    Unguarded,
+    /// `false`: every version is blocked.
+    AlwaysBlocked,
+    /// A version: anything older is blocked.
+    Minimum(&'static str),
+}
+
+impl BrowserRule {
+    /// Looked up by the lowercased browser name, as `BrowserBlocker` does.
+    fn for_browser(browser: &str) -> Self {
+        match browser {
+            "safari" => BrowserRule::Minimum("17.2"),
+            "chrome" => BrowserRule::Minimum("120"),
+            "firefox" => BrowserRule::Minimum("121"),
+            "opera" => BrowserRule::Minimum("104"),
+            "internet explorer" => BrowserRule::AlwaysBlocked,
+            _ => BrowserRule::Unguarded,
+        }
+    }
 }
 
 #[cfg(test)]

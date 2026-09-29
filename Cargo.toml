@@ -48,6 +48,9 @@ uuid         = { version = "1", features = ["v4"] }
 percent-encoding = "2"
 url          = "2"
 regex        = "1"
+# The engine under `regex` (same features as its defaults, so nothing new is compiled); used
+# directly where `Regex::captures` would allocate per call.
+regex-automata = { version = "0.4", default-features = false, features = ["std", "meta", "perf", "unicode", "hybrid", "dfa-onepass", "nfa-backtrack"] }
 async-trait  = "0.1"
 libc         = "0.2"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
