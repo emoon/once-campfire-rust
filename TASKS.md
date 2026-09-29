@@ -158,6 +158,8 @@ otherwise stop" in `plans/cleanup.md`.
 
 ## Phase 2: lanes
 
+Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fail, 1 allowed, as the Phase 0 baseline (2026-09-29).
+
 ### DB (`crates/db`)
 - [ ] DB-1 perf: N+1 in `Room::find_direct_for`
 - [ ] DB-2 Existing enums instead of string/integer literals
