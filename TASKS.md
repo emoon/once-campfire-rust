@@ -161,6 +161,7 @@ otherwise stop" in `plans/cleanup.md`.
 Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fail, 1 allowed, as the Phase 0 baseline (2026-09-29).
 Batch parity on 6b98426 (after batch 1, VIEW-3, KIT-9): 873 pass, 0 fail, 1 allowed (2026-09-29).
 Batch parity on 8559e9c (after VIEW-11, VIEW-10): 872 pass, **1 fail**: `rooms/show/direct/group @ chromium-desktop-light`, network layer, the `/users/me/sidebar` body differs (the dark cell of the same state passed). `--only 'rooms/show/direct/*'` then passed 3/3 (`parity/out/recheck-direct-*`). Treated as a one-off; if the next full compare fails it again, bisect VIEW-11/VIEW-10.
+VIEW-2's parity (on top of VIEW-11, VIEW-10): 873 pass, 0 fail, 1 allowed; `rooms/show/direct/group` passed, so the miss above was a one-off (2026-09-30).
 
 ### DB (`crates/db`)
 - [ ] DB-1 perf: N+1 in `Room::find_direct_for`
@@ -221,7 +222,7 @@ Batch parity on 8559e9c (after VIEW-11, VIEW-10): 872 pass, **1 fail**: `rooms/s
 
 ### VIEW (`crates/views`, `crates/richtext`)
 - [x] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
-- [ ] VIEW-2 perf: `Attrs` with `Cow` keys and `write!`; the `push_str(&format!)` sites
+- [x] VIEW-2 perf: `Attrs` and string building (refactor/cleanup-view-2, merged 286b2e9). sidebar CPU/req −12.1%, room_show −4.0%. views +193 lines
 - [x] VIEW-3 perf: richtext statics, fewer sanitize passes, allocation-free names (refactor/cleanup-view-3, merged b603f22). Cold fragment cache, 8 ABBA runs: room_show CPU/req −4.6%, req/s +10.1%; messages_page −4.3%, +7.6%; warm targets within T. Parity 873/874. richtext +50 lines
 - [ ] VIEW-4 `Cached<V>` + `CachedPartial` for messages/users/boosts
 - [ ] VIEW-5 One `DomId` and one `param_key` (with LIVE-3)
