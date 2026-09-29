@@ -24,7 +24,6 @@ pub struct Session {
 }
 
 sql::columns! {
-    /// [`Session`]'s columns.
     struct SessionColumns { id, user_id, token, ip_address, user_agent, last_active_at, created_at, updated_at }
 }
 

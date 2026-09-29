@@ -20,7 +20,6 @@ pub struct Search {
 }
 
 sql::columns! {
-    /// [`Search`]'s columns.
     struct SearchColumns { id, user_id, query, created_at, updated_at }
 }
 

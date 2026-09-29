@@ -23,7 +23,6 @@ pub struct Blob {
 }
 
 sql::columns! {
-    /// [`Blob`]'s columns.
     struct BlobColumns { id, key, filename, content_type, metadata, service_name, byte_size, checksum, created_at }
 }
 
@@ -79,7 +78,6 @@ pub struct Attachment {
 }
 
 sql::columns! {
-    /// [`Attachment`]'s columns.
     struct AttachmentColumns { id, name, record_type, record_id, blob_id, created_at }
 }
 

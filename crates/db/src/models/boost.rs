@@ -19,7 +19,6 @@ pub struct Boost {
 }
 
 sql::columns! {
-    /// [`Boost`]'s columns.
     struct BoostColumns { id, message_id, booster_id, content, created_at, updated_at }
 }
 

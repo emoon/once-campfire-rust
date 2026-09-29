@@ -19,7 +19,6 @@ pub struct Ban {
 }
 
 sql::columns! {
-    /// [`Ban`]'s columns.
     struct BanColumns { id, user_id, ip_address, created_at, updated_at }
 }
 

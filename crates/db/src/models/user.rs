@@ -137,7 +137,6 @@ pub struct UserChanges {
 const INSERT: &str = r#"INSERT INTO "users" ("bio", "bot_token", "created_at", "email_address", "name", "password_digest", "role", "status", "updated_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING "id""#;
 
 sql::columns! {
-    /// [`User`]'s columns.
     pub(crate) struct UserColumns { id, name, email_address, password_digest, role, status, bio, bot_token, created_at, updated_at }
 }
 

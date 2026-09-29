@@ -19,7 +19,6 @@ pub struct RichTextRecord {
 }
 
 sql::columns! {
-    /// [`RichTextRecord`]'s columns.
     struct RichTextRecordColumns { id, name, body, record_type, record_id, created_at, updated_at }
 }
 

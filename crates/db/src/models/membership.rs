@@ -72,7 +72,6 @@ pub struct Membership {
 }
 
 sql::columns! {
-    /// [`Membership`]'s columns.
     pub(crate) struct MembershipColumns { id, room_id, user_id, involvement, unread_at, connected_at, connections, created_at, updated_at }
 }
 

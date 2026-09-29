@@ -73,7 +73,6 @@ const SELECT_FOR_USER: &str =
     r#"SELECT "rooms".* FROM "rooms" INNER JOIN "memberships" ON "rooms"."id" = "memberships"."room_id" WHERE "memberships"."user_id" = ?"#;
 
 sql::columns! {
-    /// [`Room`]'s columns.
     pub(crate) struct RoomColumns { id, name, room_type = "type", creator_id, created_at, updated_at }
 }
 

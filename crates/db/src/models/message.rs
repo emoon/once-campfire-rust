@@ -61,7 +61,6 @@ const SELECT_IN_ROOM: &str = r#"SELECT "messages".* FROM "messages" WHERE "messa
 const SELECT_REACHABLE: &str = r#"SELECT "messages".* FROM "messages" INNER JOIN "rooms" ON "messages"."room_id" = "rooms"."id" INNER JOIN "memberships" ON "rooms"."id" = "memberships"."room_id""#;
 
 sql::columns! {
-    /// [`Message`]'s columns.
     pub(crate) struct MessageColumns { id, room_id, creator_id, client_message_id, created_at, updated_at }
 }
 

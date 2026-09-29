@@ -46,7 +46,6 @@ pub struct PushPayload {
 }
 
 sql::columns! {
-    /// [`PushSubscription`]'s columns.
     struct PushSubscriptionColumns { id, user_id, endpoint, p256dh_key, auth_key, user_agent, created_at, updated_at }
 }
 

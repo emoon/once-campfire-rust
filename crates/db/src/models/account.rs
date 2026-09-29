@@ -95,7 +95,6 @@ fn present(value: Option<&Value>) -> bool {
 }
 
 sql::columns! {
-    /// [`Account`]'s columns.
     struct AccountColumns { id, name, join_code, custom_styles, settings_json = "settings", singleton_guard, created_at, updated_at }
 }
 

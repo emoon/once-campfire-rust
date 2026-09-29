@@ -23,7 +23,6 @@ pub struct Webhook {
 }
 
 sql::columns! {
-    /// [`Webhook`]'s columns.
     struct WebhookColumns { id, user_id, url, created_at, updated_at }
 }
 
