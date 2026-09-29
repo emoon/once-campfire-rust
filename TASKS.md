@@ -39,6 +39,8 @@ otherwise stop" in `plans/cleanup.md`.
   richtext, templates, asset overrides); otherwise one compare on the tip after every three merges.
 - The human disables the desktop screensaver and the spinning `gh auth token` themselves
   (2026-09-29); agents still check `pgrep -f omarchy-screensaver` around CPU runs.
+- Performance means time (2026-09-29): the gate is CPU per request and req/s at c=16; allocations
+  are information only and never block a merge. Perf work is ordered by S-8's measured costs.
 - The run ends after P-5 with everything committed on `refactor/cleanup` and the PR description in
   `plans/cleanup-pr.md`. Nothing is pushed (2026-09-28).
 
