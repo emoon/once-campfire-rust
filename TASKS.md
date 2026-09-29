@@ -188,7 +188,8 @@ Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fai
 - [ ] KIT-6 Typed `FrontConfig`, `Disposition`, `Redirect.status`, bool structs
 - [ ] KIT-7 Routes: `&'static str` for constant paths
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
-- [ ] KIT-9 perf: splice without rehashing (text identity, recorded fragment offsets, combined CRCs) (S-8)
+- [~] KIT-9 perf: splice without rehashing (text identity, combined CRCs) (S-8) (refactor/cleanup-kit-9)
+- [ ] KIT-9b perf: record fragment offsets while rendering instead of `find`/`starts_with` over the body (6.1% of room_show, 6.6% of messages_page in S-8). Split from KIT-9: needs a recording writer through askama's `render()`, the page helpers and `Response`, composed across the frame layout's copy of the content
 - [x] KIT-10 perf: reuse gzip output for repeated bodies (refactor/cleanup-kit-10, merged). c=16 ABBA, 8 runs: sidebar CPU/req −48.5%, req/s +91%; others ±1%. Encoder pooling left out (−0.5% of post_message, under T). kit +72 lines
 
 ### WEB (`crates/campfire` controllers, concerns, app)
