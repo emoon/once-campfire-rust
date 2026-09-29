@@ -3,13 +3,11 @@
 //! from reference/config/environments/production.rb (`public_file_server.headers`).
 
 use crate::embedded;
+use rails_compat::rack::{MULTIPART_BOUNDARY, Multipart, Part, Spelling, byte_ranges};
 use std::borrow::Cow;
 
 /// The last `config.public_file_server.headers` assignment in production.rb wins.
 const CACHE_CONTROL: &str = "public, max-age=2592000";
-
-/// Rack::Files::MULTIPART_BOUNDARY
-const MULTIPART_BOUNDARY: &str = "AaB03x";
 
 /// The parts of a request ActionDispatch::Static looks at.
 #[derive(Debug, Clone, Copy, Default)]
@@ -102,7 +100,7 @@ fn serve_file(request: &StaticRequest, file: &'static [u8], content_headers: Con
         };
     }
 
-    let size = file.len();
+    let size = file.len() as u64;
     let mut headers: Vec<(&'static str, String)> = vec![
         ("last-modified", last_modified.to_string()),
         ("content-type", String::new()), // replaced by the content headers below
@@ -128,24 +126,25 @@ fn serve_file(request: &StaticRequest, file: &'static [u8], content_headers: Con
             let (start, end) = ranges[0];
             headers.push(("content-range", format!("bytes {start}-{end}/{size}")));
             status = 206;
-            body = Body::Borrowed(&file[start..=end]);
+            body = Body::Borrowed(slice(file, start, end));
         }
         Some(ranges) => {
-            let content_type = content_headers[0].1.clone();
-            let mut multipart = Vec::new();
-            for &(start, end) in &ranges {
-                multipart.extend_from_slice(
-                    format!(
-                        "\r\n--{MULTIPART_BOUNDARY}\r\ncontent-type: {content_type}\r\ncontent-range: bytes {start}-{end}/{size}\r\n\r\n"
-                    )
-                    .as_bytes(),
-                );
-                multipart.extend_from_slice(&file[start..=end]);
+            let multipart = Multipart {
+                boundary: MULTIPART_BOUNDARY,
+                spelling: Spelling::Rack,
+                content_type: &content_headers[0].1,
+                size,
+            };
+            let mut bytes = Vec::new();
+            for part in multipart.parts(&ranges) {
+                match part {
+                    Part::Text(text) => bytes.extend_from_slice(text.as_bytes()),
+                    Part::Range(start, end) => bytes.extend_from_slice(slice(file, start, end)),
+                }
             }
-            multipart.extend_from_slice(format!("\r\n--{MULTIPART_BOUNDARY}--\r\n").as_bytes());
-            headers[1].1 = format!("multipart/byteranges; boundary={MULTIPART_BOUNDARY}");
+            headers[1].1 = multipart.content_type_header();
             status = 206;
-            body = Body::Owned(multipart);
+            body = Body::Owned(bytes);
         }
     }
 
@@ -168,58 +167,9 @@ fn serve_file(request: &StaticRequest, file: &'static [u8], content_headers: Con
     StaticResponse { status, headers, body }
 }
 
-/// Rack::Utils.get_byte_ranges: None to serve the whole file, Some(empty) when unsatisfiable.
-fn byte_ranges(header: Option<&str>, size: usize) -> Option<Vec<(usize, usize)>> {
-    if size == 0 {
-        return None;
-    }
-    let header = header?;
-    // http_range =~ /bytes=([^;]+)/
-    let spec = &header[header.find("bytes=")? + 6..];
-    let spec = spec.split(';').next().filter(|s| !s.is_empty())?;
-    if spec.matches(',').count() >= 100 {
-        return None;
-    }
-
-    let mut ranges = Vec::new();
-    for range_spec in spec.split(',').map(|s| s.trim_start_matches([' ', '\t'])) {
-        if !range_spec.contains('-') {
-            return None;
-        }
-        let mut parts = range_spec.split('-');
-        let r0 = parts.next().unwrap_or("");
-        let r1 = parts.next().filter(|s| !s.is_empty());
-        let (start, end) = if r0.is_empty() {
-            let suffix = to_i(r1?);
-            ((size as i64 - suffix).max(0), size as i64 - 1)
-        } else {
-            let start = to_i(r0);
-            match r1 {
-                None => (start, size as i64 - 1),
-                Some(r1) => {
-                    let end = to_i(r1);
-                    if end < start {
-                        return None;
-                    }
-                    (start, end.min(size as i64 - 1))
-                }
-            }
-        };
-        if start <= end {
-            ranges.push((start as usize, end as usize));
-        }
-    }
-
-    if ranges.iter().map(|(s, e)| e - s + 1).sum::<usize>() > size {
-        return Some(Vec::new());
-    }
-    Some(ranges)
-}
-
-/// String#to_i: leading digits, 0 if none.
-fn to_i(s: &str) -> i64 {
-    let digits: String = s.trim_start().chars().take_while(|c| c.is_ascii_digit()).collect();
-    digits.parse().unwrap_or(0)
+/// The inclusive byte range `start..=end` of `file`, which `byte_ranges` keeps inside it.
+fn slice(file: &[u8], start: u64, end: u64) -> &[u8] {
+    &file[start as usize..=end as usize]
 }
 
 /// FileHandler#clean_path: chomp("/"), percent-decode, reject NUL, then

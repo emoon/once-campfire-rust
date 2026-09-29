@@ -20,6 +20,7 @@ pub mod message_encryptor;
 pub mod message_verifier;
 #[cfg(feature = "crypto")]
 pub mod password;
+pub mod rack;
 pub mod ruby;
 #[cfg(feature = "crypto")]
 pub mod signed_id;

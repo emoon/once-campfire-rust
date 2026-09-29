@@ -8,12 +8,14 @@
 //! `ActiveStorage::BaseController` (`protect_from_forgery with: :exception`), not
 //! `ApplicationController`, so none of Campfire's concerns run.
 
+use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 
 use campfire_db::CachedStatements;
 use campfire_kit::{Ctx, Error, ExpiresIn, Freshness, Response, Result, SendOptions, StatusCode, halt, http::header};
-use campfire_storage::file_server::{self, BodyPart};
+use campfire_storage::file_server;
 use campfire_storage::{Blob, Filename, Json, Staged, Storage, Variation, content_types, disk, paths};
+use rails_compat::rack::{self, Multipart, Part, Spelling};
 use rusqlite::params;
 use tokio::sync::Semaphore;
 
@@ -353,7 +355,7 @@ fn send_blob_stream(c: &mut Ctx, blob: &Blob, disposition: Option<&str>) -> Resu
 fn send_blob_byte_range_data(c: &mut Ctx, blob: &Blob, range: &str) -> Result {
     let storage = c.app().storage.clone();
     let size = blob.byte_size.max(0) as u64;
-    let ranges = match file_server::byte_ranges(Some(range), size) {
+    let ranges = match rack::byte_ranges(Some(range), size) {
         Some(ranges) if !ranges.is_empty() => ranges,
         _ => return Ok(c.head(StatusCode::RANGE_NOT_SATISFIABLE)),
     };
@@ -361,29 +363,22 @@ fn send_blob_byte_range_data(c: &mut Ctx, blob: &Blob, range: &str) -> Result {
     if !path.is_file() {
         return Err(storage_error_to_kit(campfire_storage::Error::FileNotFound));
     }
-    let content_type_for_serving = content_types::for_serving(blob.content_type()).to_string();
+    let content_type_for_serving = content_types::for_serving(blob.content_type());
     let (content_type, parts, content_range) = if let [(start, end)] = ranges[..] {
         (
-            content_type_for_serving,
-            vec![BodyPart::File { path, start, end }],
+            content_type_for_serving.to_string(),
+            vec![Part::Range(start, end)],
             Some(format!("bytes {start}-{end}/{size}")),
         )
     } else {
         let boundary = random_hex(16);
-        let mut parts = Vec::new();
-        for &(start, end) in &ranges {
-            let heading = format!(
-                "\r\n--{boundary}\r\nContent-Type: {content_type_for_serving}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n"
-            );
-            parts.push(BodyPart::Bytes(heading.into_bytes()));
-            parts.push(BodyPart::File {
-                path: path.clone(),
-                start,
-                end,
-            });
-        }
-        parts.push(BodyPart::Bytes(format!("\r\n--{boundary}--\r\n").into_bytes()));
-        (format!("multipart/byteranges; boundary={boundary}"), parts, None)
+        let multipart = Multipart {
+            boundary: &boundary,
+            spelling: Spelling::ActiveStorage,
+            content_type: content_type_for_serving,
+            size,
+        };
+        (multipart.content_type_header(), multipart.parts(&ranges), None)
     };
     let disposition = content_types::forced_disposition(blob.content_type()).unwrap_or("inline");
     let mut response = c.send_data(
@@ -396,8 +391,8 @@ fn send_blob_byte_range_data(c: &mut Ctx, blob: &Blob, range: &str) -> Result {
             ..SendOptions::default()
         },
     );
-    let length = parts_len(&parts);
-    response.body = parts_body(parts);
+    let length = rack::content_length(&parts);
+    response.body = parts_body(path, parts);
     if matches!(response.body, campfire_kit::Body::Stream(_)) {
         response = response.header(header::CONTENT_LENGTH, &length.to_string());
     }
@@ -407,51 +402,44 @@ fn send_blob_byte_range_data(c: &mut Ctx, blob: &Blob, range: &str) -> Result {
     Ok(response.header(header::ACCEPT_RANGES, "bytes"))
 }
 
-/// The body for byte ranges of files and the bytes between them: a single range is sent as a
-/// file body and several are streamed, so neither is read into memory up front.
-fn parts_body(parts: Vec<BodyPart>) -> campfire_kit::Body {
-    match <[BodyPart; 1]>::try_from(parts) {
-        Ok([BodyPart::File { path, start, end }]) => campfire_kit::Body::File(campfire_kit::response::FileBody {
+/// The body for byte ranges of the file at `path` and the text between them: a single range is
+/// sent as a file body and several are streamed, so neither is read into memory up front.
+fn parts_body(path: PathBuf, parts: Vec<Part>) -> campfire_kit::Body {
+    match <[Part; 1]>::try_from(parts) {
+        Ok([Part::Range(start, end)]) => campfire_kit::Body::File(campfire_kit::response::FileBody {
             path,
             offset: start,
             len: end - start + 1,
         }),
-        Ok([BodyPart::Bytes(bytes)]) => campfire_kit::Body::Bytes(bytes.into()),
+        Ok([Part::Text(text)]) => campfire_kit::Body::Bytes(text.into()),
         Err(parts) if parts.is_empty() => campfire_kit::Body::Empty,
-        Err(parts) => campfire_kit::Body::Stream(axum::body::Body::from_stream(stream_parts(parts))),
+        Err(parts) => campfire_kit::Body::Stream(axum::body::Body::from_stream(stream_parts(path, parts))),
     }
 }
 
-fn parts_len(parts: &[BodyPart]) -> u64 {
-    parts
-        .iter()
-        .map(|part| match part {
-            BodyPart::Bytes(bytes) => bytes.len() as u64,
-            BodyPart::File { start, end, .. } => end - start + 1,
-        })
-        .sum()
-}
-
-/// Reads each part in turn, a chunk at a time.
-fn stream_parts(parts: Vec<BodyPart>) -> impl futures_util::Stream<Item = std::io::Result<bytes::Bytes>> + Send + 'static {
+/// Reads each part in turn, a chunk at a time, opening the file once.
+fn stream_parts(path: PathBuf, parts: Vec<Part>) -> impl futures_util::Stream<Item = std::io::Result<bytes::Bytes>> + Send + 'static {
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
     const CHUNK: usize = 64 * 1024;
-    let state = (parts.into_iter(), None::<tokio::io::Take<tokio::fs::File>>);
-    futures_util::stream::try_unfold(state, |(mut parts, mut reading)| async move {
+    let state = (parts.into_iter(), path, None::<tokio::io::Take<tokio::fs::File>>);
+    futures_util::stream::try_unfold(state, |(mut parts, path, mut reading)| async move {
         loop {
             if let Some(reader) = reading.as_mut() {
                 let mut chunk = vec![0; CHUNK];
                 let read = reader.read(&mut chunk).await?;
                 if read > 0 {
                     chunk.truncate(read);
-                    return Ok(Some((bytes::Bytes::from(chunk), (parts, reading))));
+                    return Ok(Some((bytes::Bytes::from(chunk), (parts, path, reading))));
                 }
             }
             match parts.next() {
                 None => return Ok(None),
-                Some(BodyPart::Bytes(bytes)) => return Ok(Some((bytes::Bytes::from(bytes), (parts, None)))),
-                Some(BodyPart::File { path, start, end }) => {
-                    let mut file = tokio::fs::File::open(&path).await?;
+                Some(Part::Text(text)) => return Ok(Some((bytes::Bytes::from(text), (parts, path, reading)))),
+                Some(Part::Range(start, end)) => {
+                    let mut file = match reading {
+                        Some(reader) => reader.into_inner(),
+                        None => tokio::fs::File::open(&path).await?,
+                    };
                     file.seek(std::io::SeekFrom::Start(start)).await?;
                     reading = Some(file.take(end - start + 1));
                 }
@@ -479,12 +467,8 @@ fn disk_serve(c: &mut Ctx) -> Result {
         range: c.request.header("range"),
         if_modified_since: c.request.header("if-modified-since"),
     };
-    let served = match file_server::serve_file(
-        &request,
-        &storage.service.path_for(&key.key),
-        key.content_type.as_deref(),
-        Some(&key.disposition),
-    ) {
+    let path = storage.service.path_for(&key.key);
+    let served = match file_server::serve_file(&request, &path, key.content_type.as_deref(), Some(&key.disposition)) {
         Ok(served) => served,
         Err(campfire_storage::Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(c.head(StatusCode::NOT_FOUND));
@@ -496,7 +480,7 @@ fn disk_serve(c: &mut Ctx) -> Result {
         response = response.header(name.as_str(), value);
     }
     // `served.headers` carries the Content-Length of every part together.
-    response.body = parts_body(served.body);
+    response.body = parts_body(path, served.body);
     Ok(response)
 }
 
@@ -752,25 +736,20 @@ mod tests {
         let file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(file.path(), (0..=255u8).cycle().take(200_000).collect::<Vec<u8>>()).unwrap();
         let path = file.path().to_path_buf();
-        let range = |start, end| BodyPart::File {
-            path: path.clone(),
-            start,
-            end,
-        };
 
-        match parts_body(vec![range(10, 199_999)]) {
+        match parts_body(path.clone(), vec![Part::Range(10, 199_999)]) {
             campfire_kit::Body::File(body) => assert_eq!((body.offset, body.len), (10, 199_990)),
             other => panic!("a single range should be a file body, got {other:?}"),
         }
 
         let parts = vec![
-            BodyPart::Bytes(b"<".to_vec()),
-            range(0, 2),
-            BodyPart::Bytes(b">".to_vec()),
-            range(100_000, 170_000),
+            Part::Text("<".into()),
+            Part::Range(0, 2),
+            Part::Text(">".into()),
+            Part::Range(100_000, 170_000),
         ];
-        let length = parts_len(&parts);
-        let campfire_kit::Body::Stream(stream) = parts_body(parts) else {
+        let length = rack::content_length(&parts);
+        let campfire_kit::Body::Stream(stream) = parts_body(path, parts) else {
             panic!("several ranges should stream")
         };
         let streamed = axum::body::to_bytes(stream, usize::MAX).await.unwrap();
