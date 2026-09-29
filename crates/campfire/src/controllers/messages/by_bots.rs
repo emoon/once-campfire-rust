@@ -5,13 +5,14 @@
 use campfire_db::{Message, Room};
 use campfire_kit::{Ctx, Param, Response, Result, StatusCode, format, halt, permit_keys};
 use campfire_views::messages::json;
+use rails_compat::ruby::cast_integer;
 
 use super::{
     MessageParams, attachment_assignment, broadcast_create, broadcast_replace, create_message, deliver_webhooks_to_bots, destroy_message,
     ensure_can_administer, find_paged_messages, present, set_message, update_message,
 };
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, before_actions, cast_integer, require_current_user};
+use crate::concerns::{self, Before, before_actions, require_current_user};
 use crate::controllers::presenters::page::db_error;
 
 fn before() -> Before {

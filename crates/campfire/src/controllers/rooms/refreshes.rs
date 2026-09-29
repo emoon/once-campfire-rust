@@ -5,9 +5,10 @@ use askama::Template;
 use campfire_db::{Message, Timestamp};
 use campfire_kit::{Ctx, Error, Result, StatusCode, format};
 use campfire_views::rooms::{RefreshShow, RefreshView};
+use rails_compat::ruby;
 
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, before_actions, ruby_to_i};
+use crate::concerns::{self, Before, before_actions};
 use crate::controllers::presenters::page::{self, db_error};
 use crate::controllers::presenters::{Presenter, room_kind};
 
@@ -49,7 +50,7 @@ fn set_last_updated_at(c: &Ctx) -> Result<Timestamp> {
     let since = match c.param("since") {
         None => 0,
         Some(param) => match param.as_str() {
-            Some(value) => ruby_to_i(value),
+            Some(value) => ruby::to_i(value),
             None if param.is_null() => 0,
             // `to_i` isn't defined for a hash or an array.
             None => return Err(Error::internal(anyhow::anyhow!("undefined method 'to_i'"))),

@@ -3,9 +3,10 @@
 
 use campfire_db::{Membership, PushSubscription};
 use campfire_kit::{Ctx, Error, Result};
+use rails_compat::ruby::cast_integer;
 
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, cast_integer};
+use crate::concerns::{self, Before};
 use crate::integrations::net::Network;
 use crate::integrations::web_push;
 

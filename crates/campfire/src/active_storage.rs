@@ -558,7 +558,7 @@ pub async fn direct_uploads_create(c: &mut Ctx) -> Result {
     ) else {
         return Err(Error::Status(StatusCode::UNPROCESSABLE_ENTITY));
     };
-    let Some(byte_size) = text("byte_size").and_then(|s| crate::concerns::cast_integer(&s)) else {
+    let Some(byte_size) = text("byte_size").and_then(|s| rails_compat::ruby::cast_integer(&s)) else {
         return Err(Error::Status(StatusCode::UNPROCESSABLE_ENTITY));
     };
     // The upload's PUT body is read into memory, so it's capped like other bodies: don't hand out

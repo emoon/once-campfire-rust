@@ -16,9 +16,10 @@ pub mod refreshes;
 use askama::Template;
 use campfire_db::{Account, Message, Room, RoomType, User};
 use campfire_kit::{Ctx, Error, Redirect, Result, StatusCode, halt};
+use rails_compat::ruby::cast_integer;
 
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, before_actions, cast_integer, require_current_user};
+use crate::concerns::{self, Before, before_actions, require_current_user};
 use crate::controllers::presenters::page::{self, Rendered, db_error};
 use crate::controllers::presenters::{Presenter, user_view};
 

@@ -5,9 +5,10 @@ pub mod keys;
 use campfire_db::{User, UserChanges};
 use campfire_kit::{Ctx, Error, Param, ParamMap, Result, StatusCode, format, permit_keys};
 use campfire_views::accounts;
+use rails_compat::ruby::cast_integer;
 
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, cast_integer};
+use crate::concerns::{self, Before};
 use crate::controllers::presenters;
 use crate::controllers::presenters::attachments::{self, Assignment, Record};
 use crate::controllers::presenters::page::framed_page;

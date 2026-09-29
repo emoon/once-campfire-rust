@@ -11,11 +11,12 @@ use askama::Template;
 use campfire_db::{Account, NewUser, User};
 use campfire_kit::{Ctx, Error, ParamMap, Result, StatusCode, format, halt, permit_keys};
 use campfire_views::users;
+use rails_compat::ruby::cast_integer;
 
 use super::presenters::attachments::{self, Assignment, Record};
 use super::presenters::{self, view_context};
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, cast_integer};
+use crate::concerns::{self, Before};
 use crate::controllers::presenters::page::framed_page;
 
 /// `require_unauthenticated_access only: %i[ new create ]`, `before_action :verify_join_code`

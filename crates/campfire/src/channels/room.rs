@@ -2,6 +2,7 @@
 //! `PresenceChannel` and `TypingNotificationsChannel` inherit from it.
 use campfire_cable::{Channel, ChannelResult, Params, Subscription};
 use campfire_db::{Database, Room};
+use rails_compat::ruby::cast_integer;
 use serde_json::Value;
 
 use super::{CableUser, room_gid};
@@ -45,36 +46,9 @@ pub fn cast_id(value: &Value) -> Option<i64> {
             .as_i64()
             .or_else(|| n.as_f64().filter(|f| f.is_finite() && f.abs() < 9.2e18).map(|f| f.trunc() as i64)),
         Value::Bool(b) => Some(i64::from(*b)),
-        Value::String(s) => ruby_to_i(s),
+        Value::String(s) => cast_integer(s),
         _ => None,
     }
-}
-
-/// `String#to_i`, for strings matching `/\A\s*[+-]?\d/`; `None` for the rest or on overflow.
-fn ruby_to_i(s: &str) -> Option<i64> {
-    let s = s.trim_start_matches(|c: char| c.is_ascii_whitespace());
-    let (negative, digits) = match s.as_bytes().first() {
-        Some(b'-') => (true, &s[1..]),
-        Some(b'+') => (false, &s[1..]),
-        _ => (false, s),
-    };
-    if !digits.starts_with(|c: char| c.is_ascii_digit()) {
-        return None;
-    }
-    let mut value: i64 = 0;
-    let mut previous_underscore = false;
-    for c in digits.chars() {
-        match c {
-            '0'..='9' => {
-                value = value.checked_mul(10)?.checked_add(i64::from(c as u8 - b'0'))?;
-                previous_underscore = false;
-            }
-            // Ruby allows single underscores between digits.
-            '_' if !previous_underscore => previous_underscore = true,
-            _ => break,
-        }
-    }
-    Some(if negative { -value } else { value })
 }
 
 #[async_trait::async_trait]

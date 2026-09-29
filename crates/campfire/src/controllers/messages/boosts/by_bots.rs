@@ -4,10 +4,11 @@
 use campfire_db::{Message, Room};
 use campfire_kit::{Ctx, Error, Result, StatusCode, format, halt};
 use campfire_views::messages::json;
+use rails_compat::ruby::cast_integer;
 
 use super::{broadcast_create, create_boost, destroy_boost, set_boost};
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, before_actions, cast_integer, require_current_user};
+use crate::concerns::{self, Before, before_actions, require_current_user};
 use crate::controllers::messages::by_bots::{is_blank, raw_request_body};
 use crate::controllers::messages::present;
 use crate::controllers::presenters::page::db_error;

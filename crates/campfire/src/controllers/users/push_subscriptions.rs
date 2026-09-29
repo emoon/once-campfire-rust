@@ -9,10 +9,11 @@ use std::sync::Mutex;
 use campfire_db::{CachedStatements, Connection, PushSubscription};
 use campfire_kit::{Ctx, Error, ParamMap, Result, StatusCode, format, permit_keys};
 use campfire_views::users;
+use rails_compat::ruby::cast_integer;
 use rusqlite::types::Value;
 
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, cast_integer};
+use crate::concerns::{self, Before};
 use crate::controllers::presenters;
 use crate::controllers::presenters::page::framed_page;
 use crate::integrations::net::{Network, guard};

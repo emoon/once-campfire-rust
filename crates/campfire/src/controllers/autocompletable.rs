@@ -6,10 +6,11 @@ pub mod users {
     use campfire_db::{Connection, Room, User};
     use campfire_kit::{Ctx, Error, Result, StatusCode, format};
     use campfire_views::autocompletable;
+    use rails_compat::ruby::cast_integer;
     use rusqlite::types::Value;
 
     use crate::app::AppCtx;
-    use crate::concerns::{self, Before, cast_integer};
+    use crate::concerns::{self, Before};
     use crate::controllers::presenters;
     use crate::controllers::presenters::pagination::Page;
     use crate::controllers::presenters::view_context::Layout;
