@@ -179,7 +179,7 @@ VIEW-2's parity (on top of VIEW-11, VIEW-10): 873 pass, 0 fail, 1 allowed; `room
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
 - [x] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (refactor/cleanup-perf-1, merged a493fe6). c=16 ABBA: CPU/req −8.7…−12.3%, req/s +7.7…+20.2% on all four targets; no cap on inline reads (see "For the human"). db +53, campfire +3 lines
 - [x] DB-12 perf: no `mmap_size` (refactor/cleanup-db-12, merged). c=16 ABBA on DB-11: post_message CPU/req −12.8%, req/s +8.9%; reads ±1.3%. db −1 line
-- [-] DB-13 perf: column indices once per query (refactor/cleanup-db-13). Dropped: no target gains more than T (8 ABBA runs on fc1aef6: messages_page CPU/req −2.9%, room_show −1.4%, sidebar −2.0%, post_message +2.2%). Results kept (`bench/results/db-13-20260929/`); code not merged.
+- [x] DB-13 perf: column indices once per query (refactor/cleanup-db-13, merged). Dropped at first (under T on fc1aef6, `bench/results/db-13-20260929/`); re-timed on d421663 after the tip's profile: messages_page CPU/req −3.9%, sidebar −3.8% (`bench/results/db-13-20260930/`)
 - [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
 ### KIT (`crates/kit`, `crates/routes`)

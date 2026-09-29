@@ -4,7 +4,7 @@ use rusqlite::{Connection, Row, params};
 
 use crate::database::Tx;
 use crate::error::Result;
-use crate::sql::{CachedStatements, query_one};
+use crate::sql::{self, CachedStatements, query_one};
 use crate::time::Timestamp;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,16 +18,20 @@ pub struct RichTextRecord {
     pub updated_at: Timestamp,
 }
 
+sql::columns! {
+    struct RichTextRecordColumns { id, name, body, record_type, record_id, created_at, updated_at }
+}
+
 impl RichTextRecord {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &RichTextRecordColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            name: row.get("name")?,
-            body: row.get("body")?,
-            record_type: row.get("record_type")?,
-            record_id: row.get("record_id")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            name: row.get(columns.name)?,
+            body: row.get(columns.body)?,
+            record_type: row.get(columns.record_type)?,
+            record_id: row.get(columns.record_id)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 

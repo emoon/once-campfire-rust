@@ -9,7 +9,7 @@ use crate::database::Tx;
 use crate::error::Result;
 use crate::models::{Message, Room, User};
 use crate::rich_text::RichText;
-use crate::sql::{CachedStatements, query_one};
+use crate::sql::{self, CachedStatements, query_one};
 use crate::time::Timestamp;
 
 /// `Webhook::ENDPOINT_TIMEOUT`
@@ -24,14 +24,18 @@ pub struct Webhook {
     pub updated_at: Timestamp,
 }
 
+sql::columns! {
+    struct WebhookColumns { id, user_id, url, created_at, updated_at }
+}
+
 impl Webhook {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &WebhookColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            user_id: row.get("user_id")?,
-            url: row.get("url")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            user_id: row.get(columns.user_id)?,
+            url: row.get(columns.url)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 

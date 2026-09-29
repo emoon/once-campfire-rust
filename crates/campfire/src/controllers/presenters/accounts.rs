@@ -256,7 +256,7 @@ fn direct_placeholder_users(conn: &Connection, secrets: &Secrets, user: &User) -
         r#"SELECT * FROM "users" WHERE "users"."status" = 0 AND "users"."id" NOT IN ({}) ORDER BY "users"."created_at" ASC LIMIT {limit}"#,
         placeholders(exclude_user_ids.len())
     );
-    let users = query_users(conn, &sql, rusqlite::params_from_iter(&exclude_user_ids))?;
+    let users = User::find_by_sql(conn, &sql, rusqlite::params_from_iter(&exclude_user_ids))?;
     Ok(users.iter().map(|user| user_summary(secrets, user)).collect())
 }
 
@@ -271,7 +271,7 @@ pub fn account_users(conn: &Connection, can_administer: bool) -> campfire_db::Re
         r#""users"."status" = 0"#
     };
     let sql = format!(r#"SELECT * FROM "users" WHERE {status} AND "users"."role" != 2 ORDER BY LOWER(name)"#);
-    query_users(conn, &sql, [])
+    User::find_by_sql(conn, &sql, [])
 }
 
 /// A bot row for `accounts/bots/_bot`: its key and `bot.rooms.without_directs.ordered`.
@@ -328,13 +328,6 @@ pub fn sort_by_lower_name<T>(items: &mut [T], name: impl Fn(&T) -> &str) {
 
 pub fn placeholders(count: usize) -> String {
     vec!["?"; count].join(", ")
-}
-
-/// Users from a `SELECT "users".*` query.
-pub fn query_users(conn: &Connection, sql: &str, values: impl rusqlite::Params) -> campfire_db::Result<Vec<User>> {
-    let mut statement = conn.prepare_cached(sql)?;
-    let users = statement.query_map(values, User::from_row)?.collect::<Result<_, _>>()?;
-    Ok(users)
 }
 
 /// `ActiveRecord::RecordNotUnique`: a unique index refused the write.
