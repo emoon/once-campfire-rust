@@ -1,0 +1,31 @@
+== 22:28:14 warmup:0 try 1
+[22:49:58] room_show c=16: 25949.3 rps, campfire 0.1492 CPU ms/req
+[22:50:09] messages_page c=16: 30890.3 rps, campfire 0.1249 CPU ms/req
+[22:50:21] sidebar c=16: 29834.2 rps, campfire 0.129 CPU ms/req
+[22:50:32] post_message c=16: 5496.3 rps, campfire 0.3502 CPU ms/req
+bench/quiet: other CCD 5.3% busy (max 15.0%), bench siblings 24-31 9.0% busy (max 15.0%), screensaver off
+== 22:50:33 base:1 try 1
+[22:50:44] room_show c=16: 26035.5 rps, campfire 0.1487 CPU ms/req
+[22:50:56] messages_page c=16: 30468.8 rps, campfire 0.1265 CPU ms/req
+[22:51:07] sidebar c=16: 29960.3 rps, campfire 0.1286 CPU ms/req
+[22:51:19] post_message c=16: 5393.2 rps, campfire 0.3491 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.5% busy (max 15.0%), screensaver off
+== 22:51:19 view-11:1 try 1
+[22:51:31] room_show c=16: 27556.0 rps, campfire 0.1404 CPU ms/req
+[22:51:42] messages_page c=16: 33806.1 rps, campfire 0.1137 CPU ms/req
+[22:51:54] sidebar c=16: 30452.9 rps, campfire 0.1266 CPU ms/req
+[22:52:05] post_message c=16: 5473.5 rps, campfire 0.3522 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.1% busy (max 15.0%), screensaver off
+== 22:52:06 view-11:2 try 1
+[22:52:17] room_show c=16: 27229.0 rps, campfire 0.1421 CPU ms/req
+[22:52:29] messages_page c=16: 33508.7 rps, campfire 0.1145 CPU ms/req
+[22:52:40] sidebar c=16: 30327.7 rps, campfire 0.1272 CPU ms/req
+[22:52:52] post_message c=16: 5516.3 rps, campfire 0.3445 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.0% busy (max 15.0%), screensaver off
+== 22:52:52 base:2 try 1
+[22:53:04] room_show c=16: 26075.7 rps, campfire 0.1486 CPU ms/req
+[22:53:15] messages_page c=16: 31097.4 rps, campfire 0.1242 CPU ms/req
+[22:53:27] sidebar c=16: 29947.1 rps, campfire 0.1288 CPU ms/req
+[22:53:38] post_message c=16: 5228.6 rps, campfire 0.3514 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.1% busy (max 15.0%), screensaver off
+== done 22:53:39
