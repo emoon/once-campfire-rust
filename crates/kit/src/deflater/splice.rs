@@ -18,11 +18,13 @@
 
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard, Weak};
+use std::sync::{Arc, LazyLock, Mutex, Weak};
 
 use bytes::Bytes;
 use flate2::{Compress, Compression, FlushCompress};
 use sha2::{Digest, Sha256};
+
+use super::{Generations, lock};
 
 /// Smaller fragments aren't worth a part of their own; they stay in the text around them.
 const MIN_FRAGMENT: usize = 1024;
@@ -190,7 +192,7 @@ impl PageParts {
                 .iter()
                 .zip(&befores)
                 .map(|(part, (before, _))| match part {
-                    Part::Text { sha, .. } => texts.get(&(*sha, *before)),
+                    Part::Text { sha, .. } => texts.get(&(*sha, *before)).map(|piece| piece.deflated),
                     Part::Fragment { fragment, glue, range, .. } => {
                         let glue = &body[range.start..range.start + glue];
                         fragments
@@ -234,7 +236,8 @@ impl PageParts {
         if !new_texts.is_empty() {
             let mut texts = lock(&TEXT_PIECES);
             for (key, piece) in new_texts {
-                texts.insert(key, piece);
+                let size = piece.deflated.len();
+                texts.insert(key, piece, size);
             }
         }
         if !new_fragments.is_empty() {
@@ -347,48 +350,15 @@ impl KnownFragment {
     }
 }
 
+#[derive(Clone)]
 struct TextPiece {
     deflated: Bytes,
     _pin: Option<Weak<String>>,
 }
 
-/// Text pieces in two generations: a read promotes an old piece, and when the young generation
-/// fills half the budget it becomes the old one (dropping the previous old one). Bounded, and what
-/// pages keep using stays.
-#[derive(Default)]
-struct TextPieces {
-    young: HashMap<(Sha, Before), TextPiece>,
-    old: HashMap<(Sha, Before), TextPiece>,
-    young_bytes: usize,
-}
-
-impl TextPieces {
-    fn get(&mut self, key: &(Sha, Before)) -> Option<Bytes> {
-        if let Some(piece) = self.young.get(key) {
-            return Some(piece.deflated.clone());
-        }
-        let piece = self.old.remove(key)?;
-        let deflated = piece.deflated.clone();
-        self.insert(*key, piece);
-        Some(deflated)
-    }
-
-    fn insert(&mut self, key: (Sha, Before), piece: TextPiece) {
-        self.young_bytes += piece.deflated.len();
-        self.young.insert(key, piece);
-        if self.young_bytes > MAX_TEXT_PIECE_BYTES / 2 {
-            self.old = std::mem::take(&mut self.young);
-            self.young_bytes = 0;
-        }
-    }
-}
-
 static FRAGMENTS: LazyLock<Mutex<HashMap<usize, KnownFragment>>> = LazyLock::new(Mutex::default);
-static TEXT_PIECES: LazyLock<Mutex<TextPieces>> = LazyLock::new(Mutex::default);
-
-fn lock<T>(mutex: &'static Mutex<T>) -> MutexGuard<'static, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
+static TEXT_PIECES: LazyLock<Mutex<Generations<(Sha, Before), TextPiece>>> =
+    LazyLock::new(|| Mutex::new(Generations::new(MAX_TEXT_PIECE_BYTES)));
 
 fn fragment_key(fragment: &Arc<String>) -> usize {
     Arc::as_ptr(fragment) as usize
@@ -563,22 +533,5 @@ mod tests {
             spliced < whole + 40 * (messages.len() + 2),
             "{spliced} bytes spliced vs {whole} whole"
         );
-    }
-
-    #[test]
-    fn text_pieces_stay_within_their_budget() {
-        let mut texts = TextPieces::default();
-        let size = 1 << 20;
-        let piece = || TextPiece {
-            deflated: Bytes::from(vec![0; size]),
-            _pin: None,
-        };
-        for n in 0..100u8 {
-            texts.insert(([n; 32], Before::Nothing), piece());
-            let held = (texts.young.len() + texts.old.len()) * size;
-            // Each generation may overshoot half the budget by the piece that filled it.
-            assert!(held <= MAX_TEXT_PIECE_BYTES + 2 * size, "{held} bytes held");
-        }
-        assert!(texts.get(&([99; 32], Before::Nothing)).is_some(), "the latest is kept");
     }
 }

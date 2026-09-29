@@ -30,7 +30,7 @@ pub async fn edit(c: &mut Ctx) -> Result {
     let users = c
         .app()
         .db
-        .read(move |conn| presenters::accounts::account_users(conn, can_administer))
+        .read_offloaded(move |conn| presenters::accounts::account_users(conn, can_administer))
         .await
         .map_err(Error::internal)?;
     let page = Page::new(c.param_str("page"), users.len() as i64, PER_PAGE);

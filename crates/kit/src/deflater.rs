@@ -3,7 +3,10 @@
 //! and adds `Accept-Encoding` to `Vary`. A gzipped body has no `Content-Length`, so it goes out
 //! chunked (and the front server's compression leaves it alone).
 
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::io::Write;
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
 use axum::body::Body;
 use axum::extract::Request;
@@ -28,6 +31,14 @@ pub struct StaticFile;
 /// as opposed to one hyper adds after this middleware from the body's size.
 #[derive(Debug, Clone, Copy)]
 pub struct AppContentLength;
+
+/// The SHA-256 `Rack::ETag` took of a response's whole body: the body's identity, so the gzip of a
+/// body that repeats (the sidebar) comes from [`GZIPPED`] instead of being deflated again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct BodyDigest(pub(crate) [u8; 32]);
+
+/// A bound on the bytes of kept gzip members (a sidebar's is ~6 KB).
+const MAX_GZIPPED_BYTES: usize = 16 << 20;
 
 /// The `Rack::Deflater` middleware.
 pub async fn deflater(request: Request, next: Next) -> Response {
@@ -77,10 +88,14 @@ pub async fn deflater(request: Request, next: Next) -> Response {
             headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
             headers.remove(header::CONTENT_LENGTH);
             let (mut parts, body) = response.into_parts();
-            match parts.extensions.remove::<std::sync::Arc<splice::PageParts>>() {
-                Some(page_parts) => Response::from_parts(parts, gzip_page_parts(body, &page_parts, mtime).await),
-                None => Response::from_parts(parts, gzip_stream(body, mtime)),
-            }
+            let body = if let Some(page_parts) = parts.extensions.remove::<Arc<splice::PageParts>>() {
+                gzip_page_parts(body, &page_parts, mtime).await
+            } else if let Some(digest) = parts.extensions.remove::<BodyDigest>() {
+                gzip_digested(body, digest, mtime).await
+            } else {
+                gzip_stream(body, mtime)
+            };
+            Response::from_parts(parts, body)
         }
         Some(_) => response,
         None => {
@@ -204,10 +219,7 @@ fn select_best_encoding(available: &[&'static str], accept: &[(String, f64)]) ->
 /// `GzipStream` with `sync: true`: each body chunk is compressed and flushed as it arrives.
 /// `Zlib::GzipWriter` writes the header with the given mtime and the Unix OS code.
 fn gzip_stream(body: Body, mtime: u32) -> Body {
-    let encoder = GzBuilder::new()
-        .mtime(mtime)
-        .operating_system(3)
-        .write(Vec::new(), Compression::default());
+    let encoder = gzip_encoder(mtime);
     let chunks = body.into_data_stream();
     let stream = futures_util::stream::unfold(Some((chunks, encoder)), |state| async move {
         let (mut chunks, mut encoder) = state?;
@@ -228,25 +240,78 @@ fn gzip_stream(body: Body, mtime: u32) -> Body {
     Body::from_stream(stream)
 }
 
+fn gzip_encoder(mtime: u32) -> GzEncoder<Vec<u8>> {
+    GzBuilder::new()
+        .mtime(mtime)
+        .operating_system(3)
+        .write(Vec::new(), Compression::default())
+}
+
+/// A body `Rack::ETag` digested (always a single buffer), gzipped once while it keeps repeating.
+async fn gzip_digested(body: Body, digest: BodyDigest, mtime: u32) -> Body {
+    let bytes = match collect(body).await {
+        Ok(bytes) => bytes,
+        Err(error) => return error,
+    };
+    let key = (digest, mtime);
+    let cached = lock(&GZIPPED).get(&key);
+    let gzipped = match cached {
+        Some(gzipped) => gzipped,
+        None => match gzip_member(&bytes, mtime) {
+            Ok(gzipped) => {
+                // One huge body mustn't push out everything else.
+                if gzipped.len() <= MAX_GZIPPED_BYTES / 4 {
+                    lock(&GZIPPED).insert(key, gzipped.clone(), gzipped.len());
+                }
+                gzipped
+            }
+            Err(error) => return error_body(error),
+        },
+    };
+    single_chunk(gzipped)
+}
+
+/// What [`gzip_stream`] sends for a single-buffer body, in one piece.
+fn gzip_member(body: &[u8], mtime: u32) -> std::io::Result<Bytes> {
+    let mut encoder = gzip_encoder(mtime);
+    if !body.is_empty() {
+        encoder.write_all(body)?;
+        encoder.flush()?;
+    }
+    let mut member = encoder.finish()?;
+    // Kept for as long as it's used, so without the spare capacity growing it left.
+    member.shrink_to_fit();
+    Ok(member.into())
+}
+
 /// A body split into [`splice::PageParts`] (always a single buffer), as their stored pieces; the
 /// same decoded bytes as [`gzip_stream`].
 async fn gzip_page_parts(body: Body, page_parts: &splice::PageParts, mtime: u32) -> Body {
-    let bytes = match body.collect().await {
-        Ok(collected) => collected.to_bytes(),
-        Err(error) => {
-            return Body::from_stream(futures_util::stream::once(
-                async move { Err::<Bytes, _>(std::io::Error::other(error)) },
-            ));
-        }
+    let bytes = match collect(body).await {
+        Ok(bytes) => bytes,
+        Err(error) => return error,
     };
     if !page_parts.fits(&bytes) {
         return gzip_stream(Body::from(bytes), mtime);
     }
-    let gzipped = page_parts.gzip(&bytes, mtime);
-    // Streamed like `gzip_stream`'s output, so no `Content-Length` goes with it.
-    Body::from_stream(futures_util::stream::once(
-        async move { Ok::<_, std::io::Error>(Bytes::from(gzipped)) },
-    ))
+    single_chunk(page_parts.gzip(&bytes, mtime).into())
+}
+
+/// A single-buffer body's bytes, or a body that fails with its error.
+async fn collect(body: Body) -> Result<Bytes, Body> {
+    body.collect()
+        .await
+        .map(http_body_util::Collected::to_bytes)
+        .map_err(|error| error_body(std::io::Error::other(error)))
+}
+
+/// Streamed like [`gzip_stream`]'s output, so no `Content-Length` goes with it.
+fn single_chunk(gzipped: Bytes) -> Body {
+    Body::from_stream(futures_util::stream::once(async move { Ok::<_, std::io::Error>(gzipped) }))
+}
+
+fn error_body(error: std::io::Error) -> Body {
+    Body::from_stream(futures_util::stream::once(async move { Err::<Bytes, _>(error) }))
 }
 
 fn compress(encoder: &mut GzEncoder<Vec<u8>>, chunk: &[u8]) -> std::io::Result<Bytes> {
@@ -255,9 +320,57 @@ fn compress(encoder: &mut GzEncoder<Vec<u8>>, chunk: &[u8]) -> std::io::Result<B
     Ok(Bytes::from(std::mem::take(encoder.get_mut())))
 }
 
+/// A map bounded by bytes, in two generations: a read promotes an old entry, and when the young
+/// generation fills half the budget it becomes the old one (dropping the previous old one). What's
+/// in use stays, and each generation overshoots half the budget by at most the entry that filled it.
+struct Generations<K, V> {
+    max_bytes: usize,
+    young: HashMap<K, (V, usize)>,
+    old: HashMap<K, (V, usize)>,
+    young_bytes: usize,
+}
+
+impl<K: Copy + Eq + Hash, V: Clone> Generations<K, V> {
+    fn new(max_bytes: usize) -> Self {
+        Self {
+            max_bytes,
+            young: HashMap::new(),
+            old: HashMap::new(),
+            young_bytes: 0,
+        }
+    }
+
+    fn get(&mut self, key: &K) -> Option<V> {
+        if let Some((value, _)) = self.young.get(key) {
+            return Some(value.clone());
+        }
+        let (value, size) = self.old.remove(key)?;
+        self.insert(*key, value.clone(), size);
+        Some(value)
+    }
+
+    /// Keeps `value`, which holds `size` bytes.
+    fn insert(&mut self, key: K, value: V, size: usize) {
+        self.young_bytes += size;
+        self.young.insert(key, (value, size));
+        if self.young_bytes > self.max_bytes / 2 {
+            self.old = std::mem::take(&mut self.young);
+            self.young_bytes = 0;
+        }
+    }
+}
+
+/// Gzip members by body digest and gzip mtime.
+static GZIPPED: LazyLock<Mutex<Generations<(BodyDigest, u32), Bytes>>> = LazyLock::new(|| Mutex::new(Generations::new(MAX_GZIPPED_BYTES)));
+
+fn lock<T>(mutex: &'static Mutex<T>) -> MutexGuard<'static, T> {
+    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::Digest;
 
     fn best(header: &str) -> Option<&'static str> {
         select_best_encoding(&["gzip", "identity"], &parse_accept_encoding(header))
@@ -294,5 +407,116 @@ mod tests {
             flate2::read::GzDecoder::new(&bytes[..]).read_to_end(&mut out).unwrap();
             assert_eq!(out, input);
         }
+    }
+
+    async fn gzipped(body: Body) -> Bytes {
+        body.collect().await.unwrap().to_bytes()
+    }
+
+    fn digest(body: &[u8]) -> BodyDigest {
+        BodyDigest(sha2::Sha256::digest(body).into())
+    }
+
+    #[tokio::test]
+    async fn digested_bodies_are_gzipped_once() {
+        let body = Bytes::from("<a href=\"/rooms/1\">Room</a>".repeat(300));
+        let first = gzipped(gzip_digested(Body::from(body.clone()), digest(&body), 0).await).await;
+        assert_eq!(
+            first,
+            gzipped(gzip_stream(Body::from(body.clone()), 0)).await,
+            "what gzip_stream sends"
+        );
+        let kept = lock(&GZIPPED).get(&(digest(&body), 0)).expect("kept");
+        let again = gzipped(gzip_digested(Body::from(body.clone()), digest(&body), 0).await).await;
+        assert_eq!(again.as_ptr(), kept.as_ptr(), "not gzipped again");
+
+        let other = Bytes::from("<a href=\"/rooms/2\">Room</a>".repeat(300));
+        let gzip = gzipped(gzip_digested(Body::from(other.clone()), digest(&other), 0).await).await;
+        assert_eq!(gzip, gzipped(gzip_stream(Body::from(other), 0)).await);
+    }
+
+    #[test]
+    fn generations_stay_within_their_budget() {
+        let max_bytes = 16 << 20;
+        let mut generations = Generations::new(max_bytes);
+        let size = 1 << 20;
+        for n in 0..100u8 {
+            generations.insert(n, (), size);
+            let held = (generations.young.len() + generations.old.len()) * size;
+            // Each generation may overshoot half the budget by the entry that filled it.
+            assert!(held <= max_bytes + 2 * size, "{held} bytes held");
+        }
+        assert!(generations.get(&99).is_some(), "the latest is kept");
+    }
+
+    /// KIT-10's gate: what a body that never repeats costs, gzipped as before (a fresh `GzEncoder`)
+    /// and through the cache (lookup, gzip, insert); and what a stream of distinct bodies leaves
+    /// held. The SHA-256, which `Rack::ETag` takes either way, isn't timed. `GZIP_BENCH_BODY` names a
+    /// saved body (a sidebar) that each round varies by a counter; run pinned with
+    /// `cargo test --release -p campfire_kit --lib gzip_miss_overhead -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a benchmark"]
+    fn gzip_miss_overhead() {
+        use std::time::{Duration, Instant};
+        let path = std::env::var("GZIP_BENCH_BODY").expect("GZIP_BENCH_BODY");
+        let mut body = std::fs::read(path).unwrap();
+        let rss_mib = || {
+            let statm = std::fs::read_to_string("/proc/self/statm").unwrap();
+            statm.split(' ').nth(1).unwrap().parse::<f64>().unwrap() * 4096.0 / f64::from(1 << 20)
+        };
+        let (bodies, rounds) = (2_000, 20);
+        let mut counter = 0u64;
+        let mut next_key = |body: &mut Vec<u8>| {
+            counter += 1;
+            body[..20].copy_from_slice(format!("{counter:020}").as_bytes());
+            (digest(body), 0)
+        };
+        let (mut before, mut cached) = (Duration::ZERO, Duration::ZERO);
+        let rss_start = rss_mib();
+        let mut rss_half = 0.0;
+        for round in 0..rounds {
+            for _ in 0..bodies {
+                next_key(&mut body);
+                let start = Instant::now();
+                let mut encoder = gzip_encoder(0);
+                encoder.write_all(&body).unwrap();
+                encoder.flush().unwrap();
+                std::hint::black_box(encoder.finish().unwrap());
+                before += start.elapsed();
+            }
+            for _ in 0..bodies {
+                let key = next_key(&mut body);
+                let start = Instant::now();
+                assert!(lock(&GZIPPED).get(&key).is_none());
+                let gzipped = gzip_member(&body, 0).unwrap();
+                lock(&GZIPPED).insert(key, gzipped.clone(), gzipped.len());
+                std::hint::black_box(gzipped);
+                cached += start.elapsed();
+            }
+            if round == rounds / 2 {
+                rss_half = rss_mib() - rss_start;
+            }
+        }
+        let per = |total: Duration| total.as_secs_f64() * 1e6 / f64::from(bodies * rounds);
+        println!(
+            "body {} B; per distinct body: before {:.1} us, through the cache {:.1} us ({:+.1} us, {:+.1}%)",
+            body.len(),
+            per(before),
+            per(cached),
+            per(cached) - per(before),
+            (per(cached) / per(before) - 1.0) * 100.0
+        );
+        let held: usize = {
+            let gzipped = lock(&GZIPPED);
+            gzipped.young.values().chain(gzipped.old.values()).map(|(_, size)| size).sum()
+        };
+        println!(
+            "after {} distinct bodies: {:.1} MiB held (bound {} MiB); RSS {rss_half:+.1} MiB halfway, {:+.1} MiB at the end",
+            bodies * rounds,
+            held as f64 / f64::from(1 << 20),
+            MAX_GZIPPED_BYTES >> 20,
+            rss_mib() - rss_start
+        );
+        assert!(held <= MAX_GZIPPED_BYTES + 2 * MAX_GZIPPED_BYTES / 4);
     }
 }

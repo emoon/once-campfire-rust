@@ -188,6 +188,7 @@ pub async fn into_axum(response: Response, head: bool) -> axum::response::Respon
         mut headers,
         body,
         page_parts,
+        body_digest,
         ..
     } = response;
     let app_set_length = headers.contains_key(header::CONTENT_LENGTH);
@@ -224,6 +225,9 @@ pub async fn into_axum(response: Response, head: bool) -> axum::response::Respon
     }
     if let Some(parts) = page_parts {
         response.extensions_mut().insert(parts);
+    }
+    if let Some(digest) = body_digest.filter(|_| !head) {
+        response.extensions_mut().insert(digest);
     }
     response
 }

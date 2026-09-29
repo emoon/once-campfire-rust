@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use crate::app::Kit;
 use crate::clock::{self, SharedClock};
 use crate::cookies::CookieJar;
+use crate::deflater::BodyDigest;
 use crate::deflater::splice::PageParts;
 use crate::format::{self, Format, InvalidMimeType, NegotiationInput};
 use crate::params::{Param, ParamMap};
@@ -736,7 +737,11 @@ fn rack_etag(response: &mut Response, digestible: bool) {
         // A page of cached fragments hashes its parts' digests rather than the whole body.
         let hex = match &response.page_parts {
             Some(parts) => parts.etag(bytes),
-            None => hex::encode(Sha256::digest(bytes)),
+            None => {
+                let digest = BodyDigest(Sha256::digest(bytes).into());
+                response.body_digest = Some(digest);
+                hex::encode(digest.0)
+            }
         };
         response
             .headers
