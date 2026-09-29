@@ -208,7 +208,7 @@ impl From<SidebarDirect> for SidebarDirectItem {
 /// version is what later renders reuse.
 pub fn direct_room(ctx: &ViewContext, membership: &SidebarDirect) -> crate::fragment_cache::Fragment {
     crate::fragment_cache::fetch(
-        || direct_room_fragment_key(membership.membership_id, membership.membership_updated_at),
+        |key| direct_room_fragment_key(key, membership.membership_id, membership.membership_updated_at),
         || {
             SidebarDirectPartial { ctx, membership }
                 .render()
@@ -228,15 +228,19 @@ pub fn cached_direct_room(ctx: &ViewContext, item: &SidebarDirectItem) -> askama
 /// The `users/sidebars/rooms/_direct` fragment for this membership version, if the current store
 /// holds it.
 pub fn cached_direct_room_fragment(membership_id: i64, updated_at: jiff::Timestamp) -> Option<crate::fragment_cache::Fragment> {
-    crate::fragment_cache::read(&direct_room_fragment_key(membership_id, updated_at))
+    crate::fragment_cache::read(|key| direct_room_fragment_key(key, membership_id, updated_at))
 }
 
-fn direct_room_fragment_key(membership_id: i64, updated_at: jiff::Timestamp) -> String {
-    format!(
-        "views/users/sidebars/rooms/_direct:{}/{}",
+/// `views/users/sidebars/rooms/_direct:<digest>/memberships/<id>-<version>`.
+fn direct_room_fragment_key(key: &mut String, membership_id: i64, updated_at: jiff::Timestamp) {
+    crate::fragment_cache::push_record_fragment_key(
+        key,
+        "users/sidebars/rooms/_direct",
         direct_room_digest(),
-        crate::fragment_cache::cache_key_with_version("memberships", membership_id, updated_at)
-    )
+        "memberships",
+        membership_id,
+        updated_at,
+    );
 }
 
 fn direct_room_digest() -> &'static str {
@@ -319,4 +323,24 @@ pub struct SidebarDirectPartial<'a> {
 #[template(path = "users/sidebars/rooms/_shared.html")]
 pub struct SidebarSharedPartial {
     pub room: SidebarRoom,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_room_keys_match_their_formatted_version() {
+        let time: jiff::Timestamp = "2024-06-01T12:00:00.000123Z".parse().unwrap();
+        let mut key = String::new();
+        direct_room_fragment_key(&mut key, 42, time);
+        assert_eq!(
+            key,
+            format!(
+                "views/users/sidebars/rooms/_direct:{}/{}",
+                direct_room_digest(),
+                crate::fragment_cache::cache_key_with_version("memberships", 42, time)
+            )
+        );
+    }
 }

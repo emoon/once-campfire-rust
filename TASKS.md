@@ -159,6 +159,7 @@ otherwise stop" in `plans/cleanup.md`.
 ## Phase 2: lanes
 
 Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fail, 1 allowed, as the Phase 0 baseline (2026-09-29).
+Batch parity on 6b98426 (after batch 1, VIEW-3, KIT-9): 873 pass, 0 fail, 1 allowed (2026-09-29).
 
 ### DB (`crates/db`)
 - [ ] DB-1 perf: N+1 in `Room::find_direct_for`
@@ -204,7 +205,7 @@ Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fai
 - [ ] WEB-9 perf (measure): `RegexSet` router (after KIT-1)
 - [ ] WEB-10 Redirect helper, bool params, precomputed version headers; `update_message` matches on `Assignment` (F-5)
 - [ ] WEB-11 De-flake `presenters::accounts::tests::manages_bots` and `accounts::tests::serves_the_account_logo_and_avatars` (302 under load; F-2, VIEW-3)
-- [ ] WEB-12 perf: request log off the request path (buffered, non-blocking, lossless) (S-8)
+- [-] WEB-12 perf: request log off the request path (refactor/cleanup-web-12). Dropped: no gain (ABBA on 6b98426: CPU/req +0.9…+1.5% on all four targets). Measured with stdout to a file; a pipe (Docker) is untested. Results kept (`bench/results/web-12-20260929/`); code not merged.
 
 ### LIVE (`crates/cable`, campfire channels, integrations, jobs)
 - [ ] LIVE-1 perf: hub lock not held while sending
@@ -228,7 +229,7 @@ Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fai
 - [ ] VIEW-8 perf (last): `ParsedBody`, parse each message body once
 - [ ] VIEW-9 views `rails_json_escape`/`to_rails_json` and richtext `to_json_string` on `rails_compat::json` (after F-1, F-2)
 - [ ] VIEW-10 perf: page buffers sized up front (touches the page renders in campfire) (S-8)
-- [ ] VIEW-11 perf (after VIEW-4): fragment cache keys without `format!`/`strftime` (S-8)
+- [x] VIEW-11 perf: fragment cache keys without `format!`/`strftime` (refactor/cleanup-view-11, merged a13b19d; done without VIEW-4). messages_page CPU/req −9.0%, room_show −5.0%. views +63, campfire −8 lines
 
 ### STORE (`crates/storage`, `crates/assets`, rails_compat crypto, `campfire/src/active_storage.rs`)
 - [ ] STORE-1 One Active Storage verifier; vectors test the production one
@@ -288,6 +289,11 @@ won't make. They don't block the run and go into the final report.
   this needs something unusual (WAL recovery). Say if you want the cap anyway.
 
 ## Found while working
+
+- (2026-09-29, VIEW-11 run) `database::tests::the_checkpointer_copies_the_wal_into_the_database`
+  failed once in a full workspace run ("the WAL was never checkpointed", 10 s deadline), then
+  passed 3/3 alone and in the next full run. A 10 s miss is more than load explains: look for a
+  lost wake-up between `note_wal_size`/`wal_grew_to` and the checkpointer thread.
 
 - (F-3) kit `response.rs` has a fourth byte-range parser, `parse_range` (single range, strict
   `u64` parse, not Rack's rules), behind `SendOptions::ranges`. No production caller sets `ranges`
