@@ -92,6 +92,7 @@ otherwise stop" in `plans/cleanup.md`.
       `bench/lib/perfprof.py`, `bench/lib/stacks.py`; `cpuprof.py` split to share them. Production
       lines +0 (no Rust changes), allocations n/a. Tests and clippy not re-run (no Rust changed);
       parity n/a. Clean session under the lock, screensaver off before and after every step.
+- [~] S-9 The write path and cable slower than published v0.1.1: confirm on this host, find the cause (refactor/cleanup-s-9)
 - [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
@@ -173,7 +174,7 @@ otherwise stop" in `plans/cleanup.md`.
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
 - [~] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (S-8; first in the perf order) (refactor/cleanup-perf-1; started as PERF-1)
 - [~] DB-12 perf (measure; after DB-11): `mmap_size` (post_message's remap per commit) (refactor/cleanup-perf-2; started as PERF-2)
-- [ ] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)`
+- [~] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)` (refactor/cleanup-db-13)
 - [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
 ### KIT (`crates/kit`, `crates/routes`)
@@ -189,7 +190,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [~] KIT-10 perf: reuse gzip output for repeated bodies; reuse deflate encoders (S-8) (refactor/cleanup-kit-10)
 
 ### WEB (`crates/campfire` controllers, concerns, app)
-- [~] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1)
+- [-] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1). Reopened on the coordinator's call: `[r]` as a readability change if static_css_app shows no time gain. Re-timing with `bench/profile perf --freq 0` in `bench/quiet` on the current tip.
 - [ ] WEB-2 perf: memoized user-agent parse; byte-offset parser
 - [~] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3)
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
@@ -299,3 +300,8 @@ won't make. They don't block the run and go into the final report.
   per request. Suggest an S-WP: make `bench/profile alloc` count the Rust allocator (for example a
   `stats` build of the measured binaries) and re-baseline. Earlier WPs' "allocs unchanged" only
   covers C allocations.
+- (KIT-10, for KIT-9) `splice::compress` builds a fresh `flate2::Compress` for every uncached piece;
+  a new zlib-rs deflate state zeroes 256 KB (window, prev, head), and a reused one
+  (`Compress::reset`) zeroes only the 128 KB head. KIT-10 measured pooling for `gzip_stream` at
+  −5% of a 31 KB body's gzip (5.7 µs of 107), too small to show on a gate target, so it dropped the
+  pool; it only matters for splice on cache misses.

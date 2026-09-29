@@ -1,0 +1,29 @@
+{
+ "route": "sidebar",
+ "requests": 1000,
+ "baseline": {
+  "rust": {
+   "nrequests": 1201106,
+   "nmalloc": 41147
+  },
+  "c": {
+   "nrequests": 4350,
+   "nmalloc": 39159
+  }
+ },
+ "with_requests": {
+  "rust": {
+   "nrequests": 3397546,
+   "nmalloc": 80718
+  },
+  "c": {
+   "nrequests": 4301,
+   "nmalloc": 92105
+  }
+ },
+ "allocations_per_request": {
+  "rust": 2196.4,
+  "c": 52.9,
+  "total": 2249.4
+ }
+}
