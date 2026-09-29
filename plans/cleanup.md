@@ -242,6 +242,13 @@ container pinned to the other CCD, it costs `bench/profile cpu` 3.6–6.5% CPU/r
 benchmark cores' boost clock drops about 2% and the two CCDs share the disk and the kernel's I/O
 workers.
 
+Only one timing run (`bench/profile cpu`/`perf`, `bench/run`, parity) holds the bench lock at a
+time, but the other CCD isn't reserved: builds and off-lock allocation runs there slow the bench
+cores too (shared power budget, S-6). So wrap every timing run in `bench/quiet`, inside the lock:
+`flock /tmp/campfire-bench.lock bench/quiet -- bench/profile cpu …`. It fails with exit 3 if CPUs
+0-7/16-23 averaged over 15% busy during the run or the screensaver ran; discard that run and retry
+(keep the ABBA order). Record its "other CCD n% busy" line with each run.
+
 CPU and throughput runs (`bench/profile cpu`, `bench/run`) are only valid on a quiet desktop. The
 desktop screensaver (`omarchy-screensaver`, two `foot` windows) uses ~5 unpinned CPUs, and on
 2026-09-29 it made room_show 18-25% and post_message 40% slower, with runs 6% apart (S-6). Check

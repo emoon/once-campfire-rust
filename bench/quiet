@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Run a timing command and check that the rest of the machine stayed quiet while it ran.
+
+  bench/quiet [--max-other PCT] -- <command...>
+
+The benchmark pins CPUs 8-15 (and their SMT siblings 24-31). Load on the other CCD (0-7, 16-23:
+builds, allocation runs, parity) still slows it, because both share the package power budget: S-6
+measured a ~2.3% clock drop and 3.6-6.5% worse CPU/request beside a parity compare
+(bench/results/s-6-20260929/). This samples /proc/stat before and after the command and fails
+(exit 3) if the other CCD averaged more than --max-other percent busy, or if the desktop
+screensaver ran, so the caller discards the run and retries. The command's own exit code wins
+when it fails.
+"""
+import argparse
+import os
+import subprocess
+import sys
+
+BENCH_CPUS = set(range(8, 16)) | set(range(24, 32))
+
+
+def cpu_times():
+    times = {}
+    with open("/proc/stat") as f:
+        for line in f:
+            name = line.split(maxsplit=1)[0]
+            if name.startswith("cpu") and name[3:].isdigit():
+                fields = list(map(int, line.split()[1:8]))
+                times[int(name[3:])] = (sum(fields), fields[3] + fields[4])  # total, idle + iowait
+    return times
+
+
+def screensaver_running():
+    # Match processes named foot only: `pgrep -f omarchy-screensaver` also matches every shell whose
+    # command line mentions it (the agents' own polling loops).
+    out = subprocess.run(["pgrep", "-a", "-x", "foot"], capture_output=True, text=True).stdout
+    return "org.omarchy.screensaver" in out
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max-other", type=float, default=15.0)
+    parser.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    command = args.command[1:] if args.command[:1] == ["--"] else args.command
+    if not command:
+        parser.error("no command")
+
+    if screensaver_running():
+        print("bench/quiet: screensaver running; not starting", file=sys.stderr)
+        return 3
+    before = cpu_times()
+    status = subprocess.call(command)
+    after = cpu_times()
+
+    other = [c for c in before if c not in BENCH_CPUS and c in after]
+    total = sum(after[c][0] - before[c][0] for c in other)
+    idle = sum(after[c][1] - before[c][1] for c in other)
+    busy = 100.0 * (1 - idle / total) if total else 0.0
+    saver = screensaver_running()
+    print(f"bench/quiet: other CCD {busy:.1f}% busy (max {args.max_other}%), screensaver {'on' if saver else 'off'}",
+          file=sys.stderr)
+    if status != 0:
+        return status
+    if busy > args.max_other or saver:
+        print("bench/quiet: machine wasn't quiet; discard this run and retry", file=sys.stderr)
+        return 3
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
