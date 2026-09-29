@@ -129,7 +129,7 @@ pub fn current_user(secrets: &rails_compat::Secrets, user: &User) -> CurrentUser
     CurrentUser {
         id: user.id,
         name: user.name.clone(),
-        administrator: user.can_administer(None, false),
+        administrator: user.is_administrator(),
         bot: user.is_bot(),
         avatar_url: super::avatar_path(secrets, user),
     }

@@ -1,7 +1,7 @@
 //! Request-level tests for the room controllers, against the `default` parity seed.
 
 use axum::http::{Method, StatusCode};
-use campfire_db::{Membership, Room, RoomType};
+use campfire_db::{Account, Membership, Patch, Role, Room, RoomType, User, UserChanges};
 
 use crate::controllers::presenters::test_support::*;
 
@@ -161,6 +161,55 @@ async fn only_administrators_or_creators_update_rooms() {
     let reply = david.get(&format!("/rooms/opens/{DIRECT_DAVID_JASON}/edit")).await;
     assert_eq!(reply.status, StatusCode::FOUND);
     assert_eq!(reply.location(), Some("http://campfire.test/"));
+}
+
+#[tokio::test]
+async fn members_administer_only_their_own_rooms() {
+    let Some(app) = TestApp::boot().await else { return };
+    set_david_role(&app, Role::Member).await;
+    let mut david = app.david();
+    // Unrestricted, members create rooms.
+    assert_eq!(david.get("/rooms/opens/new").await.status, StatusCode::OK);
+
+    app.db()
+        .write(|tx| {
+            let mut account = Account::first(tx.conn())?.unwrap();
+            account.update(tx, None, Patch::Keep, Some(&[("restrict_room_creation_to_administrators", "true")]))
+        })
+        .await
+        .unwrap();
+    let forbidden = [
+        // ensure_permission_to_create_rooms
+        Req::new(Method::GET, "/rooms/opens/new"),
+        Req::new(Method::POST, "/rooms/closeds").form(&[("room[name]", "Mine")]),
+        // ensure_can_administer: Kevin created Quiet Corner.
+        Req::new(Method::DELETE, &format!("/rooms/{QUIET_CORNER}")),
+        Req::new(Method::PATCH, &format!("/rooms/closeds/{QUIET_CORNER}")).form(&[("room[name]", "Mine")]),
+    ];
+    for req in forbidden {
+        let reply = david.write(req).await;
+        assert_eq!(reply.status, StatusCode::FORBIDDEN);
+        assert_eq!(reply.content_type(), Some("text/html"));
+    }
+    let own = Req::new(Method::PATCH, &format!("/rooms/opens/{HQ}")).form(&[("room[name]", "Mine")]);
+    assert_eq!(david.write(own).await.status, StatusCode::FOUND);
+
+    // Restricted, administrators still create rooms.
+    set_david_role(&app, Role::Administrator).await;
+    assert_eq!(david.get("/rooms/opens/new").await.status, StatusCode::OK);
+}
+
+async fn set_david_role(app: &TestApp, role: Role) {
+    app.db()
+        .write(move |tx| {
+            let changes = UserChanges {
+                role: Some(role),
+                ..UserChanges::default()
+            };
+            User::find(tx.conn(), DAVID)?.update(tx, changes)
+        })
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

@@ -416,21 +416,19 @@ pub fn post_authenticating_url(c: &mut Ctx) -> String {
 
 /// `deny_bots`: 403 for bot-key requests.
 pub fn deny_bots(c: &mut Ctx) -> Result<()> {
-    if authenticated_by(c) == AuthenticatedBy::BotKey {
-        return halt(head(StatusCode::FORBIDDEN));
-    }
-    Ok(())
+    forbid_unless(authenticated_by(c) != AuthenticatedBy::BotKey)
 }
 
 // --- Authorization -----------------------------------------------------------------------------
 
 /// `ensure_can_administer`: 403 unless `Current.user.can_administer?` (no record).
 pub fn ensure_can_administer(c: &mut Ctx) -> Result<()> {
-    let allowed = current_user(c).is_some_and(|user| user.can_administer(None, false));
-    if !allowed {
-        return halt(head(StatusCode::FORBIDDEN));
-    }
-    Ok(())
+    forbid_unless(current_user(c).is_some_and(User::is_administrator))
+}
+
+/// `head :forbidden unless allowed`, from a before-action.
+pub fn forbid_unless(allowed: bool) -> Result<()> {
+    if allowed { Ok(()) } else { halt(head(StatusCode::FORBIDDEN)) }
 }
 
 // --- AllowBrowser --------------------------------------------------------------------------------

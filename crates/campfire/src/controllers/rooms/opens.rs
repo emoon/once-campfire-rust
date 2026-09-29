@@ -64,7 +64,7 @@ pub async fn edit(c: &mut Ctx) -> Result {
             id: Some(room.id),
             name: room.name.clone(),
         },
-        can_administer: require_current_user(c)?.can_administer(Some(room.creator_id), false),
+        can_administer: require_current_user(c)?.can_administer(room.creator_id),
         users: active_users(c).await?,
     };
     page::framed_page!(c, StatusCode::OK, |ctx| OpensEdit { ctx, form: &form }).await

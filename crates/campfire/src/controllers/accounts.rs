@@ -6,7 +6,7 @@ pub mod join_codes;
 pub mod logos;
 pub mod users;
 
-use campfire_db::{Account, Patch};
+use campfire_db::{Account, Patch, User};
 use campfire_kit::params::Permit;
 use campfire_kit::{Ctx, Error, Param, Redirect, Result, StatusCode, format};
 use campfire_views::accounts;
@@ -26,7 +26,7 @@ pub async fn edit(c: &mut Ctx) -> Result {
     concerns::before_actions(c, Before::default()).await?;
     let account = current_account(c).await?;
     c.respond_to(&[&format::HTML])?;
-    let can_administer = current_user(c).is_some_and(|user| user.can_administer(None, false));
+    let can_administer = current_user(c).is_some_and(User::is_administrator);
     let users = c
         .app()
         .db

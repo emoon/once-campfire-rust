@@ -126,11 +126,7 @@ pub async fn set_room(c: &mut Ctx, scope: Scope) -> Result<Room> {
 
 /// `ensure_can_administer`: `head :forbidden unless Current.user.can_administer?(@room)`.
 pub fn ensure_can_administer(c: &mut Ctx, room: &Room) -> Result<()> {
-    let allowed = require_current_user(c)?.can_administer(Some(room.creator_id), false);
-    if !allowed {
-        return halt(concerns::head(StatusCode::FORBIDDEN));
-    }
-    Ok(())
+    concerns::forbid_unless(require_current_user(c)?.can_administer(room.creator_id))
 }
 
 /// `ensure_permission_to_create_rooms`
@@ -138,10 +134,7 @@ pub async fn ensure_permission_to_create_rooms(c: &mut Ctx) -> Result<()> {
     let administrator = require_current_user(c)?.is_administrator();
     let account = c.app().db.read(Account::first).await.map_err(db_error)?;
     let restricted = account.is_some_and(|account| account.settings().restrict_room_creation_to_administrators());
-    if restricted && !administrator {
-        return halt(concerns::head(StatusCode::FORBIDDEN));
-    }
-    Ok(())
+    concerns::forbid_unless(administrator || !restricted)
 }
 
 // --- Helpers ------------------------------------------------------------------------------------
