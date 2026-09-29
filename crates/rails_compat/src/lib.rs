@@ -4,14 +4,15 @@
 //! and what they generate is checked by Rails itself (`reference-tools/rails_compat_verify_rust.rb`).
 //! `ruby`'s integer parsing is tested against cases taken from Ruby instead.
 //!
-//! The public signatures below are the interface other crates build against. Everything but `erb` and
-//! `ruby` is behind the `crypto` feature.
+//! The public signatures below are the interface other crates build against. Everything but `erb`,
+//! `json` and `ruby` is behind the `crypto` feature.
 
 #[cfg(feature = "crypto")]
 pub mod cookies;
 pub mod erb;
 #[cfg(feature = "crypto")]
 pub mod global_id;
+pub mod json;
 #[cfg(feature = "crypto")]
 pub mod key_generator;
 #[cfg(feature = "crypto")]
@@ -28,8 +29,6 @@ pub mod turbo;
 
 #[cfg(feature = "crypto")]
 mod encoding;
-#[cfg(feature = "crypto")]
-mod json;
 #[cfg(feature = "crypto")]
 mod marshal;
 #[cfg(feature = "crypto")]
