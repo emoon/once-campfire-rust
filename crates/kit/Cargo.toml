@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rails_compat.workspace = true
+rails_compat = { workspace = true, features = ["crypto"] }
 axum.workspace = true
 tokio.workspace = true
 tower = { workspace = true, features = ["util"] }

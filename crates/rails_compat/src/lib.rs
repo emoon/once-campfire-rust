@@ -4,32 +4,51 @@
 //! and what they generate is checked by Rails itself (`reference-tools/rails_compat_verify_rust.rb`).
 //! `ruby`'s integer parsing is tested against cases taken from Ruby instead.
 //!
-//! The public signatures below are the interface other crates build against.
+//! The public signatures below are the interface other crates build against. Everything but `erb` and
+//! `ruby` is behind the `crypto` feature.
 
+#[cfg(feature = "crypto")]
 pub mod cookies;
+pub mod erb;
+#[cfg(feature = "crypto")]
 pub mod global_id;
+#[cfg(feature = "crypto")]
 pub mod key_generator;
+#[cfg(feature = "crypto")]
 pub mod message_encryptor;
+#[cfg(feature = "crypto")]
 pub mod message_verifier;
+#[cfg(feature = "crypto")]
 pub mod password;
 pub mod ruby;
+#[cfg(feature = "crypto")]
 pub mod signed_id;
+#[cfg(feature = "crypto")]
 pub mod turbo;
 
+#[cfg(feature = "crypto")]
 mod encoding;
+#[cfg(feature = "crypto")]
 mod json;
+#[cfg(feature = "crypto")]
 mod marshal;
+#[cfg(feature = "crypto")]
 mod metadata;
 
+#[cfg(feature = "crypto")]
 pub use key_generator::KeyGenerator;
+#[cfg(feature = "crypto")]
 pub use message_encryptor::MessageEncryptor;
+#[cfg(feature = "crypto")]
 pub use message_verifier::MessageVerifier;
 
 /// Everything derived from `secret_key_base`, built once at boot and shared.
+#[cfg(feature = "crypto")]
 pub struct Secrets {
     pub key_generator: KeyGenerator,
 }
 
+#[cfg(feature = "crypto")]
 impl Secrets {
     pub fn new(secret_key_base: &str) -> Self {
         Self {
@@ -43,6 +62,7 @@ impl Secrets {
 /// envelope). Active Storage uses `app_verifier(secrets, "ActiveStorage")` for blob signed ids
 /// (purpose `"blob_id"`, *not* `signed_id`'s `model/purpose` scheme), variation keys, disk URLs
 /// and upload tokens. Use `generate_raw`/`verify_raw` to control the JSON key order.
+#[cfg(feature = "crypto")]
 pub fn app_verifier(secrets: &Secrets, name: &str) -> MessageVerifier {
     use message_verifier::{Digest, Encoding, Serializer};
     MessageVerifier::new(
@@ -53,6 +73,7 @@ pub fn app_verifier(secrets: &Secrets, name: &str) -> MessageVerifier {
     )
 }
 
+#[cfg(feature = "crypto")]
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /// Malformed message or bad signature (Ruby's `:invalid_message_format`).
@@ -68,6 +89,7 @@ pub enum Error {
     PurposeMismatch,
 }
 
+#[cfg(feature = "crypto")]
 impl Error {
     /// `ActiveSupport::Messages::Rotator` only falls back to the next rotation on format and
     /// serialization errors. An expired or mismatched message stops at the first verifier.

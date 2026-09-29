@@ -8,11 +8,12 @@
 //! closed the attribute and turned the rest of its value into markup. With them escaped, every `<`
 //! and `>` in the text is a tag's, so auto_link only ever inserts links between tags.
 
+use rails_compat::erb;
 use regex::Regex;
 use std::sync::LazyLock;
 
 use crate::dom::ParseError;
-use crate::ruby::{html_escape, is_blank, url_encode};
+use crate::ruby::{is_blank, url_encode};
 use crate::sanitizer::{SafeList, sanitize, sanitize_with_escaped_attribute_brackets};
 
 /// `AUTO_LINK_RE`. Ruby's `\s` and `\w` are ASCII-only.
@@ -230,7 +231,7 @@ fn auto_link_urls(text: &str) -> Result<String, ParseError> {
         ));
         // SafeBuffer#+ escapes the (unsafe) punctuation string
         let trailing: String = punctuation.iter().rev().collect();
-        out.push_str(&html_escape(&trailing));
+        out.push_str(&erb::escape(&trailing));
         out.push_str(trailing_gt);
     }
     out.push_str(&text[last..]);
@@ -263,12 +264,12 @@ fn auto_link_email_addresses(text: &str) -> Result<String, ParseError> {
             let sanitized = sanitize(email, &SafeList::defaults())?;
             // display_text is only sanitized (and so marked safe) when sanitizing changed the address
             let display = if sanitized == email {
-                html_escape(email)
+                erb::escape(email)
             } else {
                 sanitize(email, &SafeList::defaults())?
             };
             let href = format!("mailto:{}", url_encode(&sanitized).replace("%40", "@"));
-            out.push_str(&format!("<a target=\"_blank\" href=\"{}\">{}</a>", html_escape(&href), display));
+            out.push_str(&format!("<a target=\"_blank\" href=\"{}\">{}</a>", erb::escape(&href), display));
         }
         copied = end;
         position = end.max(position + 1);

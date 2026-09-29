@@ -3,6 +3,8 @@
 //!   <%= stylesheet_link_tag :all, "data-turbo-track": "reload" %>
 //!   <%= javascript_importmap_tags %>
 
+use rails_compat::erb;
+
 use crate::embedded;
 use crate::helpers::stylesheet_path;
 
@@ -40,9 +42,9 @@ pub fn stylesheet_link_tag(sources: &[&str], options: &[(&str, &str)]) -> Styles
             preload_links.push(format!("<{href}>; rel=preload; as=style; nopush"));
         }
 
-        let mut tag = format!("<link rel=\"stylesheet\" href=\"{}\"", escape_html(&href));
+        let mut tag = format!("<link rel=\"stylesheet\" href=\"{}\"", erb::escape(&href));
         for (name, value) in options {
-            tag.push_str(&format!(" {name}=\"{}\"", escape_html(value)));
+            tag.push_str(&format!(" {name}=\"{}\"", erb::escape(value)));
         }
         tag.push_str(" />");
         html.push(tag);
@@ -75,20 +77,4 @@ pub fn append_preload_links(header: &str, preload_links: &[String]) -> String {
 /// `import "application"` module script. Computed at build time from config/importmap.rb.
 pub fn javascript_importmap_tags() -> &'static str {
     embedded::IMPORTMAP_TAGS
-}
-
-/// ERB::Util.html_escape
-fn escape_html(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&#39;"),
-            c => out.push(c),
-        }
-    }
-    out
 }

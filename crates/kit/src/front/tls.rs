@@ -177,6 +177,8 @@ fn error(status: StatusCode, message: &str) -> Response<Body> {
     response
 }
 
+/// Go's `net/http` `htmlEscape` (`htmlReplacer`), which `http.Redirect` uses: `"` becomes `&#34;`,
+/// not ERB's `&quot;`, so this isn't `rails_compat::erb::escape`.
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -234,6 +236,15 @@ mod tests {
         assert_eq!(status, StatusCode::MOVED_PERMANENTLY);
         assert!(!headers.contains_key(header::CONTENT_TYPE));
         assert_eq!(body, "");
+    }
+
+    #[tokio::test]
+    async fn escapes_the_redirect_url_like_go() {
+        let (_, _, body) = get(Method::GET, "/a\"b'c", "chat.example.com").await;
+        assert_eq!(
+            body,
+            "<a href=\"https://chat.example.com/a&#34;b&#39;c\">Moved Permanently</a>.\n\n"
+        );
     }
 
     #[tokio::test]
