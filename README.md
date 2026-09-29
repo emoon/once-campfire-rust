@@ -219,8 +219,8 @@ the same on every request, so the app stopped compressing them per request, in t
    search results). The ETag comes from the parts' digests instead of a SHA-256 over the whole body.
 
 For a 466 KB room page, gzip and the ETag took ~1,200 µs per request at first, ~460 µs after
-splicing, and 42 µs now; the first request after a page changes pays ~2 ms, once, to compress its
-new parts. The decoded body is unchanged, and the compressed page is within 1% of compressing it
+splicing, 42 µs with SHA-256 digests and a CRC over the whole body, and ~25 µs now; the first
+request after a page changes pays ~2 ms, once, to compress its new parts. The decoded body is unchanged, and the compressed page is within 1% of compressing it
 whole.
 
 | Route (16 clients) | Before | Spliced gzip | Cached page parts |
