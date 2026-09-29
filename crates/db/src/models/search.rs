@@ -19,14 +19,18 @@ pub struct Search {
     pub updated_at: Timestamp,
 }
 
+sql::columns! {
+    struct SearchColumns { id, user_id, query, created_at, updated_at }
+}
+
 impl Search {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &SearchColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            user_id: row.get("user_id")?,
-            query: row.get("query")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            user_id: row.get(columns.user_id)?,
+            query: row.get(columns.query)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 
@@ -89,11 +93,10 @@ impl Search {
 
     /// `user.searches.destroy_all`
     pub fn destroy_all_for_user(tx: &mut Tx<'_>, user_id: i64) -> Result<()> {
-        let ids: Vec<i64> = query_all(
+        let ids: Vec<i64> = sql::pluck(
             tx.conn(),
             r#"SELECT "searches"."id" FROM "searches" WHERE "searches"."user_id" = ?"#,
             [user_id],
-            |r| r.get(0),
         )?;
         for id in ids {
             tx.conn()
@@ -105,11 +108,10 @@ impl Search {
 
 /// `user.searches.excluding(user.searches.ordered.limit(10)).destroy_all`
 fn trim_recent_searches(tx: &Tx<'_>, user_id: i64) -> Result<()> {
-    let keep: Vec<i64> = query_all(
+    let keep: Vec<i64> = sql::pluck(
         tx.conn(),
         r#"SELECT "searches"."id" FROM "searches" WHERE "searches"."user_id" = ? ORDER BY "searches"."updated_at" DESC LIMIT ?"#,
         params![user_id, RECENT_SEARCHES],
-        |r| r.get(0),
     )?;
     let sql = format!(
         r#"SELECT "searches"."id" FROM "searches" WHERE "searches"."user_id" = ? AND "searches"."id" NOT IN ({})"#,
@@ -121,7 +123,7 @@ fn trim_recent_searches(tx: &Tx<'_>, user_id: i64) -> Result<()> {
     } else {
         values.extend(keep);
     }
-    let doomed: Vec<i64> = query_all(tx.conn(), &sql, rusqlite::params_from_iter(values), |r| r.get(0))?;
+    let doomed: Vec<i64> = sql::pluck(tx.conn(), &sql, rusqlite::params_from_iter(values))?;
     for id in doomed {
         tx.conn()
             .execute_cached(r#"DELETE FROM "searches" WHERE "searches"."id" = ?"#, [id])?;

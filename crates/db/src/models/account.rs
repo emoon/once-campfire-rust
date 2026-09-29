@@ -94,17 +94,21 @@ fn present(value: Option<&Value>) -> bool {
     }
 }
 
+sql::columns! {
+    struct AccountColumns { id, name, join_code, custom_styles, settings_json = "settings", singleton_guard, created_at, updated_at }
+}
+
 impl Account {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &AccountColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            name: row.get("name")?,
-            join_code: row.get("join_code")?,
-            custom_styles: row.get("custom_styles")?,
-            settings_json: row.get("settings")?,
-            singleton_guard: row.get("singleton_guard")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            name: row.get(columns.name)?,
+            join_code: row.get(columns.join_code)?,
+            custom_styles: row.get(columns.custom_styles)?,
+            settings_json: row.get(columns.settings_json)?,
+            singleton_guard: row.get(columns.singleton_guard)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 

@@ -23,17 +23,21 @@ pub struct Session {
     pub updated_at: Timestamp,
 }
 
+sql::columns! {
+    struct SessionColumns { id, user_id, token, ip_address, user_agent, last_active_at, created_at, updated_at }
+}
+
 impl Session {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &SessionColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            user_id: row.get("user_id")?,
-            token: row.get("token")?,
-            ip_address: row.get("ip_address")?,
-            user_agent: row.get("user_agent")?,
-            last_active_at: row.get("last_active_at")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            user_id: row.get(columns.user_id)?,
+            token: row.get(columns.token)?,
+            ip_address: row.get(columns.ip_address)?,
+            user_agent: row.get(columns.user_agent)?,
+            last_active_at: row.get(columns.last_active_at)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 

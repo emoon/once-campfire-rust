@@ -45,17 +45,21 @@ pub struct PushPayload {
     pub path: String,
 }
 
+sql::columns! {
+    struct PushSubscriptionColumns { id, user_id, endpoint, p256dh_key, auth_key, user_agent, created_at, updated_at }
+}
+
 impl PushSubscription {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &PushSubscriptionColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            user_id: row.get("user_id")?,
-            endpoint: row.get("endpoint")?,
-            p256dh_key: row.get("p256dh_key")?,
-            auth_key: row.get("auth_key")?,
-            user_agent: row.get("user_agent")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            user_id: row.get(columns.user_id)?,
+            endpoint: row.get(columns.endpoint)?,
+            p256dh_key: row.get(columns.p256dh_key)?,
+            auth_key: row.get(columns.auth_key)?,
+            user_agent: row.get(columns.user_agent)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 
@@ -137,11 +141,10 @@ impl PushSubscription {
 
     /// `Push::Subscription.destroy_by(endpoint:, user_id:)`
     pub fn destroy_by_endpoint(tx: &mut Tx<'_>, user_id: i64, endpoint: &str) -> Result<()> {
-        let ids: Vec<i64> = query_all(
+        let ids: Vec<i64> = sql::pluck(
             tx.conn(),
             r#"SELECT "push_subscriptions"."id" FROM "push_subscriptions" WHERE "push_subscriptions"."endpoint" = ? AND "push_subscriptions"."user_id" = ?"#,
             params![endpoint, user_id],
-            |r| r.get(0),
         )?;
         for id in ids {
             tx.conn()

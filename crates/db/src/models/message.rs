@@ -60,15 +60,19 @@ const SELECT_IN_ROOM: &str = r#"SELECT "messages".* FROM "messages" WHERE "messa
 
 const SELECT_REACHABLE: &str = r#"SELECT "messages".* FROM "messages" INNER JOIN "rooms" ON "messages"."room_id" = "rooms"."id" INNER JOIN "memberships" ON "rooms"."id" = "memberships"."room_id""#;
 
+sql::columns! {
+    pub(crate) struct MessageColumns { id, room_id, creator_id, client_message_id, created_at, updated_at }
+}
+
 impl Message {
-    pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    pub(crate) fn from_row(row: &Row<'_>, columns: &MessageColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            room_id: row.get("room_id")?,
-            creator_id: row.get("creator_id")?,
-            client_message_id: row.get("client_message_id")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            room_id: row.get(columns.room_id)?,
+            creator_id: row.get(columns.creator_id)?,
+            client_message_id: row.get(columns.client_message_id)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 

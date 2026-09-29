@@ -84,6 +84,6 @@ pub mod users {
             values.push(Value::Text(format!("%{query}%")));
         }
         sql.push_str(" ORDER BY LOWER(name)");
-        presenters::accounts::query_users(conn, &sql, rusqlite::params_from_iter(values))
+        User::find_by_sql(conn, &sql, rusqlite::params_from_iter(values))
     }
 }
