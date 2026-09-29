@@ -24,6 +24,7 @@ jiff.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 regex.workspace = true
+regex-automata.workspace = true
 askama.workspace = true
 futures-util.workspace = true
 rusqlite = { workspace = true, features = ["backup"] }

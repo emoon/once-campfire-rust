@@ -603,7 +603,7 @@ pub async fn dispatch(c: &mut Ctx) -> Result {
     let Some((route, path_params)) = recognize(&c.request.method, &path)? else {
         return Err(Error::NotFound);
     };
-    install_path_params(c, path_params);
+    c.set_path_params(path_params);
     c.set_current(MatchedRoute { endpoint: route.endpoint });
     route.action.call(c).await
 }
@@ -631,15 +631,6 @@ pub fn recognize(method: &Method, path: &str) -> Result<Option<(&'static Route, 
         return Ok(Some((route, params)));
     }
     Ok(None)
-}
-
-/// `params` is body params, then query params, then path params (`request.parameters`).
-fn install_path_params(c: &mut Ctx, path_params: ParamMap) {
-    let mut params = c.request_params.clone();
-    params.merge(&c.query_params);
-    params.merge(&path_params);
-    c.params = params;
-    c.path_params = path_params;
 }
 
 /// `Journey::Router::Utils.normalize_path`: one leading slash, repeated slashes squeezed,

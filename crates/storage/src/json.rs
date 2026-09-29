@@ -6,6 +6,7 @@
 
 use std::fmt::{self, Write};
 
+use rails_compat::json;
 use serde::de::{Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -80,7 +81,7 @@ impl Json {
             Json::Null => out.push_str("null"),
             Json::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
             Json::Int(i) => write!(out, "{i}").unwrap(),
-            Json::Float(f) => out.push_str(&encode_float(*f)),
+            Json::Float(f) => out.push_str(&json::encode_float(*f)),
             Json::String(s) => encode_string(s, out),
             Json::Array(items) => {
                 out.push('[');
@@ -157,44 +158,6 @@ fn encode_string(s: &str, out: &mut String) {
     out.push('"');
 }
 
-/// Ruby's `Float#to_s`, which ActiveSupport uses for finite floats: the shortest round-trip
-/// digits, always with a fractional part, switching to `e` notation outside 1e-4...1e16.
-pub fn encode_float(f: f64) -> String {
-    if !f.is_finite() {
-        return "null".to_string();
-    }
-    if f == 0.0 {
-        return if f.is_sign_negative() { "-0.0" } else { "0.0" }.to_string();
-    }
-    // `{:e}` yields the shortest round-trip digits as `d.ddde<exp>`.
-    let sci = format!("{:e}", f.abs());
-    let (mantissa, exponent) = sci.split_once('e').unwrap();
-    let exponent: i32 = exponent.parse().unwrap();
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let sign = if f < 0.0 { "-" } else { "" };
-
-    if (-4..16).contains(&exponent) {
-        let point = exponent + 1;
-        let body = if point <= 0 {
-            format!("0.{}{}", "0".repeat((-point) as usize), digits)
-        } else if point as usize >= digits.len() {
-            format!("{}{}.0", digits, "0".repeat(point as usize - digits.len()))
-        } else {
-            format!("{}.{}", &digits[..point as usize], &digits[point as usize..])
-        };
-        format!("{sign}{body}")
-    } else {
-        let fraction = if digits.len() > 1 { &digits[1..] } else { "0" };
-        format!(
-            "{sign}{}.{}e{}{:02}",
-            &digits[..1],
-            fraction,
-            if exponent < 0 { '-' } else { '+' },
-            exponent.abs()
-        )
-    }
-}
-
 impl<'de> Deserialize<'de> for Json {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct JsonVisitor;
@@ -262,18 +225,6 @@ impl<'de> Deserialize<'de> for Json {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn floats_match_ruby() {
-        assert_eq!(encode_float(320.0), "320.0");
-        assert_eq!(encode_float(65.84), "65.84");
-        assert_eq!(encode_float(0.0001), "0.0001");
-        assert_eq!(encode_float(0.00001), "1.0e-05");
-        assert_eq!(encode_float(1e16), "1.0e+16");
-        assert_eq!(encode_float(1234567890123456.0), "1234567890123456.0");
-        assert_eq!(encode_float(-2.5), "-2.5");
-        assert_eq!(encode_float(1.5e-7), "1.5e-07");
-    }
 
     #[test]
     fn preserves_order_and_escapes_like_active_support() {

@@ -1,0 +1,6 @@
+[16:58:36] room_show c=16: 21811.8 rps, campfire 0.1697 CPU ms/req
+[16:58:48] post_message_c1 c=1: 2049.2 rps, campfire 0.4685 CPU ms/req
+[16:59:00] post_message c=16: 4924.1 rps, campfire 0.4564 CPU ms/req
+[16:59:22] cable 100: 2672.9 msg/s
+[16:59:45] cable 1000: 411.7 msg/s
+bench/quiet: other CCD 2.3% busy (max 15.0%), bench siblings 24-31 4.5% busy (max 15.0%), screensaver off

@@ -4,6 +4,9 @@
 use campfire_richtext::dom::Dom;
 use campfire_richtext::sanitizer::{self, SafeList};
 use campfire_richtext::uri::{self, UriError};
+use rails_compat::json;
+use serde::Serialize;
+use serde::ser::{SerializeMap, Serializer};
 
 use super::document::{self, is_blank};
 use super::location::Location;
@@ -60,15 +63,27 @@ impl Metadata {
 
     /// `render json: opengraph` after `valid?`: `instance_values`, which by then include the
     /// validation context and the (empty) errors.
-    #[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
     pub fn to_json(&self) -> String {
-        let mut json = String::from("{");
-        for (key, value) in &self.attributes {
-            let value = value.as_deref().map(json_string).unwrap_or_else(|| "null".into());
-            json.push_str(&format!("{}:{value},", json_string(key)));
+        json::encode(self).into_string()
+    }
+}
+
+impl Serialize for Metadata {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct ValidationContext {
+            context: Option<()>,
         }
-        json.push_str(r#""context_for_validation":{"context":null},"errors":{}}"#);
-        json
+        #[derive(Serialize)]
+        struct Errors {}
+
+        let mut map = serializer.serialize_map(Some(self.attributes.len() + 2))?;
+        for (key, value) in &self.attributes {
+            map.serialize_entry(key, value)?;
+        }
+        map.serialize_entry("context_for_validation", &ValidationContext { context: None })?;
+        map.serialize_entry("errors", &Errors {})?;
+        map.end()
     }
 }
 
@@ -152,16 +167,6 @@ fn strip_tags(html: &str) -> Result<String, UnfurlError> {
 /// `sanitize` (Rails::HTML5::SafeListSanitizer with its default allowlist).
 fn sanitize(html: &str) -> Result<String, UnfurlError> {
     sanitizer::sanitize(html, SafeList::defaults()).map_err(|_| UnfurlError::Raised("ArgumentError"))
-}
-
-/// A string as `ActiveSupport::JSON` encodes it: JSON with `<`, `>` and `&` escaped (Rails 8.2
-/// defaults leave U+2028 and U+2029 alone).
-pub fn json_string(s: &str) -> String {
-    serde_json::to_string(s)
-        .expect("strings encode")
-        .replace('<', "\\u003c")
-        .replace('>', "\\u003e")
-        .replace('&', "\\u0026")
 }
 
 #[cfg(test)]

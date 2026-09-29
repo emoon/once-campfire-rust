@@ -1,0 +1,31 @@
+== 20:29:21 warmup:0 try 1
+[20:29:33] room_show c=16: 21996.0 rps, campfire 0.168 CPU ms/req
+[20:29:44] messages_page c=16: 25691.3 rps, campfire 0.1423 CPU ms/req
+[20:29:56] sidebar c=16: 13724.6 rps, campfire 0.2704 CPU ms/req
+[20:30:07] post_message c=16: 4854.5 rps, campfire 0.4569 CPU ms/req
+bench/quiet: other CCD 2.3% busy (max 15.0%), bench siblings 24-31 4.8% busy (max 15.0%), screensaver off
+== 20:30:08 base:1 try 1
+[20:30:19] room_show c=16: 21322.2 rps, campfire 0.1723 CPU ms/req
+[20:30:31] messages_page c=16: 25859.6 rps, campfire 0.1416 CPU ms/req
+[20:30:42] sidebar c=16: 13619.2 rps, campfire 0.2705 CPU ms/req
+[20:30:54] post_message c=16: 4765.6 rps, campfire 0.4534 CPU ms/req
+bench/quiet: other CCD 2.4% busy (max 15.0%), bench siblings 24-31 5.4% busy (max 15.0%), screensaver off
+== 20:30:55 tip:1 try 1
+[20:31:06] room_show c=16: 24996.9 rps, campfire 0.1551 CPU ms/req
+[20:31:18] messages_page c=16: 30194.8 rps, campfire 0.128 CPU ms/req
+[20:31:29] sidebar c=16: 29919.3 rps, campfire 0.1287 CPU ms/req
+[20:31:41] post_message c=16: 5466.9 rps, campfire 0.3587 CPU ms/req
+bench/quiet: other CCD 2.5% busy (max 15.0%), bench siblings 24-31 4.7% busy (max 15.0%), screensaver off
+== 20:31:41 tip:2 try 1
+[20:31:53] room_show c=16: 25234.3 rps, campfire 0.1537 CPU ms/req
+[20:32:04] messages_page c=16: 29887.1 rps, campfire 0.1291 CPU ms/req
+[20:32:16] sidebar c=16: 30014.6 rps, campfire 0.1283 CPU ms/req
+[20:32:27] post_message c=16: 5436.5 rps, campfire 0.357 CPU ms/req
+bench/quiet: other CCD 2.4% busy (max 15.0%), bench siblings 24-31 4.5% busy (max 15.0%), screensaver off
+== 20:32:28 base:2 try 1
+[20:32:39] room_show c=16: 21784.1 rps, campfire 0.1686 CPU ms/req
+[20:32:51] messages_page c=16: 25866.5 rps, campfire 0.1413 CPU ms/req
+[20:33:02] sidebar c=16: 13789.1 rps, campfire 0.2701 CPU ms/req
+[20:33:14] post_message c=16: 4592.0 rps, campfire 0.4472 CPU ms/req
+bench/quiet: other CCD 2.1% busy (max 15.0%), bench siblings 24-31 4.0% busy (max 15.0%), screensaver off
+== done 20:33:14
