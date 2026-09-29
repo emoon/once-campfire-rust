@@ -19,9 +19,9 @@ hex = { workspace = true, optional = true }
 bcrypt = { workspace = true, optional = true }
 
 [features]
-# Everything but `erb`, `json`, `rack` and `ruby`: the message verifier and encryptor, cookies, GlobalID,
-# signed ids and passwords. Crates that only need those three leave it off and skip building the
-# crypto crates.
+# Everything but `erb`, `json`, `rack` and `ruby`: the message verifier and encryptor, cookies,
+# GlobalID, signed ids and passwords. Crates that only need those four leave it off and skip
+# building the crypto crates.
 crypto = [
     "dep:jiff",
     "dep:thiserror",
