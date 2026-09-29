@@ -319,7 +319,13 @@ impl Database {
             return self.read_offloaded(f).await;
         };
         // A panicking read is an error, as it is from the blocking pool, not an unwinding task.
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| checkout.run(f))).unwrap_or_else(|panic| Err(read_panicked(&*panic)))
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| checkout.run(f))).unwrap_or_else(|panic| Err(read_panicked(&*panic)));
+        // Give the worker's other tasks their turn, as the hop to the blocking pool did. A request
+        // that ran from read to read without yielding raised other connections' p99 at c=64 by
+        // 8-15% (`bench/results/perf-1-20260929/`); the yield costs no thread handoff.
+        tokio::task::yield_now().await;
+        result
     }
 
     /// Runs `f` on a reader connection, on the blocking pool.
