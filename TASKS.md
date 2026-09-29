@@ -202,7 +202,7 @@ Batch parity on 8559e9c (after VIEW-11, VIEW-10): 872 pass, **1 fail**: `rooms/s
 - [ ] WEB-5 perf: ~6 → ~3 DB round trips on room show; `page::bare` without layout load
 - [x] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless` (refactor/cleanup-web-6, 7af9f04 on d23c0b8): production lines campfire -12, db +2 (total -10), tests +50; allocations/request n/a (no perf gate, coordinator's call). Reviewer's two requests applied: room-creation test now covers member+unrestricted 200 and administrator+restricted 200 (each verified to fail against the one-sided rewrite), `can_administer` doc cites reference/app/models/user/role.rb. Tests 659 passed, 0 failed, 7 ignored (seed built, none skipped); clippy clean. Previous commit message's delta (-14/+0/+33) was miscounted; corrected.
 - [ ] WEB-7 `page::render_partial` for the 12 detached renders
-- [ ] WEB-8 Presenters: SQL to db (after DB-2), dedupe, per-message perf fixes
+- [ ] WEB-8 Presenters: SQL to db (after DB-2), dedupe. The perf parts were tried and dropped (no target > T; `bench/results/web-8-20260929/`, branch refactor/cleanup-web-8)
 - [ ] WEB-9 perf (measure): `RegexSet` router (after KIT-1)
 - [ ] WEB-10 Redirect helper, bool params, precomputed version headers; `update_message` matches on `Assignment` (F-5)
 - [ ] WEB-11 De-flake `presenters::accounts::tests::manages_bots` and `accounts::tests::serves_the_account_logo_and_avatars` (302 under load; F-2, VIEW-3)
@@ -210,7 +210,7 @@ Batch parity on 8559e9c (after VIEW-11, VIEW-10): 872 pass, **1 fail**: `rooms/s
 
 ### LIVE (`crates/cable`, campfire channels, integrations, jobs)
 - [ ] LIVE-1 perf: hub lock not held while sending
-- [ ] LIVE-2 perf: encode per-member broadcasts once
+- [-] LIVE-2 perf: encode per-member broadcasts once (refactor/cleanup-live-2). Dropped: post_message req/s −4.0% (> T) though CPU/req −1.9% (8 ABBA runs on 8559e9c). Not merged; a retry should time encode-once apart from moving broadcasts out of the read, plus the cable suite. `bench/results/live-2-20260929/`
 - [ ] LIVE-3 `Broadcasting` newtype; `Typing` enum (with VIEW-5)
 - [ ] LIVE-4 Split `connection::run`; `Command` enum
 - [ ] LIVE-5 Web push: no boxed handler; `permitted_endpoint_host`; tokio worker (optional)
