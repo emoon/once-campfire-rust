@@ -7,10 +7,11 @@ use askama::Template;
 use campfire_db::{Boost, Message, Room};
 use campfire_kit::{Ctx, Error, Result, StatusCode, format, permit_keys};
 use campfire_views::messages as views;
+use rails_compat::ruby::cast_integer;
 
 use super::present;
 use crate::app::AppCtx;
-use crate::concerns::{Before, before_actions, cast_integer, require_current_user};
+use crate::concerns::{Before, before_actions, require_current_user};
 use crate::controllers::presenters::page::{self, Rendered, db_error};
 use crate::controllers::presenters::user_view;
 

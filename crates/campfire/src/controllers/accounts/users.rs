@@ -5,9 +5,10 @@ use askama::Template;
 use campfire_db::{Role, User, UserChanges};
 use campfire_kit::{Ctx, Error, Result, format};
 use campfire_views::accounts;
+use rails_compat::ruby::cast_integer;
 
 use crate::app::AppCtx;
-use crate::concerns::{self, Before, cast_integer};
+use crate::concerns::{self, Before};
 use crate::controllers::presenters;
 use crate::controllers::presenters::pagination::Page;
 use crate::controllers::presenters::view_context::Layout;

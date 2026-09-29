@@ -6,6 +6,7 @@
 use campfire_db::{Account, Membership, Room, User};
 use campfire_kit::{Ctx, Error, Result, StatusCode};
 use campfire_views::rooms::{DirectEditView, DirectsEdit, DirectsNew};
+use rails_compat::ruby::cast_integer;
 
 use super::{Scope, destroy_room, existing_user_ids, redirect_to_room, set_room, user_ids_param};
 use crate::app::AppCtx;
@@ -17,7 +18,7 @@ use crate::controllers::presenters::{Presenter, user_view};
 /// setting `@room`, so `remember_last_room_visited` raises (a 500).
 pub async fn show(c: &mut Ctx) -> Result {
     before_actions(c, Before::default()).await?;
-    let id = c.param_str("id").and_then(crate::concerns::cast_integer).ok_or(Error::NotFound)?;
+    let id = c.param_str("id").and_then(cast_integer).ok_or(Error::NotFound)?;
     redirect_to_room(c, id)
 }
 
