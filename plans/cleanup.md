@@ -346,7 +346,10 @@ coordinator removes them when it merges the WP. Never remove any other image.
    sidebar and 3.2% for post_message, the `bench/run` metrics whose spread is over 3%, and the
    allocation noise (0.1 per request; post_message is bimodal). CPU per request or throughput
    worse than base by more than T fails the gate. A WP marked **perf** must also improve at least
-   one target by more than T, or it's dropped (see "When you'd otherwise stop").
+   one target by more than T, or it's dropped (see "When you'd otherwise stop"). A drop in
+   allocations per request larger than the measured allocation noise (0.1/request; for
+   post_message, beyond its high-mode spread of 0.3) also counts as an improvement, as long as CPU
+   and throughput stay within T (coordinator's reading, 2026-09-29, first applied to KIT-1).
 5. **Size.** Run `bench/loc --against refactor/cleanup` (WP S-3) and put the production-lines
    delta per crate in the commit message.
 6. Match the surrounding code: small named functions, a Rails citation where behavior mirrors
