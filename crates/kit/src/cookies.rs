@@ -11,6 +11,8 @@
 //!
 //! Header formatting is `Rack::Utils.set_cookie_header` (Rack 3.2).
 
+use std::fmt::Write as _;
+
 use jiff::Timestamp;
 use serde_json::Value;
 
@@ -308,15 +310,14 @@ fn same_site_attribute(same_site: Option<SameSite>) -> &'static str {
 }
 
 /// `Rack::Utils.set_cookie_header(key, value_hash)`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn set_cookie_header(name: &str, cookie: &Cookie) -> String {
     let mut header = format!("{name}={}", escape(&cookie.value));
     if let Some(domain) = &cookie.domain {
-        header.push_str(&format!("; domain={domain}"));
+        write!(header, "; domain={domain}").unwrap();
     }
-    header.push_str(&format!("; path={}", cookie.path));
+    write!(header, "; path={}", cookie.path).unwrap();
     if let Some(expires) = cookie.expires {
-        header.push_str(&format!("; expires={}", clock::httpdate(expires)));
+        write!(header, "; expires={}", clock::httpdate(expires)).unwrap();
     }
     if cookie.secure {
         header.push_str("; secure");
@@ -332,17 +333,18 @@ pub fn set_cookie_header(name: &str, cookie: &Cookie) -> String {
 }
 
 /// `Rack::Utils.delete_set_cookie_header(key, options)`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn delete_cookie_header(name: &str, options: &DeleteOptions) -> String {
     let mut header = format!("{name}=");
     if let Some(domain) = &options.domain {
-        header.push_str(&format!("; domain={domain}"));
+        write!(header, "; domain={domain}").unwrap();
     }
-    header.push_str(&format!(
+    write!(
+        header,
         "; path={}; max-age=0; expires={}",
         options.path,
         clock::httpdate(Timestamp::UNIX_EPOCH)
-    ));
+    )
+    .unwrap();
     header.push_str(same_site_attribute(options.same_site));
     header
 }

@@ -1,15 +1,16 @@
 //! URL building that `campfire_routes` leaves to the caller: query strings (`Hash#to_query`)
 //! and format extensions (`path(format: :json)`).
 
+use std::fmt::Write as _;
+
 /// `CGI.escape`: everything but `A-Za-z0-9_.-~` is percent-encoded, and spaces become `+`.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn cgi_escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for byte in text.bytes() {
         match byte {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-' | b'~' => out.push(byte as char),
             b' ' => out.push('+'),
-            _ => out.push_str(&format!("%{byte:02X}")),
+            _ => write!(out, "%{byte:02X}").unwrap(),
         }
     }
     out

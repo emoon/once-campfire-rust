@@ -1,5 +1,7 @@
 //! Ruby and Active Support string behaviors the pipeline depends on.
 
+use std::fmt::Write as _;
+
 use serde_json::Value;
 
 /// Ruby's whitespace for `String#strip`: NUL, `\t`, `\n`, `\v`, `\f`, `\r` and space.
@@ -58,21 +60,19 @@ pub fn truncate(text: &str, length: usize, omission: &str) -> String {
 }
 
 /// `ERB::Util.url_encode`: percent-encodes everything but unreserved characters.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn url_encode(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'~') {
             out.push(b as char);
         } else {
-            out.push_str(&format!("%{:02X}", b));
+            write!(out, "%{:02X}", b).unwrap();
         }
     }
     out
 }
 
 /// Active Support's `String#to_json` with `escape_html_entities_in_json` on.
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub fn to_json_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
@@ -88,7 +88,7 @@ pub fn to_json_string(s: &str) -> String {
             '<' => out.push_str("\\u003c"),
             '>' => out.push_str("\\u003e"),
             '&' => out.push_str("\\u0026"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c if (c as u32) < 0x20 => write!(out, "\\u{:04x}", c as u32).unwrap(),
             c => out.push(c),
         }
     }
@@ -190,7 +190,6 @@ pub fn json_value_inspect(v: &Value) -> String {
     }
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn string_inspect(s: &str) -> String {
     let mut out = String::from("\"");
     let mut chars = s.chars().peekable();
@@ -208,7 +207,7 @@ fn string_inspect(s: &str) -> String {
             '\u{1b}' => out.push_str("\\e"),
             // What would start an interpolation in a double-quoted literal: `#{`, `#$`, `#@`
             '#' if chars.peek().is_some_and(|next| matches!(next, '{' | '$' | '@')) => out.push_str("\\#"),
-            c if (c as u32) < 0x20 || c == '\u{7f}' => out.push_str(&format!("\\x{:02X}", c as u32)),
+            c if (c as u32) < 0x20 || c == '\u{7f}' => write!(out, "\\x{:02X}", c as u32).unwrap(),
             c => out.push(c),
         }
     }

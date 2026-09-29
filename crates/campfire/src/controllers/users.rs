@@ -7,6 +7,8 @@ pub mod profiles;
 pub mod push_subscriptions;
 pub mod sidebars;
 
+use std::fmt::Write as _;
+
 use askama::Template;
 use campfire_db::{Account, NewUser, User};
 use campfire_kit::{Ctx, Error, ParamMap, Result, StatusCode, format, halt, permit_keys};
@@ -34,7 +36,6 @@ pub async fn new(c: &mut Ctx) -> Result {
     .await
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 pub async fn create(c: &mut Ctx) -> Result {
     concerns::before_actions(c, Before::default().require_unauthenticated_access()).await?;
     verify_join_code(c).await?;
@@ -80,10 +81,12 @@ pub async fn create(c: &mut Ctx) -> Result {
         Err(error) if presenters::accounts::is_record_not_unique(&error) => {
             let mut location = c.url_for(&campfire_routes::new_session());
             if let Some(email_address) = email_address {
-                location.push_str(&format!(
+                write!(
+                    location,
                     "?email_address={}",
                     campfire_views::helpers::url::cgi_escape(&email_address)
-                ));
+                )
+                .unwrap();
             }
             c.redirect_to(&location)
         }

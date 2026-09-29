@@ -3,6 +3,7 @@
 //! against security properties that don't depend on the oracle.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use campfire_richtext::dom::{Dom, NodeId};
 use campfire_richtext::sanitizer::SafeList;
@@ -128,7 +129,6 @@ fn normalized_dom(html: &str) -> String {
     out
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn normalize_into(dom: &Dom, node: NodeId, out: &mut String) {
     for &child in dom.children(node) {
         if let Some(text) = dom.text(child) {
@@ -139,9 +139,9 @@ fn normalize_into(dom: &Dom, node: NodeId, out: &mut String) {
         } else if let Some(name) = dom.local_name(child) {
             let mut attrs = dom.attrs(child);
             attrs.sort();
-            out.push_str(&format!("<{name} {attrs:?}>"));
+            write!(out, "<{name} {attrs:?}>").unwrap();
             normalize_into(dom, child, out);
-            out.push_str(&format!("</{name}>"));
+            write!(out, "</{name}>").unwrap();
         }
     }
 }

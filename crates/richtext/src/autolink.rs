@@ -10,6 +10,7 @@
 
 use rails_compat::erb;
 use regex::Regex;
+use std::fmt::Write as _;
 use std::sync::LazyLock;
 
 use crate::dom::ParseError;
@@ -180,7 +181,6 @@ fn is_word_char(c: char) -> bool {
     WORD.is_match(c.encode_utf8(&mut [0; 4]))
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn auto_link_urls(text: &str) -> Result<String, ParseError> {
     let mut out = String::with_capacity(text.len());
     let mut last = 0;
@@ -224,11 +224,13 @@ fn auto_link_urls(text: &str) -> Result<String, ParseError> {
         let link_text = sanitize(&link_text, SafeList::defaults())?;
         let href = sanitize(&href, SafeList::defaults())?;
         // content_tag(:a, link_text, attrs, false): nothing escaped but double quotes in attributes
-        out.push_str(&format!(
+        write!(
+            out,
             "<a target=\"_blank\" href=\"{}\">{}</a>",
             href.replace('"', "&quot;"),
             link_text
-        ));
+        )
+        .unwrap();
         // SafeBuffer#+ escapes the (unsafe) punctuation string
         let trailing: String = punctuation.iter().rev().collect();
         out.push_str(&erb::escape(&trailing));
@@ -238,7 +240,6 @@ fn auto_link_urls(text: &str) -> Result<String, ParseError> {
     Ok(out)
 }
 
-#[expect(clippy::format_push_string, reason = "existing hit under the S-5 lint floor")]
 fn auto_link_email_addresses(text: &str) -> Result<String, ParseError> {
     let mut out = String::with_capacity(text.len());
     let mut copied = 0;
@@ -265,7 +266,7 @@ fn auto_link_email_addresses(text: &str) -> Result<String, ParseError> {
             let href = format!("mailto:{}", url_encode(&sanitized).replace("%40", "@"));
             // display_text is only sanitized (and so marked safe) when sanitizing changed the address
             let display = if sanitized == email { erb::escape(email) } else { sanitized };
-            out.push_str(&format!("<a target=\"_blank\" href=\"{}\">{}</a>", erb::escape(&href), display));
+            write!(out, "<a target=\"_blank\" href=\"{}\">{}</a>", erb::escape(&href), display).unwrap();
         }
         copied = end;
         position = end.max(position + 1);
