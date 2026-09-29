@@ -192,6 +192,7 @@ VIEW-2's parity (on top of VIEW-11, VIEW-10): 873 pass, 0 fail, 1 allowed; `room
 - [ ] KIT-7 Routes: `&'static str` for constant paths
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
 - [x] KIT-9 perf: splice without rehashing (BLAKE3 text identity, combined CRCs) (refactor/cleanup-kit-9, merged). 8 ABBA runs: room_show and messages_page CPU/req −3.3%. kit +60 lines
+- [x] KIT-9c perf: page text known by its bytes (fast hash + byte compare, stored BLAKE3 digest reused) (refactor/cleanup-kit-9c, merged). room_show CPU/req −4.6% (8 ABBA runs)
 - [ ] KIT-9b perf: record fragment offsets while rendering instead of `find`/`starts_with` over the body (6.1% of room_show, 6.6% of messages_page in S-8). Split from KIT-9: needs a recording writer through askama's `render()`, the page helpers and `Response`, composed across the frame layout's copy of the content
 - [x] KIT-10 perf: reuse gzip output for repeated bodies (refactor/cleanup-kit-10, merged). c=16 ABBA, 8 runs: sidebar CPU/req −48.5%, req/s +91%; others ±1%. Encoder pooling left out (−0.5% of post_message, under T). kit +72 lines
 
