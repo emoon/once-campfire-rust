@@ -299,7 +299,7 @@ pub struct MessagePartial<'a> {
 
 /// `render message`: `messages/_message`, whose body is `cache [ message, "presentation-v3" ]`
 /// (and whose collection renders are `cached: true`), so a message version renders once.
-pub fn message(ctx: &ViewContext, message: &MessageView) -> String {
+pub fn message(ctx: &ViewContext, message: &MessageView) -> fragment_cache::Fragment {
     fragment_cache::fetch(
         || message_fragment_key(message.id, message.updated_at),
         || MessagePartial { ctx, message }.render().expect("messages/_message renders"),
@@ -307,15 +307,15 @@ pub fn message(ctx: &ViewContext, message: &MessageView) -> String {
 }
 
 /// [`message`] where a template renders the partial.
-pub fn cached_message(ctx: &ViewContext, message: &MessageView) -> crate::helpers::Html {
+pub fn cached_message(ctx: &ViewContext, message: &MessageView) -> askama::filters::Safe<fragment_cache::Fragment> {
     askama::filters::Safe(self::message(ctx, message))
 }
 
 /// [`cached_message`] for a [`MessageItem`]: a fragment found up front goes out as it is.
-pub fn cached_message_item<'a>(ctx: &ViewContext, item: &'a MessageItem) -> askama::filters::Safe<std::borrow::Cow<'a, str>> {
+pub fn cached_message_item(ctx: &ViewContext, item: &MessageItem) -> askama::filters::Safe<fragment_cache::Fragment> {
     askama::filters::Safe(match item {
-        MessageItem::Fragment { html, .. } => std::borrow::Cow::Borrowed(html.as_str()),
-        MessageItem::View(message) => std::borrow::Cow::Owned(self::message(ctx, message)),
+        MessageItem::Fragment { html, .. } => html.clone(),
+        MessageItem::View(message) => self::message(ctx, message),
     })
 }
 
@@ -334,7 +334,7 @@ fn message_fragment_key(id: i64, updated_at: Timestamp) -> String {
 }
 
 /// `messages/boosts/_boost`, whose body is `cache boost`.
-pub fn boost(ctx: &ViewContext, boost: &BoostView) -> String {
+pub fn boost(ctx: &ViewContext, boost: &BoostView) -> fragment_cache::Fragment {
     fragment_cache::fetch(
         || {
             format!(
@@ -348,7 +348,7 @@ pub fn boost(ctx: &ViewContext, boost: &BoostView) -> String {
 }
 
 /// [`boost`] where a template renders the partial.
-pub fn cached_boost(ctx: &ViewContext, boost: &BoostView) -> crate::helpers::Html {
+pub fn cached_boost(ctx: &ViewContext, boost: &BoostView) -> askama::filters::Safe<fragment_cache::Fragment> {
     askama::filters::Safe(self::boost(ctx, boost))
 }
 
