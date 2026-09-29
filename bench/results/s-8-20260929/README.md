@@ -43,7 +43,10 @@ Code: `refactor/cleanup` at `2855a0c` (Phase 1 partly merged). Host: Ryzen 9 995
 to CPUs 8-11, load generator to 12-15, as in `bench/profile`. Everything below ran in one hold of
 `/tmp/campfire-bench.lock`, 12:34-12:47, with the screensaver off before and after every step
 ([`scripts/session.sh`](scripts/session.sh); each step counts only if `pgrep -f omarchy-screensaver`
-was empty right before and right after it).
+was empty right before and right after it). That check can match other agents' commands that
+mention the screensaver, so its false positives delayed the session, but a false negative isn't
+possible. The human confirmed the screensaver wasn't running. The plan's check is now
+`pgrep -a -x foot | grep -q org.omarchy.screensaver`.
 
 **Binaries** (all release, `CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, built with
 `taskset -c 0-7,16-23`):
