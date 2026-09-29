@@ -75,7 +75,7 @@ otherwise stop" in `plans/cleanup.md`.
 
 ## Phase 1: shared foundations
 
-- [~] F-1 `rails_compat::erb` escaper; delete 5 copies (refactor/cleanup-f-1, rebased on a0df4b6; re-running parity with the cache fix).
+- [x] F-1 `rails_compat::erb` escaper; delete 5 copies (refactor/cleanup-f-1, rebased on a0df4b6; re-running parity with the cache fix).
       Production lines -22 (assets -13, cable -14, rails_compat +47, richtext -12, views -30);
       allocs/req unchanged (18.0/19.0/53.1, post_message 78.6 → 78.8 high mode, noise); CPU and
       req/s within T; parity 873/874 (1 allowed), as baseline; tests 654 pass, 7 ignored (seed
@@ -109,17 +109,17 @@ otherwise stop" in `plans/cleanup.md`.
       i64::MIN (was −i64::MAX; the page clamp and `since` saturation hide it). Cross-lane: one
       import path in `campfire/src/active_storage.rs` (STORE). The images `campfire-rust:f-4` and
       `campfire-candidate-f-4` are still there.
-- [r] F-5 `Patch<T>` + `Assignments`; `User`/`Account`/`Room::update`; 7 callers (refactor/cleanup-f-5)
-      Production lines +24 (db +22, campfire +2), tests +28; allocations/request unchanged
-      (room_show 18.0, messages_page 19.0, sidebar 53.1, post_message higher run 79.1 → 78.4); CPU
-      and req/s all within T/2; parity 873/874 (manifest allowed); tests 653 pass / 7 ignored with
-      the seed; clippy clean. Numbers in `bench/results/f-5-20260929/`. Plan notes: `Assignments` is
-      crate-private in `sql.rs` and gained `patch` (for `Patch` fields); `write` takes
-      `(tx, table, id, &mut updated_at)` so the "touch updated_at only when something changed" rule
-      lives in one place. `Room::update` also moved onto `Assignments`, so it now writes only the
-      changed columns (as Active Record does) instead of always `name` and `type`; same row, and
-      the db differential against Ruby passes. `Role`/`Status`/`RoomType` gained
-      `From<_> for rusqlite::types::Value` (DB-3's `sql_enum!` should generate it).
+- [~] F-5 `Patch<T>` + `Assignments`; `User`/`Account`/`Room::update`; 7 callers (refactor/cleanup-f-5)
+      Review round done (reviewer approves 789ffe8, one squashed commit); waiting on the re-run
+      parity and alloc gates. Production lines +43 (db +41, campfire +2), tests +28. Per-call
+      allocations base → now: `User::update` 20 → 9, `Account::update` 18 → 7, `Room::update`
+      rename 6 → 4, type change 6 → 6. First-round gates (before the review fix): allocations/request
+      unchanged, CPU and req/s within T/2, parity 873/874. Tests 655 pass / 7 ignored with the seed;
+      clippy clean. Plan notes: `Assignments` is crate-private in `sql.rs` and gained `patch`;
+      `write` takes `(tx, table: &'static str, id, &mut updated_at)` so "touch updated_at only when
+      something changed" lives in one place. `Room::update` keeps its literal UPDATE, via
+      `Patch::apply`. `Role`/`Status` gained `From<_> for rusqlite::types::Value` (DB-3's
+      `sql_enum!` should generate it).
 
 ## Phase 2: lanes
 
@@ -229,3 +229,9 @@ won't make. They don't block the run and go into the final report.
   fixing it would change behavior (STORE, or for the human).
 
 ## Found while working
+
+- (F-3) kit `response.rs` has a fourth byte-range parser, `parse_range` (single range, strict
+  `u64` parse, not Rack's rules), behind `SendOptions::ranges`. No production caller sets `ranges`
+  (only `kit/tests/http.rs`; Active Storage's proxy serves ranges through `rails_compat::rack`), so
+  the flag, `parse_range`, `RangeResult` and their test look dead: delete them, or switch them to
+  `rails_compat::rack::byte_ranges` if something should keep them (KIT lane).
