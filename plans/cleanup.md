@@ -455,7 +455,8 @@ them fixed in place rather than reverted.
   the cleanup's starting point (`bench/results/cleanup-baseline-20260928/run/report.md`): reads
   are 6-10% faster (room_show 20,479 → 22,426 req/s), but post_message is 11.7% slower (5,452 →
   4,813) and cable deliveries/s 15.7% slower at 100 clients (312,272 → 263,246) and 20.6% at 1,000
-  (503,302 → 399,820). The only code change between them is PR #11 (`refactor/rails-idioms`,
+  (503,302 → 399,820). But the v0.1.1 run was on another machine (Ryzen AI Max+ 395, not this
+  9950X3D) and went to 10,000 cable clients, so the comparison is cross-machine until re-measured. The only code change between them is PR #11 (`refactor/rails-idioms`,
   9e2a110; 41 files). First confirm it: build images at the v0.1.1 bench HEAD (080f903) and at
   9e2a110 and run `bench/run --apps rust` (http and cable suites, c=16) back to back under the same
   conditions. If it's real, find the cause (bisect the PR's commits, `perf` the difference) and fix
@@ -893,7 +894,10 @@ let the compiler drive the call sites.
 - **P-5 Final report.** Size by crate against the S-3 baseline, allocations/request and throughput
   against S-2, and the parity gate result. Also compare throughput with the published v0.1.1 tables (the
   README's, from `bench/results/v0.1.1-20260928/report.md`: http at c=16 and cable up to 10,000
-  clients, the human's reference of 2026-09-29); every row should be at least as fast. Update `README.md` (performance table, Known differences
+  clients, the human's reference of 2026-09-29). Those were measured on another machine (Ryzen AI
+  Max+ 395; this one is a Ryzen 9 9950X3D, found by S-9), so re-measure v0.1.1 (080f903) on this
+  host with the same suites (`CABLE_CLIENTS="100 1000 5000 10000"`) and show that the final tip
+  is at least as fast on every row; list the published rows beside them, labelled by machine. Update `README.md` (performance table, Known differences
   if anything changed on purpose).
   - Write the report to `bench/results/cleanup-final-<date>/README.md`. It lists every `[-]` and
     `[!]` WP with its reason, and everything under "For the human" in `TASKS.md`.
