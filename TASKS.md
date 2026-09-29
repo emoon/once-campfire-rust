@@ -77,7 +77,7 @@ otherwise stop" in `plans/cleanup.md`.
       (C/SQLite only; see S-7).
       Branch keeps only `bench/results/s-6-20260929/` and a plan note; the pinning diff
       (`PARITY_CPUSET`) is saved there, not applied. Gate recipes unchanged. Images removed.
-- [r] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order (refactor/cleanup-s-8, f28e273 on c1db459)
+- [x] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order (refactor/cleanup-s-8, b9214c3 on 2c2fd4a)
       Results: `bench/results/s-8-20260929/README.md`. Biggest cost: the `spawn_blocking` hop per DB
       read; reads inline cut CPU/req −12…−23% on all four targets (experiment). Then the deflater
       (sidebar ~40% deflating a repeating body; the splice ~19% of room_show), per-message cache

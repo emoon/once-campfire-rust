@@ -293,14 +293,21 @@ for route in room_show messages_page sidebar post_message post_message-2; do
   flock /tmp/campfire-bench.lock bench/profile alloc --label base --route $r --out $OUT/base-$route
   flock /tmp/campfire-bench.lock bench/profile alloc --label $ID --route $r --out $OUT/$ID-$route
 done
-# CPU ms/req and req/s per target, in ABBA order (base, WP, WP, base) so drift over the session
-# cancels out; each run writes $OUT/cpu-<label>-<n>/cpu.json.
-for run in base:1 $ID:1 $ID:2 base:2; do
-  label=${run%:*} n=${run#*:}
-  flock /tmp/campfire-bench.lock bench/profile cpu --label $label \
-    --targets room_show,messages_page,sidebar,post_message --out $OUT/cpu-$label-$n
+# CPU ms/req and req/s per target from an unprofiled run (S-8: gperftools adds 1-4%, drops ~40% of
+# its samples under load and crashed twice), in ABBA order (base, WP, WP, base) so drift cancels
+# out, after one throwaway run (the first run after taking the lock was 7% slow). Each run is
+# wrapped in bench/quiet; on exit 3 discard it and redo it in place. Each writes perf.json.
+TARGETS=room_show,messages_page,sidebar,post_message
+for run in warmup:0 base:1 $ID:1 $ID:2 base:2; do
+  label=${run%:*} n=${run#*:}; [ $label = warmup ] && label=base
+  until flock /tmp/campfire-bench.lock bench/quiet -- bench/profile perf --freq 0 --label $label \
+      --targets $TARGETS --out $OUT/time-${run%:*}-$n; do sleep 60; done
 done
 ```
+WPs whose CPU comparison started before 2026-09-29 13:15 may finish with `bench/profile cpu`
+(gperftools), wrapped in `bench/quiet`; never mix the two tools within one comparison. For
+profiles (where the time goes, not how much), use `bench/profile perf --call-graph fp` on a
+frame-pointer build (see `bench/results/s-8-20260929/README.md`).
 
 Compare each target's mean of the two base runs with the mean of the two WP runs. If a target
 lands within half of T of the pass/fail line (worse by between T/2 and 1.5 T, or, for a perf WP's
