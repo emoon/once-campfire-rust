@@ -301,8 +301,29 @@ impl Database {
         response.blocking_recv().map_err(|_| Error::WriterGone)?
     }
 
-    /// Runs `f` on a reader connection, on the blocking pool.
+    /// Runs `f` on a reader connection. When one is free, `f` runs right here, on the calling
+    /// task's thread: a read on a warm page cache takes microseconds, less than handing it to the
+    /// blocking pool and back (a futex wake each way, most of a page's system time; S-8,
+    /// `bench/results/s-8-20260929/`). Only when every reader is busy does it wait for one, on the
+    /// blocking pool. At most as many runtime workers as there are readers are ever inside `f`.
+    ///
+    /// Reads whose cost grows with the whole database rather than with a page (search, every
+    /// user, all of a user's messages, a push per subscriber) use [`Database::read_offloaded`],
+    /// which keeps them off the runtime's workers.
     pub async fn read<T, F>(&self, f: F) -> Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&Connection) -> Result<T> + Send + 'static,
+    {
+        let Some(checkout) = self.readers.try_checkout() else {
+            return self.read_offloaded(f).await;
+        };
+        // A panicking read is an error, as it is from the blocking pool, not an unwinding task.
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| checkout.run(f))).unwrap_or_else(|panic| Err(read_panicked(&*panic)))
+    }
+
+    /// Runs `f` on a reader connection, on the blocking pool.
+    pub async fn read_offloaded<T, F>(&self, f: F) -> Result<T>
     where
         T: Send + 'static,
         F: FnOnce(&Connection) -> Result<T> + Send + 'static,
@@ -401,33 +422,65 @@ fn open_connection(path: &Path, reader: bool) -> Result<Connection> {
 }
 
 struct ReaderPool {
-    idle: Mutex<Vec<Connection>>,
+    state: Mutex<Readers>,
     available: Condvar,
+}
+
+struct Readers {
+    idle: Vec<Connection>,
+    /// Checkouts waiting for a connection, which [`ReaderPool::try_checkout`] lets go first.
+    waiting: usize,
 }
 
 impl ReaderPool {
     fn new(connections: Vec<Connection>) -> Self {
         Self {
-            idle: Mutex::new(connections),
+            state: Mutex::new(Readers {
+                idle: connections,
+                waiting: 0,
+            }),
             available: Condvar::new(),
         }
     }
 
+    fn lock(&self) -> std::sync::MutexGuard<'_, Readers> {
+        self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn with<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+        self.checkout().run(f)
+    }
+
+    /// An idle connection, waiting for one if there's none.
+    fn checkout(&self) -> Checkout<'_> {
         let conn = {
-            let mut idle = self.idle.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-            loop {
-                if let Some(conn) = idle.pop() {
-                    break conn;
-                }
-                idle = self.available.wait(idle).unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut readers = self.lock();
+            if readers.idle.is_empty() {
+                readers.waiting += 1;
+                readers = self
+                    .available
+                    .wait_while(readers, |readers| readers.idle.is_empty())
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                readers.waiting -= 1;
             }
+            readers.idle.pop().expect("a connection is idle")
         };
-        let checkout = Checkout {
+        Checkout {
             pool: self,
             conn: Some(conn),
-        };
-        f(checkout.conn.as_ref().expect("checked out"))
+        }
+    }
+
+    /// An idle connection, unless there's none or someone is already waiting for one.
+    fn try_checkout(&self) -> Option<Checkout<'_>> {
+        let conn = {
+            let mut readers = self.lock();
+            if readers.waiting > 0 { None } else { readers.idle.pop() }
+        }?;
+        Some(Checkout {
+            pool: self,
+            conn: Some(conn),
+        })
     }
 }
 
@@ -439,12 +492,30 @@ struct Checkout<'a> {
     conn: Option<Connection>,
 }
 
+impl Checkout<'_> {
+    fn run<T>(self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+        f(self.conn.as_ref().expect("checked out"))
+    }
+}
+
 impl Drop for Checkout<'_> {
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
-            self.pool.idle.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(conn);
+            self.pool.lock().idle.push(conn);
             self.pool.available.notify_one();
         }
+    }
+}
+
+/// The error for a read that panicked, as the blocking pool reports one (`JoinError`).
+fn read_panicked(panic: &(dyn std::any::Any + Send)) -> Error {
+    match panic
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+    {
+        Some(message) => Error::Other(format!("read panicked with message {message:?}")),
+        None => Error::Other("read panicked".into()),
     }
 }
 
@@ -474,6 +545,51 @@ mod tests {
                 .unwrap(),
             1
         );
+    }
+
+    fn one_reader() -> (tempfile::TempDir, Database) {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = Config::new(dir.path().join("test.sqlite3"));
+        config.readers = 1;
+        let db = Database::open(config, Env::default()).unwrap();
+        (dir, db)
+    }
+
+    #[tokio::test]
+    async fn a_read_runs_on_the_calling_thread_while_a_reader_is_free() {
+        let (_dir, db) = one_reader();
+        let caller = std::thread::current().id();
+        assert_eq!(db.read(|_| Ok(std::thread::current().id())).await.unwrap(), caller);
+        assert_ne!(db.read_offloaded(|_| Ok(std::thread::current().id())).await.unwrap(), caller);
+    }
+
+    #[tokio::test]
+    async fn a_panicking_inline_read_is_an_error_and_returns_its_connection() {
+        let (_dir, db) = one_reader();
+        for _ in 0..3 {
+            let error = db.read(|_| -> Result<()> { panic!("a bug in a read") }).await.unwrap_err();
+            assert!(
+                matches!(&error, Error::Other(message) if message.contains("a bug in a read")),
+                "{error:?}"
+            );
+        }
+        assert_eq!(
+            db.read(|conn| Ok(conn.query_row("SELECT 1", [], |r| r.get::<_, i64>(0))?))
+                .await
+                .unwrap(),
+            1
+        );
+    }
+
+    /// A connection returned while a checkout waits is that checkout's (it's woken for it), so a
+    /// read goes to the blocking pool and waits its turn instead of taking it.
+    #[test]
+    fn try_checkout_leaves_an_idle_connection_to_a_waiting_checkout() {
+        let (_dir, db) = one_reader();
+        db.readers.lock().waiting = 1;
+        assert!(db.readers.try_checkout().is_none());
+        db.readers.lock().waiting = 0;
+        assert!(db.readers.try_checkout().is_some());
     }
 
     /// Commits never checkpoint on the writer: the WAL reaching the auto-checkpoint threshold

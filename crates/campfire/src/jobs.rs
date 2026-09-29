@@ -307,7 +307,10 @@ async fn remove_banned_content(app: App, event: Event) -> anyhow::Result<()> {
     let Event::RemoveBannedContent { user_id } = event else {
         return Ok(());
     };
-    let messages = app.db.read(move |conn| campfire_db::Message::by_creator(conn, user_id)).await?;
+    let messages = app
+        .db
+        .read_offloaded(move |conn| campfire_db::Message::by_creator(conn, user_id))
+        .await?;
     for message in messages {
         let (removed, room_id) = (message.clone(), message.room_id);
         app.db.write(move |tx| message.destroy(tx)).await?;
