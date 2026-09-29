@@ -42,8 +42,6 @@ pub struct Session {
     /// Whether the data changed during this request, and so the cookie needs writing.
     changed: bool,
     data: Map<String, Value>,
-    /// The cookie's decoded contents, read once (`action_dispatch.request.unsigned_session_cookie`).
-    cookie_data: Option<Map<String, Value>>,
 }
 
 impl Session {
@@ -53,7 +51,6 @@ impl Session {
             loaded: false,
             changed: false,
             data: Map::new(),
-            cookie_data: None,
         }
     }
 
@@ -61,10 +58,15 @@ impl Session {
         self.loaded
     }
 
-    /// Load from the cookie if not yet loaded (`load_for_read!`/`load_for_write!`).
+    /// Load from the cookie if not yet loaded (`load_for_read!`/`load_for_write!`). The cookie is
+    /// decrypted once per request, as Rails memoizes it in
+    /// `action_dispatch.request.unsigned_session_cookie`.
     pub fn load(&mut self, jar: &CookieJar) -> &mut Self {
         if !self.loaded {
-            let mut data = self.cookie_data(jar).clone();
+            let mut data = match jar.encrypted(&self.config.key) {
+                Some(Value::Object(map)) => map,
+                _ => Map::new(),
+            };
             if data.get("session_id").is_none_or(Value::is_null) {
                 data.insert("session_id".into(), Value::String(generate_sid()));
             }
@@ -72,14 +74,6 @@ impl Session {
             self.loaded = true;
         }
         self
-    }
-
-    fn cookie_data(&mut self, jar: &CookieJar) -> &Map<String, Value> {
-        let key = &self.config.key;
-        self.cookie_data.get_or_insert_with(|| match jar.encrypted(key) {
-            Some(Value::Object(map)) => map,
-            _ => Map::new(),
-        })
     }
 
     fn assert_loaded(&self) {
@@ -126,7 +120,6 @@ impl Session {
     pub fn reset(&mut self) {
         self.data = Map::new();
         self.data.insert("session_id".into(), Value::String(generate_sid()));
-        self.cookie_data = Some(self.data.clone());
         self.loaded = true;
         self.changed = true;
     }
