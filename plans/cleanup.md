@@ -397,6 +397,16 @@ them fixed in place rather than reverted.
   `#[expect(clippy::…, reason = "existing hit under the S-5 lint floor")]` on each hit's enclosing
   fn. An `expect` there also absorbs new hits of the same lint in that fn until the old one is
   fixed, so reviewers should check new code inside such fns for those lints by eye.
+- **S-6 Parity off the bench lock (added by the coordinator, 2026-09-29).** Every WP's parity
+  compare (~33 min) holds `/tmp/campfire-bench.lock`, so parity and perf runs of all WPs queue on one
+  lock, and the lock, not the agents, sets the pace. Parity needs its ports and a machine that isn't
+  starved, not the benchmark cores. Give the compare its own lock (`/tmp/campfire-parity.lock`) and
+  pin its containers (reference, candidate, browsers) to CPUs 0-7,16-23 (`--cpuset-cpus`), away from
+  the benchmark's 8-15/24-31. Keep the image build (BuildKit can't be pinned per build) under the
+  bench lock. **Prove it first:** on one binary, run `bench/profile alloc` and ABBA `cpu` on the four
+  targets with and without a concurrent pinned compare; adopt it only if every target's spread stays
+  within T and the compare still gives 873 pass + 1 allowed. Otherwise mark `[-]` with the numbers.
+  Update "Commands for the gates" either way.
 
 ## Phase 1: shared foundations (small, early; lanes depend on them)
 

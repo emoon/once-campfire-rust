@@ -64,6 +64,7 @@ otherwise stop" in `plans/cleanup.md`.
       fmt commit 63b72b1 (233 files, 1,635 hunks; production lines 34,234 → 36,776). The vendored
       html5ever is a workspace member, so `crates/richtext/vendor/rustfmt.toml` disables formatting
       there; `cargo fmt` is safe to run anywhere now. Tests (seed built) and clippy clean after.
+- [ ] S-6 Parity compare on its own lock, pinned off the benchmark cores (prove perf spread stays within T first)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
       `[lints] workspace = true`. The 99 existing hits carry `#[expect(clippy::…, reason = "existing
@@ -139,7 +140,7 @@ otherwise stop" in `plans/cleanup.md`.
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
 
 ### KIT (`crates/kit`, `crates/routes`)
-- [ ] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`)
+- [~] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1)
 - [ ] KIT-2 perf: per-request allocations (deflater, cache variant, compression, host, remote_ip, formats, log, timeouts)
 - [ ] KIT-3 Session dead state
 - [ ] KIT-4 `dispatch` error flow; delete `clone_error`
@@ -172,7 +173,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] LIVE-7 `Attr` enum, one `BoxFuture`, `FrameHead`, `Writer::send` allocs, dead turbo fns, `unix_now`, `ChannelError`
 
 ### VIEW (`crates/views`, `crates/richtext`)
-- [ ] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial
+- [~] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1)
 - [ ] VIEW-2 perf: `Attrs` with `Cow` keys and `write!`; the `push_str(&format!)` sites
 - [ ] VIEW-3 perf: `SafeList` statics, no double sanitize, `qualified_name` without allocation, `NodeId`
 - [ ] VIEW-4 `Cached<V>` + `CachedPartial` for messages/users/boosts
