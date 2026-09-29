@@ -220,7 +220,7 @@ Batch parity on 857121c (after DB-11, DB-12, KIT-10): 874 cells, 873 pass, 0 fai
 ### VIEW (`crates/views`, `crates/richtext`)
 - [x] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1) Merged in batch 1 (21985b1; no regression, ABBA within ±1.3%).
 - [ ] VIEW-2 perf: `Attrs` with `Cow` keys and `write!`; the `push_str(&format!)` sites
-- [~] VIEW-3 perf: `SafeList` statics, no double sanitize, `qualified_name` without allocation, `NodeId` (refactor/cleanup-view-3)
+- [x] VIEW-3 perf: richtext statics, fewer sanitize passes, allocation-free names (refactor/cleanup-view-3, merged b603f22). Cold fragment cache, 8 ABBA runs: room_show CPU/req −4.6%, req/s +10.1%; messages_page −4.3%, +7.6%; warm targets within T. Parity 873/874. richtext +50 lines
 - [ ] VIEW-4 `Cached<V>` + `CachedPartial` for messages/users/boosts
 - [ ] VIEW-5 One `DomId` and one `param_key` (with LIVE-3)
 - [ ] VIEW-6 Borrowed `ViewContext`; static asset paths; `Platform` enums
