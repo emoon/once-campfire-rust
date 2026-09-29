@@ -1109,6 +1109,18 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn regexps_keep_ruby_ascii_classes() {
+        // Ruby's `\d` and `\s` don't match a fullwidth digit, an Arabic-Indic digit or NBSP.
+        assert_eq!(normalize_os("Intel Mac OS X \u{ff11}0_15"), "OS X");
+        assert_eq!(
+            normalize_os("CPU iPhone OS \u{661}\u{668}_6 like Mac OS X"),
+            "CPU iPhone OS \u{661}\u{668}_6 like Mac OS X"
+        );
+        assert_eq!(normalize_os("CrOS\u{a0}x86_64 14541.0.0"), "CrOS\u{a0}x86_64 14541.0.0");
+        assert_eq!(normalize_os("CrOS x86_64 14541.0.0"), "ChromeOS 14541.0.0");
+    }
+
+    #[test]
     fn blank_user_agents_parse_as_the_default() {
         let agent = parse("  ");
         assert_eq!(agent.browser(), "Mozilla");

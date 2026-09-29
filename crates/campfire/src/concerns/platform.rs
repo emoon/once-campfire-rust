@@ -186,7 +186,9 @@ enum BrowserRule {
 }
 
 impl BrowserRule {
-    /// Looked up by the lowercased browser name, as `BrowserBlocker` does.
+    /// Looked up by the lowercased browser name. `BrowserBlocker#normalized_browser_name` renames
+    /// "internet explorer" to "ie" first, so Rails also blocks a browser whose own name is "IE";
+    /// this doesn't (a known gap, predating this enum).
     fn for_browser(browser: &str) -> Self {
         match browser {
             "safari" => BrowserRule::Minimum("17.2"),
