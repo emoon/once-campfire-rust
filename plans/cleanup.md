@@ -368,7 +368,8 @@ coordinator removes them when it merges the WP. Never remove any other image.
 4. **Perf gate: time.** If the WP touches code that runs per request or per broadcast, time it with
    the CPU recipe in "Commands for the gates" (unprofiled `bench/profile perf --freq 0`, ABBA after a
    throwaway run, each run in `bench/quiet`) on room_show, messages_page, sidebar and post_message
-   at c=16; WPs marked **perf** also run `bench/run --apps rust` (http, and cable if they touch it) at
+   at c=16; WPs whose point is latency or the cable path (e.g. DB-11) also run one rep per side of
+   `bench/run --apps rust` (http, and cable if they touch it) at
    c=16 and show `perf` evidence of where the time went. Record before/after under
    `bench/results/<wp-id>-<date>/` with a `README.md` table of CPU ms/request and req/s.
    **Tolerance** (the human's decision, 2026-09-28): for each target, T is the larger of 3% and the
