@@ -181,7 +181,11 @@ impl PageParts {
         }
         // An empty final block (fixed Huffman), after the sync flushes that ended every piece.
         out.extend_from_slice(&[0x03, 0x00]);
-        out.extend_from_slice(&Crc::concatenated(pieces.iter().map(|piece| piece.crc)).to_le_bytes());
+        let crc = Crc::concatenated(pieces.iter().map(|piece| piece.crc));
+        // `fits` checks only the length: a body changed after the parts were taken would otherwise
+        // decode to the old bytes instead of failing its CRC.
+        debug_assert_eq!(crc, crc32fast::hash(body), "the body changed after its parts were taken");
+        out.extend_from_slice(&crc.to_le_bytes());
         out.extend_from_slice(&(body.len() as u32).to_le_bytes());
         out
     }
