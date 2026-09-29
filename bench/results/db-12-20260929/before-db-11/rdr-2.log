@@ -1,0 +1,5 @@
+[15:17:49] room_show c=16: 20962.8 rps, campfire 0.1748 CPU ms/req
+[15:18:00] messages_page c=16: 24969.8 rps, campfire 0.1472 CPU ms/req
+[15:18:12] sidebar c=16: 13740.8 rps, campfire 0.2705 CPU ms/req
+[15:18:23] post_message c=16: 5135.7 rps, campfire 0.3948 CPU ms/req
+bench/quiet: other CCD 7.2% busy (max 15.0%), bench siblings 24-31 4.7% busy (max 15.0%), screensaver off
