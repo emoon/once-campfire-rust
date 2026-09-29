@@ -811,24 +811,6 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   - Split `assets/build.rs` `main` (155 lines), `analyze.rs` `video_metadata` and
     `assets/src/serve.rs:142-222`.
 
-### Measured perf WPs (from S-8's profiles; they run ahead of the lanes)
-
-- **PERF-1 Database reads without the thread handoff.** room_show makes 6 `Database::read`
-  `spawn_blocking` hops per request (messages_page 7, sidebar 5, post_message 10); S-8 counted them
-  with gdb, and the futex/context-switch cost is most of the ~17% `syscall` bucket. S-8's experiment
-  build ran reads inline on the worker: room_show 0.180 → 0.149 CPU ms/req (−17%, +25% req/s),
-  post_message 0.437 → 0.348 (−20%). Make it a real change: decide where reads may run inline (a
-  SQLite read on a warm page cache takes microseconds) without starving the runtime under load, and
-  keep `spawn_blocking` where a read can be slow (search, large pages). Gate: `bench/run` http at
-  c=16 (req/s and p50/p99 latency, all routes, not just the four) and cable 1,000, plus
-  `bench/profile cpu`; tail latency must not get worse. Overlaps WEB-5 (fewer hops); do this first.
-- **PERF-2 SQLite mmap churn on writes.** post_message spends ~8.8% in munmap/mmap after every
-  write (S-8); `mmap_size=0` cut post_message by 12% with room_show unchanged. Find why the mapping
-  is re-created per write (connection setup? `PRAGMA mmap_size` per connection? WAL checkpoint?),
-  and pick the setting that keeps reads fast and stops the churn. Check against Rails' SQLite
-  configuration (`reference/config/database.yml`, the sqlite3 gem defaults) and the WAL-bounded test.
-  Gate: `bench/run` http and cable at c=16, plus `bench/profile cpu`.
-
 ## Phase 3: cross-cutting migrations (serial; one at a time)
 
 Each of these touches many files across lanes, so Phase 3 starts once every Phase 2 WP is
