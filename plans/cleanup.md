@@ -594,8 +594,14 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   - Replace bool params: `broadcast_to_members(.., update: bool)` → two functions;
     `authenticated_as(.., set_cookie)` → an enum.
   - Precompute the version headers.
-  - `cast_integer` slices instead of collecting.
+  - `cast_integer` slices instead of collecting. (Done by F-4.)
+  - `messages.rs` `update_message` matches on `Assignment` instead of a local
+    `Option<Option<Staged>>` (found in F-5).
 
+- **WEB-11 De-flake `presenters::accounts::tests::manages_bots`** (found in F-2). It failed once in a
+  full `cargo test` under load (`GET /account/bots` after sign-in answered 302, expected 200) and
+  passed on reruns. Find the race (session cookie or clock?) and fix the test, not the app, unless
+  the app is wrong.
 ### Lane LIVE: `crates/cable`, `crates/campfire/src/{channels*,integrations*,jobs*}`
 
 - **LIVE-1 perf: don't hold the hub lock while waking subscribers** (`cable/src/pubsub.rs:58`). Clone
@@ -635,6 +641,9 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   - One `unix_now`.
   - `ChannelError` composes with `campfire_db::Error`, so `room_messages.rs:87` loses its `??`.
 
+- **LIVE-8 De-flake `channels_test::room_channel_streams_for_member_rooms_only`** (found in F-5). It
+  failed once under load at its last `assert_eq!` (`client.next_text()` against the broadcast
+  delivery). Find the ordering race and make the test wait for the right frame.
 ### Lane VIEW: `crates/views`, `crates/richtext`
 
 - **VIEW-1 perf: stop copying whole pages and fragments.**
@@ -675,6 +684,10 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   `to_plain_text` error before the URI error). Don't merge the serialize/re-parse steps inside the
   pipeline; they shape the output.
 
+- **VIEW-9 The remaining JSON encoders** (found in F-2). views `helpers/html.rs`
+  `rails_json_escape`/`to_rails_json` (serde_json plus a `replace` pass; used by `messages/json.rs`
+  and `autocompletable.rs`) and richtext `ruby::to_json_string` move onto `rails_compat::json`
+  (after F-1 and F-2). Floats then follow the JSON gem, as everywhere else after F-2; say so.
 ### Lane STORE: `crates/storage`, `crates/assets`, `crates/rails_compat` (crypto), `crates/campfire/src/active_storage.rs`
 
 - **STORE-1 One Active Storage verifier.** Delete `storage/src/verifier.rs`'s `Verifier` trait,
@@ -707,7 +720,9 @@ Known cross-lane edits, besides those noted in the WPs: WEB-7 also changes `inte
   type with `serde_json::Value` (order-preserving here) plus F-2's encoder. Its premise ("serde_json
   sorts keys") is false in this workspace, and it escapes U+2028 where Rails 8.2 doesn't. This also
   removes a parse → encode → parse round trip in `verify_raw`. **First** add golden vectors for float
-  metadata and a U+2028 value, generated in the reference container.
+  metadata and a U+2028 value, generated in the reference container. (F-2: ActiveSupport writes
+  floats with the JSON gem's Grisu2, which `rails_compat::json` has, and `vectors/rails_compat_json.json`
+  already pins ~2,000 floats and U+2028; STORE-6's vectors only need blob metadata end to end.)
 - **STORE-7 Duplication in `active_storage.rs`.**
   - `processed_variant_with` and `preview_image` become one `find_or_process`.
   - `purge`'s raw SQL moves into `campfire_storage`.

@@ -75,11 +75,51 @@ otherwise stop" in `plans/cleanup.md`.
 
 ## Phase 1: shared foundations
 
-- [ ] F-1 `rails_compat::erb` escaper; delete 5 copies
-- [ ] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders
-- [ ] F-3 `rails_compat::rack::byte_ranges` + multipart; fix the assets overflow range
-- [ ] F-4 `rails_compat::ruby::{to_i, cast_integer}`; delete 3 copies
-- [ ] F-5 `Patch<T>` + `Assignments`; `User`/`Account`/`Room::update`; 7 callers
+- [~] F-1 `rails_compat::erb` escaper; delete 5 copies (refactor/cleanup-f-1, rebased on a0df4b6; re-running parity with the cache fix).
+      Production lines -22 (assets -13, cable -14, rails_compat +47, richtext -12, views -30);
+      allocs/req unchanged (18.0/19.0/53.1, post_message 78.6 → 78.8 high mode, noise); CPU and
+      req/s within T; parity 873/874 (1 allowed), as baseline; tests 654 pass, 7 ignored (seed
+      built), clippy clean. Results: `bench/results/f-1-20260929/`. Plan corrections: 4 copies
+      replaced, not 5. kit `front/tls.rs` is Go's `net/http` htmlEscape (`"` → `&#34;`, and hyper
+      accepts `"` in a path), so it stays, with a comment. assets `build.rs` has a 6th copy, kept:
+      a build script would compile rails_compat a second time. rails_compat's crypto is now behind
+      a `crypto` feature: with crypto always on, a clean build of views/richtext/assets used 50-200%
+      more CPU (numbers in the commit message).
+      kit, cable and campfire enable the feature. Note for F-2: private `json` is inside
+      `crypto` too, and `serde_json` is optional; un-gate both when json gains public API (lib.rs
+      and Cargo.toml will conflict; keep both sides).
+- [~] F-2 `rails_compat::json` Float formatting + `EncodedJson`; delete 3 JSON string encoders (refactor/cleanup-f-2)
+- [~] F-3 `rails_compat::rack::byte_ranges` + multipart; fix the assets overflow range (refactor/cleanup-f-3)
+- [x] F-4 `rails_compat::ruby::{to_i, cast_integer}`; delete 3 copies (refactor/cleanup-f-4, 4704c8f
+      on a0df4b6, review nits folded in; parity re-run after 2895add: 873 pass + 1 allowed,
+      compare-2026-09-29T05-04-43-722Z). Production lines +4 (campfire −41, rails_compat +45; 11 are new imports),
+      tests +37. Allocs/req unchanged (room_show 18.0/18.1, messages_page 19.0/19.0, sidebar
+      53.1/53.1, post_message higher run 79.0/78.6); CPU/req and req/s within ±0.8%
+      (`bench/results/f-4-20260929/`). Tests 654 pass / 0 fail / 7 ignored with the seed built;
+      clippy clean; parity 873 pass + 1 allowed (baseline). **Plan correction:** Rails'
+      id cast doesn't "differ on underscores" from `to_i`. `ActiveModel::Type::Integer#serialize`
+      (activemodel `type/integer.rb`) calls `String#to_i`, gated only by `non_numeric_string?`
+      (`NUMERIC_REGEX = /\A\s*[+-]?\d/`, `type/helpers/numeric.rb`), and is out of range past i64.
+      The three copies disagreed with each other, so `cast_integer` now matches Rails. I checked
+      that in the reference image (Ruby 3.4.10) with `Room.find`, `find_by(id:)` and
+      `Type::Integer#serialize` on crafted strings. **Behavior changes, all toward Rails, crafted
+      ids only:** controller id params and the `last_room` cookie: "1_0" → 10 (was 1), "0d5" → 5
+      (was 0), a leading NBSP or U+2003 ("\u{a0}5") → no match (was 5); cable `room_id`: "0d5" → 5
+      (was 0), a leading "\v" is whitespace (was no match). `to_i` of a negative past i64 gives
+      i64::MIN (was −i64::MAX; the page clamp and `since` saturation hide it). Cross-lane: one
+      import path in `campfire/src/active_storage.rs` (STORE). The images `campfire-rust:f-4` and
+      `campfire-candidate-f-4` are still there.
+- [r] F-5 `Patch<T>` + `Assignments`; `User`/`Account`/`Room::update`; 7 callers (refactor/cleanup-f-5)
+      Production lines +24 (db +22, campfire +2), tests +28; allocations/request unchanged
+      (room_show 18.0, messages_page 19.0, sidebar 53.1, post_message higher run 79.1 → 78.4); CPU
+      and req/s all within T/2; parity 873/874 (manifest allowed); tests 653 pass / 7 ignored with
+      the seed; clippy clean. Numbers in `bench/results/f-5-20260929/`. Plan notes: `Assignments` is
+      crate-private in `sql.rs` and gained `patch` (for `Patch` fields); `write` takes
+      `(tx, table, id, &mut updated_at)` so the "touch updated_at only when something changed" rule
+      lives in one place. `Room::update` also moved onto `Assignments`, so it now writes only the
+      changed columns (as Active Record does) instead of always `name` and `type`; same row, and
+      the db differential against Ruby passes. `Role`/`Status`/`RoomType` gained
+      `From<_> for rusqlite::types::Value` (DB-3's `sql_enum!` should generate it).
 
 ## Phase 2: lanes
 
@@ -115,7 +155,8 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] WEB-7 `page::render_partial` for the 12 detached renders
 - [ ] WEB-8 Presenters: SQL to db (after DB-2), dedupe, per-message perf fixes
 - [ ] WEB-9 perf (measure): `RegexSet` router (after KIT-1)
-- [ ] WEB-10 Redirect helper, bool params, precomputed version headers
+- [ ] WEB-10 Redirect helper, bool params, precomputed version headers; `update_message` matches on `Assignment` (F-5)
+- [ ] WEB-11 De-flake `presenters::accounts::tests::manages_bots` (302 under load; F-2)
 
 ### LIVE (`crates/cable`, campfire channels, integrations, jobs)
 - [ ] LIVE-1 perf: hub lock not held while sending
@@ -124,6 +165,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] LIVE-4 Split `connection::run`; `Command` enum
 - [ ] LIVE-5 Web push: no boxed handler; `permitted_endpoint_host`; tokio worker (optional)
 - [ ] LIVE-6 opengraph `Target` enum; `Endpoint::from_uri`; `transport` bool
+- [ ] LIVE-8 De-flake `channels_test::room_channel_streams_for_member_rooms_only` (under load; F-5)
 - [ ] LIVE-7 `Attr` enum, one `BoxFuture`, `FrameHead`, `Writer::send` allocs, dead turbo fns, `unix_now`, `ChannelError`
 
 ### VIEW (`crates/views`, `crates/richtext`)
@@ -135,6 +177,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] VIEW-6 Borrowed `ViewContext`; static asset paths; `Platform` enums
 - [ ] VIEW-7 `render_mention` agrees with `_mention.html` (test or render)
 - [ ] VIEW-8 perf (last): `ParsedBody`, parse each message body once
+- [ ] VIEW-9 views `rails_json_escape`/`to_rails_json` and richtext `to_json_string` on `rails_compat::json` (after F-1, F-2)
 
 ### STORE (`crates/storage`, `crates/assets`, rails_compat crypto, `campfire/src/active_storage.rs`)
 - [ ] STORE-1 One Active Storage verifier; vectors test the production one
@@ -177,6 +220,9 @@ won't make. They don't block the run and go into the final report.
   (probably a timing-dependent job or broadcast path) is unexplained.
 - Verify: `Layout::render` reads (and so sweeps) the flash even for `layout false` renders; Rails
   wouldn't. Possible parity edge (see WEB-5).
+- (F-4) Direct upload `byte_size` (`campfire/src/active_storage.rs`, `cast_integer`): Rails
+  casts it as an attribute (`Type::Integer#cast`, `"abc".to_i` → 0, then validations), not as a
+  condition, so `"abc"` would create a 0-byte blob where the port answers 422. This predates F-4;
+  fixing it would change behavior (STORE, or for the human).
 
 ## Found while working
-
