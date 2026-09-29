@@ -217,6 +217,9 @@ the same on every request, so the app stopped compressing them per request, in t
    part's CRC-32, so the page's CRC is combined from its parts' instead of read from the body; a
    message keeps pieces for the few predecessors it's seen with (its room, a page of older messages,
    search results). The ETag comes from the parts' digests instead of a SHA-256 over the whole body.
+   The template records where each cached message goes as it renders, so the page is never copied
+   into one buffer nor searched for its messages: a client without gzip gets the parts one after
+   another.
 
 For a 466 KB room page, gzip and the ETag took ~1,200 µs per request at first, ~460 µs after
 splicing, 42 µs with SHA-256 digests and a CRC over the whole body, and ~25 µs now; the first

@@ -36,9 +36,7 @@ pub async fn index(c: &mut Ctx) -> Result {
         recent_searches,
         return_to_room_id,
     };
-    let response = page::framed_page!(c, StatusCode::OK, |ctx| Index { ctx, index: &index }).await?;
-    let fragments = campfire_views::messages::MessageItem::cached_fragments(&c.app().fragment_cache, &index.messages);
-    Ok(response.with_cached_fragments(fragments))
+    page::framed_page!(c, StatusCode::OK, |ctx| Index { ctx, index: &index }).await
 }
 
 pub async fn create(c: &mut Ctx) -> Result {

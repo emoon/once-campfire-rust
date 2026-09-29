@@ -187,16 +187,21 @@ pub async fn into_axum(response: Response, head: bool) -> axum::response::Respon
         status,
         mut headers,
         body,
-        page_parts,
         body_digest,
-        ..
     } = response;
     let app_set_length = headers.contains_key(header::CONTENT_LENGTH);
+    let mut page_parts = None;
     let body = match body {
         Body::Empty => AxumBody::empty(),
         Body::Bytes(bytes) => {
             headers.insert(header::CONTENT_LENGTH, HeaderValue::from(bytes.len()));
             AxumBody::from(bytes)
+        }
+        Body::Parts(parts) => {
+            headers.insert(header::CONTENT_LENGTH, HeaderValue::from(parts.body_len()));
+            let body = AxumBody::new(parts.plain_body());
+            page_parts = Some(parts);
+            body
         }
         Body::Stream(stream) => stream,
         Body::File(file) => {

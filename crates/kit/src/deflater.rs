@@ -88,8 +88,10 @@ pub async fn deflater(request: Request, next: Next) -> Response {
             headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
             headers.remove(header::CONTENT_LENGTH);
             let (mut parts, body) = response.into_parts();
-            let body = if let Some(page_parts) = parts.extensions.remove::<Arc<splice::PageParts>>() {
-                gzip_page_parts(body, &page_parts, mtime).await
+            let page_parts = parts.extensions.remove::<Arc<splice::PageParts>>();
+            let body = if let Some(page_parts) = page_parts.filter(|page_parts| page_parts.fits(&body)) {
+                // The same decoded bytes as `gzip_stream`, from the parts' stored pieces.
+                single_chunk(page_parts.gzip(mtime).into())
             } else if let Some(digest) = parts.extensions.remove::<BodyDigest>() {
                 gzip_digested(body, digest, mtime).await
             } else {
@@ -282,19 +284,6 @@ fn gzip_member(body: &[u8], mtime: u32) -> std::io::Result<Bytes> {
     // Kept for as long as it's used, so without the spare capacity growing it left.
     member.shrink_to_fit();
     Ok(member.into())
-}
-
-/// A body split into [`splice::PageParts`] (always a single buffer), as their stored pieces; the
-/// same decoded bytes as [`gzip_stream`].
-async fn gzip_page_parts(body: Body, page_parts: &splice::PageParts, mtime: u32) -> Body {
-    let bytes = match collect(body).await {
-        Ok(bytes) => bytes,
-        Err(error) => return error,
-    };
-    if !page_parts.fits(&bytes) {
-        return gzip_stream(Body::from(bytes), mtime);
-    }
-    single_chunk(page_parts.gzip(&bytes, mtime).into())
 }
 
 /// A single-buffer body's bytes, or a body that fails with its error.
