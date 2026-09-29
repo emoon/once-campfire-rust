@@ -238,6 +238,14 @@ Benchmarks pin CPUs 8–15, and the parity harness starts containers on fixed po
 both. Wrap every `bench/*` and `parity/bin/*` run in the shared lock (`flock /tmp/campfire-bench.lock
 …`).
 
+CPU and throughput runs (`bench/profile cpu`, `bench/run`) are only valid on a quiet desktop. The
+desktop screensaver (`omarchy-screensaver`, two `foot` windows) uses ~5 unpinned CPUs, and on
+2026-09-29 it made room_show 18-25% and post_message 40% slower, with runs 6% apart (S-6). Check
+`pgrep -f omarchy-screensaver` right before and right after each CPU run; if it was running at
+either point, discard that run and wait (poll every few minutes) until it's gone before re-running.
+Allocation counts and parity aren't affected, so run those regardless. Don't stop the screensaver
+or any other process outside the repo yourself.
+
 Agents share one scratchpad directory. Keep your logs and temp files in your own subdirectory of it
 (`<scratchpad>/<id>/`), never under a shared name like `parity.log`: two agents once truncated each
 other's parity log that way.
