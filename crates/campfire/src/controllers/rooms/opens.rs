@@ -96,7 +96,7 @@ pub(super) async fn active_users(c: &Ctx) -> Result<Vec<campfire_views::messages
     let secrets = c.app().secrets.clone();
     c.app()
         .db
-        .read(move |conn| Ok(User::active_ordered(conn)?.iter().map(|user| user_view(&secrets, user)).collect()))
+        .read_offloaded(move |conn| Ok(User::active_ordered(conn)?.iter().map(|user| user_view(&secrets, user)).collect()))
         .await
         .map_err(db_error)
 }

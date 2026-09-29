@@ -107,7 +107,7 @@ async fn set_messages(c: &Ctx, q: Option<&str>) -> Result<Vec<Message>> {
     let user_id = require_current_user(c)?.id;
     c.app()
         .db
-        .read(move |conn| Message::search_reachable(conn, user_id, &query))
+        .read_offloaded(move |conn| Message::search_reachable(conn, user_id, &query))
         .await
         .map_err(db_error)
 }
