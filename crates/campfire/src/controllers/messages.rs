@@ -9,7 +9,7 @@ pub mod by_bots;
 use askama::Template;
 use campfire_db::{Message, NewMessage, Role, Room, Status, User};
 use campfire_kit::format;
-use campfire_kit::{Ctx, Error, Freshness, Param, Result, StatusCode, halt, permit_keys};
+use campfire_kit::{Ctx, Error, Freshness, Param, Result, StatusCode, permit_keys};
 use campfire_richtext::Content;
 use campfire_storage::{Blob, Staged, Variation};
 use campfire_views::messages as views;
@@ -179,10 +179,7 @@ pub(crate) async fn set_message(c: &mut Ctx, room: &Room) -> Result<Message> {
 
 /// `head :forbidden unless Current.user.can_administer?(@message)`
 pub(crate) fn ensure_can_administer(c: &mut Ctx, message: &Message) -> Result<()> {
-    if !require_current_user(c)?.can_administer(Some(message.creator_id), false) {
-        return halt(concerns::head(StatusCode::FORBIDDEN));
-    }
-    Ok(())
+    concerns::forbid_unless(require_current_user(c)?.can_administer(message.creator_id))
 }
 
 /// What `create_with_attachment!`/`update!` receive.

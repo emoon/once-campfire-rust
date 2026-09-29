@@ -88,7 +88,7 @@ pub async fn edit(c: &mut Ctx) -> Result {
             id: Some(room.id),
             name: room.name.clone(),
         },
-        can_administer: current_user.can_administer(Some(room.creator_id), false),
+        can_administer: current_user.can_administer(room.creator_id),
         current_user_id: current_user.id,
         selected_users,
         unselected_users,

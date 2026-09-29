@@ -228,15 +228,16 @@ fn webhook_payload() {
 fn can_administer() {
     let t = TestDb::new();
     let mut admin = user(&t, "david");
-    assert!(admin.can_administer(None, false));
-    admin.role = Role::Member;
-    assert!(!admin.can_administer(None, false));
-
     let member = user(&t, "kevin");
-    assert!(member.can_administer(Some(member.id), false), "creator");
-    assert!(member.can_administer(Some(id("jz")), true), "new record");
+    assert!(admin.is_administrator());
+    assert!(admin.can_administer(member.id), "administrator");
+    admin.role = Role::Member;
+    assert!(!admin.is_administrator());
+    assert!(!admin.can_administer(member.id));
+
+    assert!(member.can_administer(member.id), "creator");
     let designers = t.read(|c| Room::find(c, id("designers")));
-    assert!(!member.can_administer(Some(designers.creator_id), false));
+    assert!(!member.can_administer(designers.creator_id));
 }
 
 // User::Bannable

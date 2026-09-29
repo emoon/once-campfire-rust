@@ -553,9 +553,11 @@ impl User {
         format!("{}-{}", self.id, self.bot_token.as_deref().unwrap_or(""))
     }
 
-    /// `can_administer?(record)`: administrators, the record's creator, or a new record.
-    pub fn can_administer(&self, record_creator_id: Option<i64>, record_is_new: bool) -> bool {
-        self.is_administrator() || record_creator_id == Some(self.id) || record_is_new
+    /// `can_administer?(record)` (reference/app/models/user/role.rb) for a saved record:
+    /// administrators or the record's creator. With no record it's `is_administrator`, and a new
+    /// record is always true.
+    pub fn can_administer(&self, record_creator_id: i64) -> bool {
+        self.is_administrator() || record_creator_id == self.id
     }
 
     /// `has_secure_password`'s `authenticate`.
