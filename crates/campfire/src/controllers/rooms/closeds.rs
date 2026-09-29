@@ -46,7 +46,7 @@ pub async fn new(c: &mut Ctx) -> Result {
 pub async fn create(c: &mut Ctx) -> Result {
     before_actions(c, Before::default()).await?;
     ensure_permission_to_create_rooms(c).await?;
-    let name = room_name_param(c)?.flatten();
+    let name = room_name_param(c)?.into_value();
     let user_id = require_current_user(c)?.id;
     let grantee_ids = user_ids_param(c);
     // Rooms::Closed.create_for(room_params, users: grantees)
@@ -108,7 +108,7 @@ pub async fn update(c: &mut Ctx) -> Result {
         .db
         .write(move |tx| {
             let mut room = room;
-            room.update(tx, name.as_ref().map(|name| name.as_deref()), Some(RoomType::Closed))?;
+            room.update(tx, name, Some(RoomType::Closed))?;
             Ok(room)
         })
         .await

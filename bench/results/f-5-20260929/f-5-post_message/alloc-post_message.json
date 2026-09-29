@@ -1,0 +1,13 @@
+{
+ "route": "post_message",
+ "requests": 1000,
+ "baseline": {
+  "nrequests": 4292,
+  "nmalloc": 12590
+ },
+ "with_requests": {
+  "nrequests": 8730,
+  "nmalloc": 89734
+ },
+ "allocations_per_request": 77.1
+}

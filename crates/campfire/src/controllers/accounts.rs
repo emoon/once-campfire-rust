@@ -6,7 +6,7 @@ pub mod join_codes;
 pub mod logos;
 pub mod users;
 
-use campfire_db::Account;
+use campfire_db::{Account, Patch};
 use campfire_kit::params::Permit;
 use campfire_kit::{Ctx, Error, Param, Redirect, Result, StatusCode, format};
 use campfire_views::accounts;
@@ -78,7 +78,7 @@ pub async fn update(c: &mut Ctx) -> Result {
         .db
         .write(move |tx| {
             let settings: Option<Vec<(&str, &str)>> = settings.as_ref().map(|s| s.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
-            account.update(tx, name.as_deref(), None, settings.as_deref())?;
+            account.update(tx, name, Patch::Keep, settings.as_deref())?;
             attachments::assign(tx, Record::account(account.id), "logo", logo)
         })
         .await

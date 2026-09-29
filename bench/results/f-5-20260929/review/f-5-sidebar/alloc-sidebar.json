@@ -1,0 +1,13 @@
+{
+ "route": "sidebar",
+ "requests": 1000,
+ "baseline": {
+  "nrequests": 4297,
+  "nmalloc": 12597
+ },
+ "with_requests": {
+  "nrequests": 4355,
+  "nmalloc": 65668
+ },
+ "allocations_per_request": 53.1
+}

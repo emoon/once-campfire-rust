@@ -49,16 +49,16 @@ impl Upload {
     }
 }
 
-/// What `record.avatar = value` does with a permitted param value: `Create` holds the [`Upload`],
+/// What `record.avatar = value` does with a permitted param value: `Set` holds the [`Upload`],
 /// then, once staged, the [`Staged`] blob.
 #[derive(Debug, Clone)]
 pub enum Assignment<U = Upload> {
     /// The key wasn't given.
-    Unchanged,
+    Keep,
     /// `nil` or `""`: `Attached::Changes::DeleteOne` (the attachment is destroyed on save).
-    Delete,
+    Clear,
     /// An uploaded file: `Attached::Changes::CreateOne`.
-    Create(U),
+    Set(U),
     /// Anything else (e.g. a plain string that isn't a signed blob id): Rails raises.
     Invalid,
 }
@@ -66,21 +66,21 @@ pub enum Assignment<U = Upload> {
 impl Assignment {
     pub fn from_params(params: &campfire_kit::ParamMap, key: &str) -> Result<Assignment> {
         if !params.contains_key(key) {
-            return Ok(Assignment::Unchanged);
+            return Ok(Assignment::Keep);
         }
         match params.get(key) {
-            None => Ok(Assignment::Delete),
-            Some(param) if param.is_null() || param.as_str() == Some("") => Ok(Assignment::Delete),
-            Some(param) => Ok(Upload::from_param(Some(param)).map_or(Assignment::Invalid, Assignment::Create)),
+            None => Ok(Assignment::Clear),
+            Some(param) if param.is_null() || param.as_str() == Some("") => Ok(Assignment::Clear),
+            Some(param) => Ok(Upload::from_param(Some(param)).map_or(Assignment::Invalid, Assignment::Set)),
         }
     }
 
     /// Uploads a new file, so the save only has rows to write.
     pub async fn stage(self, app: &App) -> Result<Assignment<Staged>> {
         Ok(match self {
-            Assignment::Unchanged => Assignment::Unchanged,
-            Assignment::Delete => Assignment::Delete,
-            Assignment::Create(upload) => Assignment::Create(upload.stage(app).await?),
+            Assignment::Keep => Assignment::Keep,
+            Assignment::Clear => Assignment::Clear,
+            Assignment::Set(upload) => Assignment::Set(upload.stage(app).await?),
             Assignment::Invalid => Assignment::Invalid,
         })
     }
@@ -100,12 +100,12 @@ pub fn attached_blob(conn: &Connection, record_type: &str, record_id: i64, name:
 /// Applies an assignment inside the record's save. Returns the blob to analyze after commit.
 pub fn assign(tx: &mut Tx<'_>, record: Record, name: &str, assignment: Assignment<Staged>) -> campfire_db::Result<Option<Pending>> {
     match assignment {
-        Assignment::Unchanged => Ok(None),
-        Assignment::Delete => {
+        Assignment::Keep => Ok(None),
+        Assignment::Clear => {
             destroy(tx, record, name)?;
             Ok(None)
         }
-        Assignment::Create(staged) => attach(tx, record, name, staged).map(Some),
+        Assignment::Set(staged) => attach(tx, record, name, staged).map(Some),
         Assignment::Invalid => Err(campfire_db::Error::Other(
             "Could not find or build blob: expected attachable".into(),
         )),

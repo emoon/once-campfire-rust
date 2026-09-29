@@ -8,7 +8,7 @@
 #[cfg(test)]
 mod tests;
 
-use campfire_db::{Account, CachedStatements, Connection, Membership, PushSubscription, Room, RoomType, User};
+use campfire_db::{Account, CachedStatements, Connection, Membership, Patch, PushSubscription, Room, RoomType, User};
 use campfire_kit::Ctx;
 use campfire_views::Platform;
 use campfire_views::accounts::{Bot, BotForm, BotRoom, HelpContact};
@@ -346,10 +346,10 @@ pub fn is_record_not_unique(error: &campfire_db::Error) -> bool {
     )
 }
 
-/// A permitted string attribute: `Some` when the key was given (its value may be nil).
-pub fn string_attribute(params: &campfire_kit::ParamMap, key: &str) -> Option<Option<String>> {
+/// A permitted string attribute: `Keep` when the key wasn't given, `Clear` when its value is nil.
+pub fn string_attribute(params: &campfire_kit::ParamMap, key: &str) -> Patch<String> {
     if !params.contains_key(key) {
-        return None;
+        return Patch::Keep;
     }
-    Some(params.get(key).and_then(|param| param.to_s()))
+    params.get(key).and_then(|param| param.to_s()).map_or(Patch::Clear, Patch::Set)
 }

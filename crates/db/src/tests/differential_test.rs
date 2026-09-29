@@ -33,7 +33,7 @@
 //! ```
 
 use super::*;
-use crate::{Account, Boost, Membership, Message, NewMessage, NewUser, Room, RoomType, Search, Session, User, UserChanges};
+use crate::{Account, Boost, Membership, Message, NewMessage, NewUser, Patch, Room, RoomType, Search, Session, User, UserChanges};
 
 fn message(room: &str, creator: &str, body: &str, client_message_id: &str) -> NewMessage {
     NewMessage {
@@ -70,8 +70,8 @@ fn run_scenario(t: &TestDb) {
     });
     t.write(|tx| Room::create(tx, RoomType::Open, Some("Open!"), id("david")).map(|_| ()));
     t.write(|tx| Room::create_for(tx, RoomType::Closed, Some("Hello!"), id("david"), &[id("kevin"), id("david")]).map(|_| ()));
-    t.write(|tx| Room::find(tx.conn(), id("watercooler"))?.update(tx, None, Some(RoomType::Open)));
-    t.write(|tx| Room::find(tx.conn(), id("pets"))?.update(tx, Some(Some("Pets2")), None));
+    t.write(|tx| Room::find(tx.conn(), id("watercooler"))?.update(tx, Patch::Keep, Some(RoomType::Open)));
+    t.write(|tx| Room::find(tx.conn(), id("pets"))?.update(tx, Patch::Set("Pets2".into()), None));
     t.write(|tx| Membership::find(tx.conn(), id("jason_pets"))?.update_involvement(tx, crate::Involvement::Invisible));
     t.write(|tx| {
         let mut mm = Membership::find(tx.conn(), id("david_hq"))?;
@@ -103,7 +103,7 @@ fn run_scenario(t: &TestDb) {
     t.write(|tx| {
         Account::first(tx.conn())?
             .unwrap()
-            .update(tx, None, None, Some(&[("restrict_room_creation_to_administrators", "true")]))
+            .update(tx, None, Patch::Keep, Some(&[("restrict_room_creation_to_administrators", "true")]))
     });
     t.write(|tx| Message::create(tx, message("hq", "kevin", "Last one", "s3")).map(|_| ()));
 }

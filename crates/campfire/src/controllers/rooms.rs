@@ -14,7 +14,7 @@ pub mod opens;
 pub mod refreshes;
 
 use askama::Template;
-use campfire_db::{Account, Message, Room, RoomType, User};
+use campfire_db::{Account, Message, Patch, Room, RoomType, User};
 use campfire_kit::{Ctx, Error, Redirect, Result, StatusCode, halt};
 use rails_compat::ruby::cast_integer;
 
@@ -156,11 +156,14 @@ pub(crate) fn redirect_to_room(c: &mut Ctx, room_id: i64) -> Result {
     c.redirect_to(&url)
 }
 
-/// `params.require(:room).permit(:name)`: `Some(name)` when the name was submitted.
-pub(crate) fn room_name_param(c: &Ctx) -> Result<Option<Option<String>>> {
+/// `params.require(:room).permit(:name)`: `Keep` when no name was submitted.
+pub(crate) fn room_name_param(c: &Ctx) -> Result<Patch<String>> {
     let room = c.params.require("room")?;
     let permitted = room.permit(&campfire_kit::permit_keys(&["name"]));
-    Ok(permitted.get("name").map(|name| name.as_str().map(str::to_string)))
+    Ok(match permitted.get("name") {
+        None => Patch::Keep,
+        Some(name) => name.as_str().map_or(Patch::Clear, |name| Patch::Set(name.to_string())),
+    })
 }
 
 /// `params.fetch(:user_ids, [])` as ids `User.where(id:)` can match.
