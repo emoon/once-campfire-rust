@@ -161,7 +161,7 @@ otherwise stop" in `plans/cleanup.md`.
 ### KIT (`crates/kit`, `crates/routes`)
 - [~] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1)
 - [ ] KIT-2 perf: per-request allocations (deflater, cache variant, compression, host, remote_ip, formats, log, timeouts)
-- [ ] KIT-3 Session dead state
+- [~] KIT-3 Session dead state (refactor/cleanup-kit-3)
 - [ ] KIT-4 `dispatch` error flow; delete `clone_error`
 - [ ] KIT-5 `PendingEntry` instead of boxed closure; `anyhow` in acme
 - [ ] KIT-6 Typed `FrontConfig`, `Disposition`, `Redirect.status`, bool structs
@@ -174,7 +174,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
 - [ ] WEB-5 perf: ~6 → ~3 DB round trips on room show; `page::bare` without layout load
-- [ ] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless`
+- [~] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless` (refactor/cleanup-web-6)
 - [ ] WEB-7 `page::render_partial` for the 12 detached renders
 - [ ] WEB-8 Presenters: SQL to db (after DB-2), dedupe, per-message perf fixes
 - [ ] WEB-9 perf (measure): `RegexSet` router (after KIT-1)
@@ -194,7 +194,7 @@ otherwise stop" in `plans/cleanup.md`.
 ### VIEW (`crates/views`, `crates/richtext`)
 - [~] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1)
 - [ ] VIEW-2 perf: `Attrs` with `Cow` keys and `write!`; the `push_str(&format!)` sites
-- [ ] VIEW-3 perf: `SafeList` statics, no double sanitize, `qualified_name` without allocation, `NodeId`
+- [~] VIEW-3 perf: `SafeList` statics, no double sanitize, `qualified_name` without allocation, `NodeId` (refactor/cleanup-view-3)
 - [ ] VIEW-4 `Cached<V>` + `CachedPartial` for messages/users/boosts
 - [ ] VIEW-5 One `DomId` and one `param_key` (with LIVE-3)
 - [ ] VIEW-6 Borrowed `ViewContext`; static asset paths; `Platform` enums

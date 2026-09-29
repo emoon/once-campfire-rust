@@ -450,6 +450,16 @@ them fixed in place rather than reverted.
   `bench/profile cpu` (gperftools, which crashed twice in its unwinder) and recommend which the
   gate should use. Deliverable: `bench/results/s-8-<date>/README.md` plus the plan and TASKS
   edits on the branch.
+- **S-9 The write path and cable got slower after v0.1.1 (found 2026-09-29).** The published
+  v0.1.1 numbers (`bench/results/v0.1.1-20260928/report.md`, the README's tables, c=16) against
+  the cleanup's starting point (`bench/results/cleanup-baseline-20260928/run/report.md`): reads
+  are 6-10% faster (room_show 20,479 → 22,426 req/s), but post_message is 11.7% slower (5,452 →
+  4,813) and cable deliveries/s 15.7% slower at 100 clients (312,272 → 263,246) and 20.6% at 1,000
+  (503,302 → 399,820). The only code change between them is PR #11 (`refactor/rails-idioms`,
+  9e2a110; 41 files). First confirm it: build images at the v0.1.1 bench HEAD (080f903) and at
+  9e2a110 and run `bench/run --apps rust` (http and cable suites, c=16) back to back under the same
+  conditions. If it's real, find the cause (bisect the PR's commits, `perf` the difference) and fix
+  it as its own WP in the lane that owns the code. If it isn't, record why the two runs differ.
 
 ## Phase 1: shared foundations (small, early; lanes depend on them)
 
@@ -881,7 +891,9 @@ let the compiler drive the call sites.
   build time from a compact data file, only if the build stays hermetic and lookups stay binary
   searches over static slices.
 - **P-5 Final report.** Size by crate against the S-3 baseline, allocations/request and throughput
-  against S-2, and the parity gate result. Update `README.md` (performance table, Known differences
+  against S-2, and the parity gate result. Also compare throughput with the published v0.1.1 tables (the
+  README's, from `bench/results/v0.1.1-20260928/report.md`: http at c=16 and cable up to 10,000
+  clients, the human's reference of 2026-09-29); every row should be at least as fast. Update `README.md` (performance table, Known differences
   if anything changed on purpose).
   - Write the report to `bench/results/cleanup-final-<date>/README.md`. It lists every `[-]` and
     `[!]` WP with its reason, and everything under "For the human" in `TASKS.md`.
