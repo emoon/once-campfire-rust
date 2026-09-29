@@ -133,7 +133,10 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] DB-7 `NewRoom`, `NewPushSubscription`, `ClientInfo`, `Pushes`; consistent id order
 - [ ] DB-8 perf: allocation-free timestamp encode/parse; signed counter update
 - [ ] DB-9 Clock read once, `is_*` predicates, dead code
-- [ ] DB-10 `differential.sh`: ignore the app-added `index_messages_on_room_id_and_created_at` (before DB-5)
+- [x] DB-10 `differential.sh`: ignore the app-added `index_messages_on_room_id_and_created_at` (before DB-5)
+      (refactor/cleanup-db-10). +0 production lines (script only), allocs n/a (no production
+      code; parity and perf gates don't apply). `differential.sh` runs all four steps, ending in
+      "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
 
 ### KIT (`crates/kit`, `crates/routes`)
 - [ ] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`)
