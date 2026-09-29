@@ -72,15 +72,20 @@ pub struct Room {
 const SELECT_FOR_USER: &str =
     r#"SELECT "rooms".* FROM "rooms" INNER JOIN "memberships" ON "rooms"."id" = "memberships"."room_id" WHERE "memberships"."user_id" = ?"#;
 
+sql::columns! {
+    /// [`Room`]'s columns.
+    pub(crate) struct RoomColumns { id, name, room_type = "type", creator_id, created_at, updated_at }
+}
+
 impl Room {
-    pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    pub(crate) fn from_row(row: &Row<'_>, columns: &RoomColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            name: row.get("name")?,
-            room_type: row.get("type")?,
-            creator_id: row.get("creator_id")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            name: row.get(columns.name)?,
+            room_type: row.get(columns.room_type)?,
+            creator_id: row.get(columns.creator_id)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 
@@ -316,11 +321,10 @@ impl Room {
 
     /// `room.user_ids`
     pub fn user_ids(&self, conn: &Connection) -> Result<Vec<i64>> {
-        query_all(
+        sql::pluck(
             conn,
             r#"SELECT "users"."id" FROM "users" INNER JOIN "memberships" ON "users"."id" = "memberships"."user_id" WHERE "memberships"."room_id" = ?"#,
             [self.id],
-            |r| r.get(0),
         )
     }
 
@@ -403,12 +407,7 @@ pub(crate) const MEMBERSHIP_INSERT_BATCH: usize = 1_000;
 
 /// `memberships.grant_to(User.active)`, from `Rooms::Open`'s `after_save_commit`.
 fn grant_to_active_users(tx: &mut Tx<'_>, room_id: i64) -> Result<()> {
-    let user_ids: Vec<i64> = query_all(
-        tx.conn(),
-        r#"SELECT "users"."id" FROM "users" WHERE "users"."status" = ?"#,
-        [0],
-        |r| r.get(0),
-    )?;
+    let user_ids: Vec<i64> = sql::pluck(tx.conn(), r#"SELECT "users"."id" FROM "users" WHERE "users"."status" = ?"#, [0])?;
     let room = Room::find(tx.conn(), room_id)?;
     insert_memberships(tx, room_id, room.default_involvement(), &user_ids)
 }

@@ -332,9 +332,7 @@ pub fn placeholders(count: usize) -> String {
 
 /// Users from a `SELECT "users".*` query.
 pub fn query_users(conn: &Connection, sql: &str, values: impl rusqlite::Params) -> campfire_db::Result<Vec<User>> {
-    let mut statement = conn.prepare_cached(sql)?;
-    let users = statement.query_map(values, User::from_row)?.collect::<Result<_, _>>()?;
-    Ok(users)
+    User::find_by_sql(conn, sql, values)
 }
 
 /// `ActiveRecord::RecordNotUnique`: a unique index refused the write.

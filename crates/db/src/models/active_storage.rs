@@ -5,7 +5,7 @@ use rusqlite::{Connection, Row, params};
 
 use crate::database::Tx;
 use crate::error::{OptionalExt, Result};
-use crate::sql::{CachedStatements, query_one};
+use crate::sql::{self, CachedStatements, query_one};
 use crate::time::Timestamp;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,18 +22,23 @@ pub struct Blob {
     pub created_at: Timestamp,
 }
 
+sql::columns! {
+    /// [`Blob`]'s columns.
+    struct BlobColumns { id, key, filename, content_type, metadata, service_name, byte_size, checksum, created_at }
+}
+
 impl Blob {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &BlobColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            key: row.get("key")?,
-            filename: row.get("filename")?,
-            content_type: row.get("content_type")?,
-            metadata: row.get("metadata")?,
-            service_name: row.get("service_name")?,
-            byte_size: row.get("byte_size")?,
-            checksum: row.get("checksum")?,
-            created_at: row.get("created_at")?,
+            id: row.get(columns.id)?,
+            key: row.get(columns.key)?,
+            filename: row.get(columns.filename)?,
+            content_type: row.get(columns.content_type)?,
+            metadata: row.get(columns.metadata)?,
+            service_name: row.get(columns.service_name)?,
+            byte_size: row.get(columns.byte_size)?,
+            checksum: row.get(columns.checksum)?,
+            created_at: row.get(columns.created_at)?,
         })
     }
 
@@ -73,15 +78,20 @@ pub struct Attachment {
     pub created_at: Timestamp,
 }
 
+sql::columns! {
+    /// [`Attachment`]'s columns.
+    struct AttachmentColumns { id, name, record_type, record_id, blob_id, created_at }
+}
+
 impl Attachment {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &AttachmentColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            name: row.get("name")?,
-            record_type: row.get("record_type")?,
-            record_id: row.get("record_id")?,
-            blob_id: row.get("blob_id")?,
-            created_at: row.get("created_at")?,
+            id: row.get(columns.id)?,
+            name: row.get(columns.name)?,
+            record_type: row.get(columns.record_type)?,
+            record_id: row.get(columns.record_id)?,
+            blob_id: row.get(columns.blob_id)?,
+            created_at: row.get(columns.created_at)?,
         })
     }
 

@@ -136,24 +136,34 @@ pub struct UserChanges {
 
 const INSERT: &str = r#"INSERT INTO "users" ("bio", "bot_token", "created_at", "email_address", "name", "password_digest", "role", "status", "updated_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING "id""#;
 
+sql::columns! {
+    /// [`User`]'s columns.
+    pub(crate) struct UserColumns { id, name, email_address, password_digest, role, status, bio, bot_token, created_at, updated_at }
+}
+
 impl User {
     /// A `SELECT "users".*` row.
-    pub fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    pub(crate) fn from_row(row: &Row<'_>, columns: &UserColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            name: row.get("name")?,
-            email_address: row.get("email_address")?,
-            password_digest: row.get("password_digest")?,
-            role: row.get("role")?,
-            status: row.get("status")?,
-            bio: row.get("bio")?,
-            bot_token: row.get("bot_token")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            name: row.get(columns.name)?,
+            email_address: row.get(columns.email_address)?,
+            password_digest: row.get(columns.password_digest)?,
+            role: row.get(columns.role)?,
+            status: row.get(columns.status)?,
+            bio: row.get(columns.bio)?,
+            bot_token: row.get(columns.bot_token)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 
     // Finders and scopes
+
+    /// `User.find_by_sql`: the users a `SELECT "users".*` query returns.
+    pub fn find_by_sql(conn: &Connection, sql: &str, params: impl rusqlite::Params) -> Result<Vec<Self>> {
+        query_all(conn, sql, params, Self::from_row)
+    }
 
     pub fn find(conn: &Connection, id: i64) -> Result<Self> {
         Self::find_by_id(conn, id)?.or_not_found("User")
@@ -429,11 +439,10 @@ impl User {
     /// `User::Bannable#ban`
     pub fn ban(&mut self, tx: &mut Tx<'_>) -> Result<()> {
         // create_bans_from_sessions: `sessions.pluck(:ip_address).compact_blank.uniq`
-        let ips: Vec<Option<String>> = query_all(
+        let ips: Vec<Option<String>> = sql::pluck(
             tx.conn(),
             r#"SELECT "sessions"."ip_address" FROM "sessions" WHERE "sessions"."user_id" = ?"#,
             [self.id],
-            |r| r.get(0),
         )?;
         let mut seen = Vec::new();
         for ip in ips.into_iter().flatten().filter(|ip| !ip.trim().is_empty()) {
@@ -645,11 +654,10 @@ const DUMMY_DIGEST: &str = "$2a$12$FiKmSp4UhLvSB4Sd/ZUjQunyKP6.NjDRHdr5LnKUVk.BU
 
 /// `after_create_commit :grant_membership_to_open_rooms`
 fn grant_membership_to_open_rooms(tx: &mut Tx<'_>, user_id: i64) -> Result<()> {
-    let room_ids: Vec<i64> = query_all(
+    let room_ids: Vec<i64> = sql::pluck(
         tx.conn(),
         r#"SELECT "rooms"."id" FROM "rooms" WHERE "rooms"."type" = ?"#,
         ["Rooms::Open"],
-        |r| r.get(0),
     )?;
     for room_ids in room_ids.chunks(crate::models::room::MEMBERSHIP_INSERT_BATCH) {
         let rows: Vec<String> = room_ids.iter().map(|_| format!("({SQLITE_NOW}, ?, {SQLITE_NOW}, ?)")).collect();

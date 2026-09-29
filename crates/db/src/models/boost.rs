@@ -5,7 +5,7 @@ use rusqlite::{Connection, Row, params};
 use crate::database::Tx;
 use crate::error::{OptionalExt, Result};
 use crate::models::Message;
-use crate::sql::{CachedStatements, query_all, query_one};
+use crate::sql::{self, CachedStatements, query_all, query_one};
 use crate::time::Timestamp;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,15 +18,20 @@ pub struct Boost {
     pub updated_at: Timestamp,
 }
 
+sql::columns! {
+    /// [`Boost`]'s columns.
+    struct BoostColumns { id, message_id, booster_id, content, created_at, updated_at }
+}
+
 impl Boost {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &BoostColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            message_id: row.get("message_id")?,
-            booster_id: row.get("booster_id")?,
-            content: row.get("content")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            message_id: row.get(columns.message_id)?,
+            booster_id: row.get(columns.booster_id)?,
+            content: row.get(columns.content)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 

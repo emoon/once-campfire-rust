@@ -18,14 +18,19 @@ pub struct Ban {
     pub updated_at: Timestamp,
 }
 
+sql::columns! {
+    /// [`Ban`]'s columns.
+    struct BanColumns { id, user_id, ip_address, created_at, updated_at }
+}
+
 impl Ban {
-    fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+    fn from_row(row: &Row<'_>, columns: &BanColumns) -> rusqlite::Result<Self> {
         Ok(Self {
-            id: row.get("id")?,
-            user_id: row.get("user_id")?,
-            ip_address: row.get("ip_address")?,
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            id: row.get(columns.id)?,
+            user_id: row.get(columns.user_id)?,
+            ip_address: row.get(columns.ip_address)?,
+            created_at: row.get(columns.created_at)?,
+            updated_at: row.get(columns.updated_at)?,
         })
     }
 

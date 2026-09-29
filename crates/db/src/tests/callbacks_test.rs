@@ -8,9 +8,8 @@ use crate::{Boost, Membership, Message, NewMessage, Room, Search, Session, Times
 
 fn fts_body(t: &TestDb, message_id: i64) -> Option<String> {
     t.read(|c| {
-        crate::sql::query_one(c, "SELECT body FROM message_search_index WHERE rowid = ?", [message_id], |r| {
-            r.get(0)
-        })
+        let bodies = crate::sql::pluck(c, "SELECT body FROM message_search_index WHERE rowid = ?", [message_id])?;
+        Ok(bodies.into_iter().next())
     })
 }
 
