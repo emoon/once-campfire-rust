@@ -352,7 +352,6 @@ async fn a_room_page_has_the_same_etag_cold_and_warm() {
     assert_eq!(etag(&cold), etag(&warm));
 }
 
-
 /// A page of messages goes out in parts that are never joined: as they are to a client without
 /// gzip, gzipped from their stored pieces, and as just its length for HEAD. It's the same page with
 /// the same ETag every way (a room page, its Turbo-Frame version, and a page of older messages).

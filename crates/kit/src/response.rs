@@ -38,6 +38,10 @@ pub enum Body {
 impl Body {
     /// The body `text` makes with each of `fragments` (cached HTML, in order) spliced in at its
     /// byte offset in `text`, as a template recorded them while it rendered.
+    ///
+    /// # Panics
+    ///
+    /// If an offset is past the end of `text` or before the previous one.
     pub fn spliced(text: impl Into<Bytes>, fragments: Vec<(usize, Arc<String>)>) -> Self {
         match PageParts::splice(&text.into(), fragments) {
             Ok(parts) => Body::Parts(Arc::new(parts)),

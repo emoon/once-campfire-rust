@@ -352,6 +352,10 @@ impl Ctx {
 
     /// [`Ctx::render`] for a template that recorded where its cached fragments went: its `text`
     /// with each of `fragments` spliced in at its byte offset (see [`Body::spliced`]).
+    ///
+    /// # Panics
+    ///
+    /// On offsets [`Body::spliced`] rejects.
     pub fn render_spliced(&mut self, status: StatusCode, template: Format, text: String, fragments: Vec<(usize, Arc<String>)>) -> Response {
         let mut response = self.render(status, template, Bytes::new());
         response.body = Body::spliced(text, fragments);
