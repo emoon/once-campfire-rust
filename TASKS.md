@@ -161,7 +161,7 @@ otherwise stop" in `plans/cleanup.md`.
 ### KIT (`crates/kit`, `crates/routes`)
 - [~] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1)
 - [ ] KIT-2 perf: per-request allocations (deflater, cache variant, compression, host, remote_ip, formats, log, timeouts)
-- [~] KIT-3 Session dead state (refactor/cleanup-kit-3)
+- [x] KIT-3 Session dead state (refactor/cleanup-kit-3)
 - [ ] KIT-4 `dispatch` error flow; delete `clone_error`
 - [ ] KIT-5 `PendingEntry` instead of boxed closure; `anyhow` in acme
 - [ ] KIT-6 Typed `FrontConfig`, `Disposition`, `Redirect.status`, bool structs
