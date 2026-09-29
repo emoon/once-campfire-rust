@@ -415,6 +415,18 @@ them fixed in place rather than reverted.
   targets with and without a concurrent pinned compare; adopt it only if every target's spread stays
   within T and the compare still gives 873 pass + 1 allowed. Otherwise mark `[-]` with the numbers.
   Update "Commands for the gates" either way.
+- **S-7 The alloc gate counts Rust allocations (found by KIT-1, 2026-09-29).** `bench/profile alloc`
+  LD_PRELOADs the system jemalloc and reads its `MALLOC_CONF` stats, but campfire's
+  `#[global_allocator]` is the statically linked `tikv_jemallocator` (`_rjem_` prefix,
+  `crates/campfire/src/main.rs`), so Rust allocations never reach the preloaded one: the S-2
+  baseline's "18 allocations/request" for room_show is SQLite and C only. Make `alloc` also read
+  the Rust allocator's stats (`_RJEM_MALLOC_CONF=stats_print:true,stats_print_opts:J,…`, which
+  tikv-jemalloc-sys reads) and report Rust, C and total allocations per request separately; Rust
+  allocation sites (jeprof) need tikv-jemallocator's `profiling` feature, which is optional here
+  (a bench-only cargo feature at most; the release build stays as it is). Then re-record the
+  baseline's alloc table at 3c7a173 (Phase 0 done, nothing from Phase 1), and measure the current
+  `refactor/cleanup` tip against it, so the merged F-1, F-4 and DB-10 are checked after the fact.
+  Update "Commands for the gates" and the definition of done (which number the gate compares).
 
 ## Phase 1: shared foundations (small, early; lanes depend on them)
 

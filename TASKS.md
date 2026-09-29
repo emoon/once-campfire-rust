@@ -64,7 +64,14 @@ otherwise stop" in `plans/cleanup.md`.
       fmt commit 63b72b1 (233 files, 1,635 hunks; production lines 34,234 → 36,776). The vendored
       html5ever is a workspace member, so `crates/richtext/vendor/rustfmt.toml` disables formatting
       there; `cargo fmt` is safe to run anywhere now. Tests (seed built) and clippy clean after.
-- [ ] S-6 Parity compare on its own lock, pinned off the benchmark cores (prove perf spread stays within T first)
+- [-] S-6 Parity compare on its own lock, pinned off the benchmark cores (prove perf spread stays within T first) (refactor/cleanup-s-6, adefc59)
+      Dropped: outside T. The pinned compare passed (874 cells: 873 pass, 1 allowed, 2,061 s with
+      PARITY_WORKERS=8), but `bench/profile cpu` beside it on one binary was room_show +4.1%
+      CPU/req and -4.4% req/s, messages_page +3.6/-3.6%, sidebar +4.5/-4.8%, post_message
+      +6.5/-17.0% (clean runs, before the screensaver). The benchmark cores' clock drops 2.3%
+      (shared boost budget), and disk I/O kernel workers can't be pinned. Allocations unchanged.
+      Branch keeps only `bench/results/s-6-20260929/` and a plan note; the pinning diff
+      (`PARITY_CPUSET`) is saved there, not applied. Gate recipes unchanged. Images removed.
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
       `[lints] workspace = true`. The 99 existing hits carry `#[expect(clippy::…, reason = "existing
