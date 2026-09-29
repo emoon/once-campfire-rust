@@ -50,7 +50,7 @@ pub async fn index(c: &mut Ctx) -> Result {
     c.respond_to(&[&format::HTML])?;
     let views = present(c, move |presenter| presenter.messages(&messages)).await?;
     let response = page::bare(c, StatusCode::OK, &format::HTML, |ctx| {
-        views::Index { ctx, messages: &views }.render()
+        campfire_views::render_sized!(views::Index { ctx, messages: &views })
     })
     .await?;
     let fragments = campfire_views::messages::MessageItem::cached_fragments(&c.app().fragment_cache, &views);

@@ -1,0 +1,145 @@
+{
+ "room_show": {
+  "conc": 16,
+  "rps": 27293.5,
+  "cpu_ms_per_req": 0.1417,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 0.1296,
+    "sys_ms": 0.0121,
+    "voluntary": 0.7347,
+    "nonvoluntary": 0.0109
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 0.1296,
+    "sys_ms": 0.0121,
+    "syscr": 0.0,
+    "syscw": 2.0242
+   }
+  }
+ },
+ "messages_page": {
+  "conc": 16,
+  "rps": 31732.3,
+  "cpu_ms_per_req": 0.1216,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 0.1095,
+    "sys_ms": 0.0121,
+    "voluntary": 0.8792,
+    "nonvoluntary": 0.0093
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 0.1095,
+    "sys_ms": 0.0121,
+    "syscr": 0.0,
+    "syscw": 2.0368
+   }
+  }
+ },
+ "sidebar": {
+  "conc": 16,
+  "rps": 30119.8,
+  "cpu_ms_per_req": 0.1279,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 0.1157,
+    "sys_ms": 0.0122,
+    "voluntary": 0.9191,
+    "nonvoluntary": 0.0099
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.0,
+    "sys_ms": 0.0,
+    "voluntary": 0.0,
+    "nonvoluntary": 0.0
+   },
+   "process": {
+    "user_ms": 0.1157,
+    "sys_ms": 0.0122,
+    "syscr": 0.0,
+    "syscw": 2.024
+   }
+  }
+ },
+ "post_message": {
+  "conc": 16,
+  "rps": 5488.8,
+  "cpu_ms_per_req": 0.3488,
+  "per_request": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0004,
+    "sys_ms": 0.0055,
+    "voluntary": 0.7232,
+    "nonvoluntary": 0.0192
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 0.1765,
+    "sys_ms": 0.0366,
+    "voluntary": 7.7148,
+    "nonvoluntary": 1.7593
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.037,
+    "sys_ms": 0.0361,
+    "voluntary": 3.3081,
+    "nonvoluntary": 0.4169
+   },
+   "blocking pool": {
+    "threads": 52,
+    "user_ms": 0.0069,
+    "sys_ms": 0.0031,
+    "voluntary": 0.8331,
+    "nonvoluntary": 0.1255
+   },
+   "process": {
+    "user_ms": 0.2572,
+    "sys_ms": 0.0916,
+    "syscr": 43.6547,
+    "syscw": 38.2406
+   }
+  }
+ }
+}
