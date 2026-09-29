@@ -242,6 +242,11 @@ Agents share one scratchpad directory. Keep your logs and temp files in your own
 (`<scratchpad>/<id>/`), never under a shared name like `parity.log`: two agents once truncated each
 other's parity log that way.
 
+The scratchpad is on `/tmp`, a 31 GB tmpfs that the seed-backed tests also copy the seed into.
+Never put a cargo target dir there (`CARGO_TARGET_DIR`, or a scratch crate's `target/`): build in
+a worktree's `target/` instead. Two reviewers' target dirs once filled it, and every seed test
+failed with "Disk quota exceeded" (os error 122).
+
 `cargo test` and `cargo clippy` can run in parallel, one per worktree. Each worktree has its own
 `target/`, and a first build takes a few minutes. The lock doesn't cover builds, so keep them off
 the benchmark's cores: CPUs 8–15 and their SMT siblings 24–31 (CPU 8 pairs with 24; the other CCD,
