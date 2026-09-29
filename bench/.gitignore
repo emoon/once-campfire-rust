@@ -8,3 +8,7 @@ results/**/trace-*.txt
 results/**/io-*.log
 results/**/*.html
 __pycache__/
+# Full allocation-site listings (~2 MB per alloc gate run of eight). The gate reads only the JSON
+# summaries; the listings regenerate from the same binaries. Files already committed stay.
+results/**/*.alloc_objects.txt
+results/**/*.alloc_space.txt
