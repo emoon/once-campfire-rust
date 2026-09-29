@@ -32,7 +32,7 @@ impl Serializer {
                 other => panic!("the null serializer only signs strings, got {other}"),
             },
             Serializer::Json => json::generate(value).into_bytes(),
-            Serializer::JsonWithFallback { .. } => json::encode(value).into_bytes(),
+            Serializer::JsonWithFallback { .. } => json::encode(value).into_string().into_bytes(),
         }
     }
 
@@ -63,7 +63,7 @@ impl Serializer {
     pub(crate) fn encode_json(&self, value: &Value) -> String {
         match self {
             Serializer::Json => json::generate(value),
-            _ => json::encode(value),
+            _ => json::encode(value).into_string(),
         }
     }
 

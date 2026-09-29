@@ -220,7 +220,7 @@ pub fn rejection(identifier: &str) -> String {
 pub fn delivery(identifier: &str, encoded_message: &str) -> String {
     format!(
         r#"{{"identifier":{},"message":{}}}"#,
-        campfire_cable::json::encode(identifier),
+        rails_compat::json::encode(identifier),
         encoded_message
     )
 }

@@ -124,7 +124,7 @@ fn encrypted_cookie_plaintext_matches_rails() {
         // With serde_json's preserve_order (on workspace-wide), Rust's plaintext is byte-identical.
         let ours = metadata::serialize_with_metadata(
             Serializer::Null,
-            &Value::String(crate::json::encode(&case["value"])),
+            &Value::String(crate::json::encode(&case["value"]).into_string()),
             Some(&format!("cookie.{}", str(&case["name"]))),
             opt_time(&case["expires_at"]),
         );
