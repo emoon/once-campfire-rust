@@ -277,6 +277,13 @@ won't make. They don't block the run and go into the final report.
   number of nodes from a hostile body before the depth error fires; Gumbo (Rails) stops during the
   parse. Fixing it means limiting inside the parse (behavior change on hostile input only).
 
+- (DB-11, 2026-09-29) Merged **without** the reviewer's cap on inline reads. Capping them at half
+  the workers cost room_show/messages_page 4-6% req/s and raised p99 20-38%; all-but-one cost
+  5-12% req/s; uncapped is +10…+25% req/s with p99 down 9-42% (native tails, two runs a side,
+  `bench/results/perf-1-20260929/README.md`). The risk the cap guarded: a read that stalls (e.g.
+  SQLITE_BUSY for up to 5 s) holds a runtime worker; with WAL, readers don't wait on the writer, so
+  this needs something unusual (WAL recovery). Say if you want the cap anyway.
+
 ## Found while working
 
 - (F-3) kit `response.rs` has a fourth byte-range parser, `parse_range` (single range, strict
@@ -305,3 +312,16 @@ won't make. They don't block the run and go into the final report.
   (`Compress::reset`) zeroes only the 128 KB head. KIT-10 measured pooling for `gzip_stream` at
   −5% of a 31 KB body's gzip (5.7 µs of 107), too small to show on a gate target, so it dropped the
   pool; it only matters for splice on cache misses.
+- (DB-11 review) `broadcast_create` (`controllers/messages.rs:419`, `integrations/jobs.rs:164`)
+  runs inside an inline `db.read` and sends one `unread_room` broadcast per room member
+  (`channels/broadcasts.rs:114`); an open room is every user, on every post. The inline-read cap
+  bounds it to half the workers. Measure moving it to `read_offloaded` (or reading the member ids
+  and broadcasting after the read) at a large member count; post_message is the hot path.
+  Also low: `rooms/closeds.rs:142` loops over `room.user_ids` inline; `sessions.rs:62` `no_users`
+  counts every user where an `EXISTS` would do.
+- (2026-09-29) `database::tests::the_wal_stays_bounded_under_sustained_writes` fails whenever
+  TMPDIR is on the real disk (WAL 50-52 MB against a ~41 MB bound), on the base branch too (3/3);
+  it passes on /tmp (tmpfs). The checkpointer can't keep up on a real fsync. Make the test not
+  depend on disk speed, or bound what it asserts.
+- (2026-09-29) /tmp is a tmpfs with a per-user quota (`usrquota`); seed tests failed with "Disk
+  quota exceeded" at 17 GB used by this user across projects. Keep scratch small there.
