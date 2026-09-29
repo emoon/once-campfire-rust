@@ -77,7 +77,19 @@ otherwise stop" in `plans/cleanup.md`.
       (C/SQLite only; see S-7).
       Branch keeps only `bench/results/s-6-20260929/` and a plan note; the pinning diff
       (`PARITY_CPUSET`) is saved there, not applied. Gate recipes unchanged. Images removed.
-- [~] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order (refactor/cleanup-s-8)
+- [r] S-8 Profile with `perf` (call graphs) on the targets; rank hot spots; map to WPs, new WPs, perf order (refactor/cleanup-s-8, b8f9ee3 on c1db459)
+      Results: `bench/results/s-8-20260929/README.md`. Biggest cost: the `spawn_blocking` hop per DB
+      read; reads inline cut CPU/req −12…−23% on all four targets (experiment). Then the deflater
+      (sidebar ~40% deflating a repeating body; the splice ~19% of room_show), per-message cache
+      keys and by-name row decoding, and SQLite `mmap` remapping on post_message (−14% with
+      `mmap_size = 0`). The "9% crypto" is mostly the splice's SHA-256; signing is ~2.5%. New WPs
+      DB-11…14, KIT-9/10, WEB-12, LIVE-9, VIEW-10/11 (lines added below) and "Perf order (S-8)" in
+      the plan (on the branch). Gate recommendation: CPU/req and req/s from an unprofiled
+      `bench/profile perf --freq 0` run (gperftools adds 1-4%, loses ~40% of samples, has crashed;
+      perf adds up to 19%); not applied to the recipe. Tooling: `bench/profile perf`,
+      `bench/lib/perfprof.py`, `bench/lib/stacks.py`; `cpuprof.py` split to share them. Production
+      lines +0 (no Rust changes), allocations n/a. Tests and clippy not re-run (no Rust changed);
+      parity n/a. Clean session under the lock, screensaver off before and after every step.
 - [~] S-7 The alloc gate counts Rust allocations; re-baseline at 3c7a173, check F-1/F-4/DB-10 (refactor/cleanup-s-7)
 - [x] S-5 (refactor/cleanup) Workspace `[lints.clippy]` floor (warn), existing hits allowed.
       The 8 lints are `warn` in `[workspace.lints.clippy]`; every crate but html5ever has
@@ -157,6 +169,10 @@ otherwise stop" in `plans/cleanup.md`.
       (refactor/cleanup-db-10). +0 production lines (script only), allocs n/a (no production
       code; parity and perf gates don't apply). `differential.sh` runs all four steps, ending in
       "rollback ok" (exit 0). Tests with the seed: 654 passed, 0 failed, 7 ignored; clippy clean.
+- [ ] DB-11 perf: reads without the `spawn_blocking` hop; `read_offloaded` for long reads (S-8; first in the perf order)
+- [ ] DB-12 perf (measure; after DB-11): `mmap_size` (post_message's remap per commit)
+- [ ] DB-13 perf: column indices resolved once per query, not per `Row::get(&str)`
+- [ ] DB-14 perf: `Room::original` without a scan (index or id only)
 
 ### KIT (`crates/kit`, `crates/routes`)
 - [~] KIT-1 perf: params merged once (touches `campfire/src/controllers.rs:351`) (refactor/cleanup-kit-1)
@@ -167,11 +183,13 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] KIT-6 Typed `FrontConfig`, `Disposition`, `Redirect.status`, bool structs
 - [ ] KIT-7 Routes: `&'static str` for constant paths
 - [ ] KIT-8 Split `compression::apply`; dead `Pair`; `MediaType`; consistent `is_xhr`
+- [ ] KIT-9 perf: splice without rehashing (text identity, recorded fragment offsets, combined CRCs) (S-8)
+- [ ] KIT-10 perf: reuse gzip output for repeated bodies; reuse deflate encoders (S-8)
 
 ### WEB (`crates/campfire` controllers, concerns, app)
 - [~] WEB-1 perf: static assets via `Bytes::from_static` (refactor/cleanup-web-1)
 - [ ] WEB-2 perf: memoized user-agent parse; byte-offset parser
-- [ ] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum
+- [~] WEB-3 UA matchers → `LazyLock<Regex>`; `BrowserRule` enum (refactor/cleanup-web-3)
 - [ ] WEB-4 `c.read`/`c.write` helpers (keep 404 vs 500 mapping per site)
 - [ ] WEB-5 perf: ~6 → ~3 DB round trips on room show; `page::bare` without layout load
 - [x] WEB-6 `is_administrator` / `can_administer(creator_id)`; `forbid_unless` (refactor/cleanup-web-6, 7af9f04 on d23c0b8): production lines campfire -12, db +2 (total -10), tests +50; allocations/request n/a (no perf gate, coordinator's call). Reviewer's two requests applied: room-creation test now covers member+unrestricted 200 and administrator+restricted 200 (each verified to fail against the one-sided rewrite), `can_administer` doc cites reference/app/models/user/role.rb. Tests 659 passed, 0 failed, 7 ignored (seed built, none skipped); clippy clean. Previous commit message's delta (-14/+0/+33) was miscounted; corrected.
@@ -180,6 +198,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] WEB-9 perf (measure): `RegexSet` router (after KIT-1)
 - [ ] WEB-10 Redirect helper, bool params, precomputed version headers; `update_message` matches on `Assignment` (F-5)
 - [ ] WEB-11 De-flake `presenters::accounts::tests::manages_bots` and `accounts::tests::serves_the_account_logo_and_avatars` (302 under load; F-2, VIEW-3)
+- [ ] WEB-12 perf: request log off the request path (buffered, non-blocking, lossless) (S-8)
 
 ### LIVE (`crates/cable`, campfire channels, integrations, jobs)
 - [ ] LIVE-1 perf: hub lock not held while sending
@@ -190,6 +209,7 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] LIVE-6 opengraph `Target` enum; `Endpoint::from_uri`; `transport` bool
 - [ ] LIVE-8 De-flake `channels_test::room_channel_streams_for_member_rooms_only` (under load; F-5)
 - [ ] LIVE-7 `Attr` enum, one `BoxFuture`, `FrameHead`, `Writer::send` allocs, dead turbo fns, `unix_now`, `ChannelError`
+- [ ] LIVE-9 perf (measure first; after LIVE-1, LIVE-2): fan-out writes per delivery; per-connection queue instead of `SelectAll` (S-8)
 
 ### VIEW (`crates/views`, `crates/richtext`)
 - [~] VIEW-1 perf: `raw` without copy; fragment cache returns `Arc`; borrowed sidebar partial (refactor/cleanup-view-1)
@@ -201,6 +221,8 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] VIEW-7 `render_mention` agrees with `_mention.html` (test or render)
 - [ ] VIEW-8 perf (last): `ParsedBody`, parse each message body once
 - [ ] VIEW-9 views `rails_json_escape`/`to_rails_json` and richtext `to_json_string` on `rails_compat::json` (after F-1, F-2)
+- [ ] VIEW-10 perf: page buffers sized up front (touches the page renders in campfire) (S-8)
+- [ ] VIEW-11 perf (after VIEW-4): fragment cache keys without `format!`/`strftime` (S-8)
 
 ### STORE (`crates/storage`, `crates/assets`, rails_compat crypto, `campfire/src/active_storage.rs`)
 - [ ] STORE-1 One Active Storage verifier; vectors test the production one
@@ -211,6 +233,10 @@ otherwise stop" in `plans/cleanup.md`.
 - [ ] STORE-6 Storage JSON on the shared encoder (vectors for floats and U+2028 first; after F-2)
 - [ ] STORE-7 `find_or_process`; `purge` SQL to storage; consistent `FileNotFound`
 - [ ] STORE-8 vips `SAFETY` comments; warm ffmpeg check; split long functions
+
+### Measured perf (S-8 profiles; ahead of the lanes)
+- [ ] PERF-1 DB reads without the spawn_blocking hop (room_show −17% CPU, post_message −20% in S-8's experiment)
+- [ ] PERF-2 SQLite mmap churn on writes (post_message −12% with mmap_size=0 in S-8's experiment)
 
 ## Phase 3: cross-cutting migrations (one at a time)
 
