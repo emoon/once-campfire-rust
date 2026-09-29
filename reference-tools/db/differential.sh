@@ -3,7 +3,7 @@
 # `parity/bin/reference build`):
 #
 #   1. schema identity: the sqlite_master of a fresh reference `db:prepare`, of crates/db/src/schema.sql
-#      and of a database the Rust crate created must be the same
+#      and of a database the Rust crate created (minus the index the app adds) must be the same
 #   2. fixtures_match_ruby_row_for_row against the reference's `db:fixtures:load`
 #   3. scenario_matches_ruby against the reference after crates/db/ruby/scenario.rb
 #   4. rollback: the reference boots on a database the Rust crate wrote (export_database_for_rails)
@@ -17,7 +17,11 @@ export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$ROOT/target/db-differential/cargo}
 rm -f "$OUT"/*.sqlite3 "$OUT"/*.sql; mkdir -p "$OUT"
 
 # sqlite_master minus what SQLite derives on its own (see crates/db/src/schema.rs).
-SCHEMA_QUERY="SELECT sql || ';' FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'message_search_index_%' ORDER BY rowid"
+SCHEMA_FILTER="sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'message_search_index_%'"
+SCHEMA_QUERY="SELECT sql || ';' FROM sqlite_master WHERE $SCHEMA_FILTER ORDER BY rowid"
+# The Rust side also has the index the app adds on boot on purpose (`ADDITIONS` in
+# crates/db/src/schema.rs; README, "One more index").
+RUST_SCHEMA_QUERY="SELECT sql || ';' FROM sqlite_master WHERE $SCHEMA_FILTER AND name <> 'index_messages_on_room_id_and_created_at' ORDER BY rowid"
 
 reference() {
   docker run --rm --entrypoint "" \
@@ -46,7 +50,7 @@ CAMPFIRE_EXPORT_DB=$OUT/rust_export.sqlite3 \
   cargo test -p campfire_db -- --ignored --test-threads=2
 
 echo "== schema identity"
-sqlite3 "$OUT/rust_export.sqlite3" "$SCHEMA_QUERY" > "$OUT/schema_rust.sql"
+sqlite3 "$OUT/rust_export.sqlite3" "$RUST_SCHEMA_QUERY" > "$OUT/schema_rust.sql"
 diff -u "$ROOT/crates/db/src/schema.sql" "$OUT/schema_ruby.sql"
 diff -u "$OUT/schema_ruby.sql" "$OUT/schema_rust.sql"
 echo "schema.sql, reference db:prepare and Rust prepare agree"
