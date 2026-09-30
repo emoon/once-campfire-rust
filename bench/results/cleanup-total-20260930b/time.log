@@ -1,0 +1,31 @@
+== 02:49:21 warmup:0 try 1
+[02:49:33] room_show c=16: 22284.2 rps, campfire 0.1653 CPU ms/req
+[02:49:44] messages_page c=16: 25822.8 rps, campfire 0.1417 CPU ms/req
+[02:49:56] sidebar c=16: 13939.4 rps, campfire 0.2676 CPU ms/req
+[02:50:07] post_message c=16: 4806.8 rps, campfire 0.4533 CPU ms/req
+bench/quiet: other CCD 1.9% busy (max 15.0%), bench siblings 24-31 3.9% busy (max 15.0%), screensaver off
+== 02:50:08 base:1 try 1
+[02:50:19] room_show c=16: 22228.4 rps, campfire 0.1663 CPU ms/req
+[02:50:31] messages_page c=16: 25891.2 rps, campfire 0.1405 CPU ms/req
+[02:50:42] sidebar c=16: 13867.9 rps, campfire 0.2682 CPU ms/req
+[02:50:54] post_message c=16: 4802.4 rps, campfire 0.4525 CPU ms/req
+bench/quiet: other CCD 2.0% busy (max 15.0%), bench siblings 24-31 4.0% busy (max 15.0%), screensaver off
+== 02:50:54 tip:1 try 1
+[02:51:06] room_show c=16: 36963.7 rps, campfire 0.103 CPU ms/req
+[02:51:17] messages_page c=16: 42800.3 rps, campfire 0.0888 CPU ms/req
+[02:51:29] sidebar c=16: 36084.6 rps, campfire 0.1058 CPU ms/req
+[02:51:40] post_message c=16: 4980.9 rps, campfire 0.3561 CPU ms/req
+bench/quiet: other CCD 2.2% busy (max 15.0%), bench siblings 24-31 4.5% busy (max 15.0%), screensaver off
+== 02:51:41 tip:2 try 1
+[02:51:52] room_show c=16: 36619.9 rps, campfire 0.1041 CPU ms/req
+[02:52:04] messages_page c=16: 42618.7 rps, campfire 0.0892 CPU ms/req
+[02:52:15] sidebar c=16: 35562.7 rps, campfire 0.1074 CPU ms/req
+[02:52:27] post_message c=16: 5693.4 rps, campfire 0.357 CPU ms/req
+bench/quiet: other CCD 2.2% busy (max 15.0%), bench siblings 24-31 4.1% busy (max 15.0%), screensaver off
+== 02:52:28 base:2 try 1
+[02:52:39] room_show c=16: 22351.2 rps, campfire 0.1661 CPU ms/req
+[02:52:50] messages_page c=16: 25843.2 rps, campfire 0.1411 CPU ms/req
+[02:53:02] sidebar c=16: 13826.7 rps, campfire 0.2689 CPU ms/req
+[02:53:14] post_message c=16: 4889.4 rps, campfire 0.4533 CPU ms/req
+bench/quiet: other CCD 1.9% busy (max 15.0%), bench siblings 24-31 3.8% busy (max 15.0%), screensaver off
+== done 02:53:14
