@@ -1,0 +1,48 @@
+{
+ "cable10000": {
+  "delivered_msgs_per_sec": 48.6,
+  "per_message": {
+   "other": {
+    "threads": 3,
+    "user_ms": 0.0,
+    "sys_ms": 0.0136,
+    "voluntary": 0.6208,
+    "nonvoluntary": 0.0231
+   },
+   "tokio worker": {
+    "threads": 4,
+    "user_ms": 2.6081,
+    "sys_ms": 0.2309,
+    "voluntary": 10.8425,
+    "nonvoluntary": 10.4866
+   },
+   "blocking pool": {
+    "threads": 5,
+    "user_ms": 0.9237,
+    "sys_ms": 0.0679,
+    "voluntary": 3.9039,
+    "nonvoluntary": 3.7695
+   },
+   "db writer": {
+    "threads": 1,
+    "user_ms": 0.2038,
+    "sys_ms": 0.0951,
+    "voluntary": 1.2239,
+    "nonvoluntary": 0.2105
+   },
+   "cable runtime": {
+    "threads": 4,
+    "user_ms": 10.9756,
+    "sys_ms": 32.56,
+    "voluntary": 166.9335,
+    "nonvoluntary": 81.9379
+   },
+   "process": {
+    "user_ms": 14.5073,
+    "sys_ms": 33.2799,
+    "syscr": 31.4842,
+    "syscw": 3642.6115
+   }
+  }
+ }
+}
