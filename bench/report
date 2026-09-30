@@ -7,7 +7,8 @@
 latency/memory/time), computed from the medians. When the results include `rust-identity` runs
 (the Rust image serving `Accept-Encoding: identity`), the HTTP table adds a "Rust, no gzip" column
 and its advantage over Rust with gzip. When they include `rust-base` runs (a second Rust image, such as
-a release), the tables add its column and "vs base": the Rust image's advantage over it.
+a release), the tables add its column and "vs base": the Rust image's advantage over it. `rust-alt` runs (a third
+image, such as an experiment) add a column and "alt vs base" the same way.
 """
 import glob, json, os, statistics, sys
 
@@ -17,8 +18,8 @@ for f in sorted(glob.glob(os.path.join(out, "*-*.json"))):
     r = json.load(open(f))
     runs.setdefault(r["app"], []).append(r)
 identity = runs.pop("rust-identity", None)
-apps = [a for a in ("reference", "rust-base", "rust") if a in runs]
-NAMES = {"reference": "Rails", "rust-base": "Rust (base)", "rust": "Rust"}
+apps = [a for a in ("reference", "rust-base", "rust", "rust-alt") if a in runs]
+NAMES = {"reference": "Rails", "rust-base": "Rust (base)", "rust": "Rust", "rust-alt": "Rust (alt)"}
 
 
 def cell(vals):
@@ -52,6 +53,8 @@ def row(name, getter, higher_better, with_identity=False):
     ratio = advantage(meds.get("rust"), meds.get("reference"), higher_better)
     if "rust-base" in meds:
         ratio += " | " + advantage(meds.get("rust"), meds["rust-base"], higher_better, "{:.3f}×")
+        if "rust-alt" in meds:
+            ratio += " | " + advantage(meds["rust-alt"], meds["rust-base"], higher_better, "{:.3f}×")
     extra = ""
     if with_identity:
         vals = []
@@ -73,9 +76,9 @@ def header(title, with_identity=False, note=""):
     if note:
         print(note + "\n")
     more = " Rust, no gzip | vs Rust gzip |" if with_identity else ""
-    base = " vs base |" if "rust-base" in apps else ""
+    base = (" vs base |" + (" alt vs base |" if "rust-alt" in apps else "")) if "rust-base" in apps else ""
     print("| Metric | " + " | ".join(NAMES[a] for a in apps) + " | Rust adv. |" + base + more)
-    print("|---|" + "---|" * len(apps) + "---|" + ("---|" if base else "") + ("---|---|" if with_identity else ""))
+    print("|---|" + "---|" * len(apps) + "---|" + "---|" * base.count("|") + ("---|---|" if with_identity else ""))
 
 
 env = os.path.join(out, "env.txt")

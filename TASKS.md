@@ -221,6 +221,7 @@ KIT-11's parity (on 1d30809): 873 pass, 0 fail, 1 allowed (2026-09-30).
 - [ ] LIVE-6 opengraph `Target` enum; `Endpoint::from_uri`; `transport` bool
 - [ ] LIVE-8 De-flake `channels_test::room_channel_streams_for_member_rooms_only` (under load; F-5)
 - [ ] LIVE-7 `Attr` enum, one `BoxFuture`, `FrameHead`, `Writer::send` allocs, dead turbo fns, `unix_now`, `ChannelError`
+- [-] LIVE-10 perf: message broadcast via `read_offloaded` (refactor/cleanup-live-10). Dropped: 10k post→all p99 back to v0.1.1's level (+1.0%) but deliveries/s gain lost (+0.8% vs tip's +3.0%) and the 1k tail worse (p99 17.1 against 13.7 ms, one post 196 ms). `bench/results/live-10-20260930/`
 - [ ] LIVE-9 perf (measure first; after LIVE-1, LIVE-2): fan-out writes per delivery; per-connection queue instead of `SelectAll` (S-8)
 
 ### VIEW (`crates/views`, `crates/richtext`)
@@ -300,11 +301,13 @@ won't make. They don't block the run and go into the final report.
 
 ## Found while working
 
-- (2026-09-30, tables run) Post to all 10,000 cable clients received is slower on the tip than on
-  v0.1.1: p50 52.5 against 51.3 ms (-2.3%), p99 85.1 against 76.0 ms (-11%); saturated post-to-all
-  p50 leans worse at 5k/10k too. Ranges overlap and p99 is 30 samples a rep, so it's unconfirmed.
-  Next: a cable-only `--apps rust-base,rust` run with more reps, then a bisect if it holds
-  (`bench/results/tables-20260930/README.md`).
+- (2026-09-30, tables run) Post to all 10,000 cable clients received trails v0.1.1. With 150 paced
+  posts a rep it's p50 +1.3%, p99 +3.0%, against +3.0% deliveries/s: the tables run's p99 −11% was mostly
+  30-sample noise. Cause: since DB-11, `broadcast_create`'s read (and the `Hub::broadcast` that wakes every
+  subscriber) runs on a runtime worker. LIVE-10 moved it back off the workers and was dropped. Beating
+  v0.1.1 on every cable row needs LIVE-9. (`bench/results/tables-20260930/`, `bench/results/live-10-20260930/`)
+- (2026-09-30) `bench/run` ignored SIGTERM (`trap teardown EXIT INT TERM` returned and the run went on). Fixed:
+  INT/TERM now exit.
 - (2026-09-29, VIEW-11 run) `database::tests::the_checkpointer_copies_the_wal_into_the_database`
   failed once in a full workspace run ("the WAL was never checkpointed", 10 s deadline), then
   passed 3/3 alone and in the next full run. A 10 s miss is more than load explains: look for a
