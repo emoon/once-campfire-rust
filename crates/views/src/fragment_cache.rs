@@ -510,7 +510,10 @@ mod tests {
         for (i, time) in timestamps().into_iter().enumerate() {
             assert_eq!(cache_version(time), formatted::cache_version(time), "{time}");
             let id = ids[i % ids.len()];
-            assert_eq!(cache_key_with_version("messages", id, time), formatted::cache_key_with_version("messages", id, time));
+            assert_eq!(
+                cache_key_with_version("messages", id, time),
+                formatted::cache_key_with_version("messages", id, time)
+            );
             let mut key = String::from("existing/");
             push_record_fragment_key(&mut key, "messages/_message", "0123456789abcdef", "messages", id, time);
             assert_eq!(
@@ -681,7 +684,11 @@ mod tests {
         });
         assert_eq!(*outer, "[x]");
         assert_eq!(cache.len(), 2);
-        assert_eq!(cache.get::<Fragment>("outer").as_deref().map(String::as_str), Some("[x]"), "the inner key has its own buffer");
+        assert_eq!(
+            cache.get::<Fragment>("outer").as_deref().map(String::as_str),
+            Some("[x]"),
+            "the inner key has its own buffer"
+        );
         assert_eq!(cache.get::<Fragment>("inner").as_deref().map(String::as_str), Some("x"));
         assert!(current().is_none(), "the store is only current inside `with`");
         assert_eq!(*fetch(named("outer"), || "uncached".into()), "uncached");

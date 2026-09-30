@@ -179,7 +179,11 @@ mod tests {
         };
         let page = render(&template, 0).unwrap();
         assert_eq!(page.to_string(), template.render().unwrap());
-        let recorded: Vec<_> = page.fragments().iter().map(|(offset, fragment)| (*offset, fragment.clone())).collect();
+        let recorded: Vec<_> = page
+            .fragments()
+            .iter()
+            .map(|(offset, fragment)| (*offset, fragment.clone()))
+            .collect();
         assert_eq!(recorded.len(), 2, "the small one and the unhanded one are text");
         assert!(Arc::ptr_eq(&recorded[0].1, &items[0].0) && Arc::ptr_eq(&recorded[1].1, &items[2].0));
         assert_eq!(&page.text()[..recorded[0].0], "<ul>\n  ");
@@ -189,7 +193,14 @@ mod tests {
     #[test]
     fn a_page_written_into_another_keeps_its_fragments() {
         let items = list();
-        let content = render(&List { items: &items, unhanded: "" }, 0).unwrap();
+        let content = render(
+            &List {
+                items: &items,
+                unhanded: "",
+            },
+            0,
+        )
+        .unwrap();
         let framed = render(&Frame { content: &content }, 0).unwrap();
         assert_eq!(framed.to_string(), format!("<frame>{content}</frame>"));
         assert_eq!(framed.fragments().len(), 2);
@@ -200,9 +211,23 @@ mod tests {
         let items = [Handed(fragment(1))];
         let copy = String::clone(&items[0].0);
         hand(&items[0].0);
-        let page = render(&List { items: &[], unhanded: &copy }, 0).unwrap();
+        let page = render(
+            &List {
+                items: &[],
+                unhanded: &copy,
+            },
+            0,
+        )
+        .unwrap();
         assert!(page.fragments().is_empty());
-        let page = render(&List { items: &items, unhanded: &copy }, 0).unwrap();
+        let page = render(
+            &List {
+                items: &items,
+                unhanded: &copy,
+            },
+            0,
+        )
+        .unwrap();
         assert_eq!(page.fragments().len(), 1);
         assert_eq!(page.to_string(), format!("<ul>\n  {}\n</ul>{copy}", items[0].0));
     }

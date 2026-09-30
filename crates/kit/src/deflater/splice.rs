@@ -683,7 +683,10 @@ mod tests {
         let messages: Vec<_> = (0..30).map(message).collect();
         let whole = page("<html><head>layout</head><body>", &messages, "</body></html>");
         assert_eq!(whole.etag(), "0f21f66bd8370045fd702d07473468e2");
-        assert_eq!(sha(whole.gzip(7)), "20bebddcfa29cdde1b76e1572479c130eb4cfd9bfb0e032e5332a2e3b453cfe3");
+        assert_eq!(
+            sha(whole.gzip(7)),
+            "20bebddcfa29cdde1b76e1572479c130eb4cfd9bfb0e032e5332a2e3b453cfe3"
+        );
 
         let small = Arc::new("<i>small</i>".to_string());
         let mixed = Page::default()
@@ -697,7 +700,10 @@ mod tests {
             .fragment(&messages[2])
             .text("</p>");
         assert_eq!(mixed.etag(), "3d1d4208307a20a71a8ac959c24e0ec1");
-        assert_eq!(sha(mixed.gzip(7)), "1de43a2a5729028f5084ac91c02de84b5518b61093f2a6896da5ed785e3ce724");
+        assert_eq!(
+            sha(mixed.gzip(7)),
+            "1de43a2a5729028f5084ac91c02de84b5518b61093f2a6896da5ed785e3ce724"
+        );
     }
 
     #[test]
@@ -724,11 +730,17 @@ mod tests {
         let messages: Vec<_> = (200..206).map(message).collect();
         let small = Arc::new("<i>small</i>".to_string());
         let with_small = page("<p>", &messages[..1], "  ").fragment(&small);
-        let with_small = messages[1..3].iter().fold(with_small, |page, message| page.text("  ").fragment(message)).text("</p>");
+        let with_small = messages[1..3]
+            .iter()
+            .fold(with_small, |page, message| page.text("  ").fragment(message))
+            .text("</p>");
         assert_eq!(gunzip(&with_small.gzip(0)), with_small.plain.as_bytes());
         // A small fragment is text to the parts.
         let as_text = page("<p>", &messages[..1], &format!("  {small}"));
-        let as_text = messages[1..3].iter().fold(as_text, |page, message| page.text("  ").fragment(message)).text("</p>");
+        let as_text = messages[1..3]
+            .iter()
+            .fold(as_text, |page, message| page.text("  ").fragment(message))
+            .text("</p>");
         assert_eq!(with_small.etag(), as_text.etag());
         let only_small = Page::default().text("<p>").fragment(&small).text("</p>");
         let whole = PageParts::splice(&Bytes::from(only_small.text), only_small.fragments).expect_err("no part");
@@ -891,7 +903,12 @@ mod tests {
         let head: String = (0..1000).map(|n| format!("<link rel=\"preload\" href=\"/a/{n}.js\">")).collect();
         let tail: String = (0..300).map(|n| format!("<footer data-n=\"{n}\"></footer>")).collect();
         let messages: Vec<_> = (0..40)
-            .map(|n| Arc::new(format!("<div id=\"m{n}\">{}</div>\n", "<button>Boost</button> hello <a href=\"/x\">x</a> ".repeat(180 + n % 13))))
+            .map(|n| {
+                Arc::new(format!(
+                    "<div id=\"m{n}\">{}</div>\n",
+                    "<button>Boost</button> hello <a href=\"/x\">x</a> ".repeat(180 + n % 13)
+                ))
+            })
             .collect();
         let page = page(&head, &messages, &tail);
         let recorded = || PageParts::splice(&Bytes::from(page.text.clone()), page.fragments.clone()).unwrap();

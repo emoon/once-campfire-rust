@@ -381,7 +381,11 @@ async fn pages_of_messages_go_out_in_parts() {
         assert_eq!(plain.status, StatusCode::OK, "{path}");
         assert_eq!(plain.text().matches(r#"data-controller="reply""#).count(), 40, "{path}");
         assert!(plain.frames > 40, "{path}: {} frames, one per part", plain.frames);
-        assert_eq!(plain.header("content-length"), Some(plain.body.len().to_string().as_str()), "{path}");
+        assert_eq!(
+            plain.header("content-length"),
+            Some(plain.body.len().to_string().as_str()),
+            "{path}"
+        );
 
         let gzipped = david.send(send(Method::GET, true)).await;
         assert_eq!(gzipped.header("content-encoding"), Some("gzip"), "{path}");
