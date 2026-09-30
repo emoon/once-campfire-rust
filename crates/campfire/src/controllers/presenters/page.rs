@@ -7,11 +7,12 @@ use campfire_kit::{Ctx, Error, Format, Result, StatusCode};
 use campfire_views::fragment_cache::Fragment;
 use campfire_views::helpers as h;
 use campfire_views::layouts::{Application, FrameLayout};
+use campfire_views::recorded::RecordedPage;
 use campfire_views::{Platform, ViewContext};
 
 use crate::app::App;
 use crate::channels::Partials;
-use crate::controllers::presenters::view_context::{Layout, account_summary, find_template};
+use crate::controllers::presenters::view_context::{Layout, account_summary, find_template, render_recorded};
 
 /// A template that extends `layouts/application` itself (with `blocks = ["head", "content"]`):
 /// the full page, or for a Turbo-Frame request its `head` and `content` in turbo-rails' frame
@@ -42,16 +43,16 @@ pub async fn content(c: &mut Ctx, status: StatusCode, render: impl FnOnce(&ViewC
     let layout = Layout::load(c).await?;
     let frame = c.is_turbo_frame_request();
     let html = layout.render(c, |ctx| {
-        let content = h::raw(render(ctx)?);
+        let content = render(ctx)?;
         if frame {
             FrameLayout {
                 ctx,
                 head: h::empty(),
-                content,
+                content: h::raw(content.into()),
             }
             .render()
         } else {
-            Application::new(ctx, content).render()
+            Application::new(ctx, h::raw(content)).render()
         }
     })?;
     Ok(if frame {
@@ -79,16 +80,16 @@ pub async fn content_in_application_layout(
 
 /// A template rendered with `layout false` (or a turbo stream), no layout, labelled with the
 /// template's format.
-pub async fn bare(
+pub async fn bare<T: Into<RecordedPage>>(
     c: &mut Ctx,
     status: StatusCode,
     template: Format,
-    render: impl FnOnce(&ViewContext) -> askama::Result<String>,
+    render: impl FnOnce(&ViewContext) -> askama::Result<T>,
 ) -> Result {
     find_template(c, template)?;
     let layout = Layout::load(c).await?;
     let html = layout.render(c, render)?;
-    Ok(c.render(status, template, html))
+    Ok(render_recorded(c, status, template, html.into()))
 }
 
 /// Renders with the `ViewContext` `ApplicationController.render` has: no request, no

@@ -185,21 +185,6 @@ impl MessageItem {
             MessageItem::View(message) => message.room_id,
         }
     }
-
-    /// The cached fragments of a rendered page's `items`, in order, including those this render
-    /// just stored in `cache`: they're in the page as they are. Call it after rendering, so the
-    /// page's parts (and its ETag) don't depend on which messages happened to be cached before.
-    pub fn cached_fragments(cache: &fragment_cache::FragmentCache, items: &[MessageItem]) -> Vec<fragment_cache::Fragment> {
-        items
-            .iter()
-            .filter_map(|item| match item {
-                MessageItem::Fragment { html, .. } => Some(html.clone()),
-                MessageItem::View(message) => {
-                    fragment_cache::with_key(|key| message_fragment_key(key, message.id, message.updated_at), |key| cache.get(key))
-                }
-            })
-            .collect()
-    }
 }
 
 impl From<MessageView> for MessageItem {
@@ -313,12 +298,15 @@ pub fn cached_message(ctx: &ViewContext, message: &MessageView) -> askama::filte
     askama::filters::Safe(self::message(ctx, message))
 }
 
-/// [`cached_message`] for a [`MessageItem`]: a fragment found up front goes out as it is.
+/// [`cached_message`] for a [`MessageItem`]: a fragment found up front goes out as it is. A page
+/// being [`recorded`](crate::recorded) notes where the fragment goes instead of copying it in.
 pub fn cached_message_item(ctx: &ViewContext, item: &MessageItem) -> askama::filters::Safe<fragment_cache::Fragment> {
-    askama::filters::Safe(match item {
+    let fragment = match item {
         MessageItem::Fragment { html, .. } => html.clone(),
         MessageItem::View(message) => self::message(ctx, message),
-    })
+    };
+    crate::recorded::hand(&fragment);
+    askama::filters::Safe(fragment)
 }
 
 /// `messages/_message`'s fragment for this message version, if the current store holds it. The

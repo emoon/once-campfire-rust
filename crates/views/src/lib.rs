@@ -11,6 +11,7 @@ pub mod helpers;
 pub mod layouts;
 pub mod messages;
 pub mod pwa;
+pub mod recorded;
 pub mod rooms;
 pub mod searches;
 pub mod sessions;

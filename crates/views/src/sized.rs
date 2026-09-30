@@ -2,11 +2,14 @@
 //! `SIZE_HINT`, a guess from its literal text, and a page with ~40 cached message fragments then
 //! grows its `String` by `realloc` several times while they're written in. A [`RenderSize`]
 //! remembers the length of the last render at its call site and reserves that (plus some
-//! headroom) for the next one.
+//! headroom) for the next one. The page is [`recorded`](crate::recorded), so the cached fragments
+//! it holds don't count: only its text is written into the buffer.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use askama::Template;
+
+use crate::recorded::{self, RecordedPage};
 
 /// The most a render reserves up front. Only the last render's length is kept, so one huge page
 /// sizes just the next render; this cap bounds even that one.
@@ -21,12 +24,11 @@ impl RenderSize {
         Self(AtomicUsize::new(0))
     }
 
-    /// `template.render()`, into a `String` sized from the last render here.
-    pub fn render<T: Template>(&self, template: &T) -> askama::Result<String> {
-        let mut html = String::with_capacity(self.capacity(T::SIZE_HINT));
-        template.render_into(&mut html)?;
-        self.0.store(html.len(), Ordering::Relaxed);
-        Ok(html)
+    /// `template.render()`, recorded into a text buffer sized from the last render here.
+    pub fn render<T: Template>(&self, template: &T) -> askama::Result<RecordedPage> {
+        let page = recorded::render(template, self.capacity(T::SIZE_HINT))?;
+        self.0.store(page.text().len(), Ordering::Relaxed);
+        Ok(page)
     }
 
     /// The last length plus an eighth, so a page a little longer than the last still fits.
@@ -36,7 +38,7 @@ impl RenderSize {
     }
 }
 
-/// `template.render()` sized from the last render at this call site (each expansion has its own
+/// `template.render()`, recorded, sized from the last render at this call site (each expansion has its own
 /// [`RenderSize`]): `render_sized!(rooms::Show { ctx, show: &show })`.
 #[macro_export]
 macro_rules! render_sized {
@@ -59,7 +61,7 @@ mod tests {
     #[test]
     fn renders_what_render_does() {
         let page = Page { body: "a & b" };
-        assert_eq!(RenderSize::new().render(&page).unwrap(), page.render().unwrap());
+        assert_eq!(RenderSize::new().render(&page).unwrap().to_string(), page.render().unwrap());
     }
 
     #[test]
@@ -86,6 +88,6 @@ mod tests {
         let short = || render_sized!(Page { body: "short" }).unwrap();
         let long = "x".repeat(4000);
         render_sized!(Page { body: &long }).unwrap();
-        assert!(short().capacity() < 100);
+        assert!(short().into_parts().0.capacity() < 100);
     }
 }
