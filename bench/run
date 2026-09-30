@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Benchmark the reference (Rails) app against the Rust port on the same seed and CPUs.
 #
-#   bench/run [--apps reference,rust[,rust-identity]] [--reps 3] [--out DIR]
+#   bench/run [--apps reference,rust[,rust-base][,rust-identity]] [--reps 3] [--out DIR]
 #   bench/report DIR            # median + spread table from a results dir
 #
 # Each rep, for each app in turn (never two at once; the order alternates between reps): a fresh
@@ -13,12 +13,15 @@
 # LOAD_MAX, and records it.
 #
 # `rust-identity` is the Rust image again, running only the HTTP suite with
-# `Accept-Encoding: identity`: the app's cost without gzip.
+# `Accept-Encoding: identity`: the app's cost without gzip. `rust-base` is a second Rust image
+# (BASE_RUST_IMAGE, e.g. a release) run through every suite in the same session, so the tip and an
+# older build are measured side by side, interleaved, on the same machine state.
 #
 # Images (unmodified production images, not the parity ones: no libfaketime, no pinned cable pool,
 # the reference's own resque-pool.yml):
 #   REFERENCE_IMAGE  campfire-reference:app   (parity/bin/reference build)
 #   RUST_IMAGE       campfire-rust:app        (parity/bin/candidate build, from /Dockerfile)
+#   BASE_RUST_IMAGE  (none)                   for `rust-base`: built the same way from another checkout
 #
 # Knobs (env): SERVER_CPUS=8-11 LOADGEN_CPUS=12-15 HTTP_SECS=8 HTTP_CONCS="1 16 64"
 #   CABLE_CLIENTS="100 500 1000" CABLE_TPUT_SECS=15 CABLE_POSTERS=4 UPLOAD_REPS=5 PORT=4390
@@ -36,6 +39,7 @@ ENV_FILE=$ROOT/parity/.env.reference
 
 REFERENCE_IMAGE=${REFERENCE_IMAGE:-campfire-reference:app}
 RUST_IMAGE=${RUST_IMAGE:-campfire-rust:app}
+BASE_RUST_IMAGE=${BASE_RUST_IMAGE-}
 SERVER_CPUS=${SERVER_CPUS:-8-11}
 LOADGEN_CPUS=${LOADGEN_CPUS:-12-15}
 HTTP_SECS=${HTTP_SECS:-8}
@@ -67,6 +71,7 @@ while [ $# -gt 0 ]; do
     *) echo "unknown option $1" >&2; exit 2 ;;
   esac
 done
+if [[ ",$APPS," = *,rust-base,* && -z "$BASE_RUST_IMAGE" ]]; then echo "rust-base needs BASE_RUST_IMAGE" >&2; exit 2; fi
 OUT=${OUT:-$BENCH/results/$(date +%Y%m%d-%H%M%S)}
 mkdir -p "$OUT"
 WORK=$BENCH/.work
@@ -92,7 +97,7 @@ AVATAR=$(label avatar_tokens.jason)    # image avatar
 EMAIL=$(label emails.david)
 PASSWORD=$(label passwords.all)
 
-image_for() { case "$1" in reference) echo "$REFERENCE_IMAGE" ;; rust|rust-identity) echo "$RUST_IMAGE" ;; esac; }
+image_for() { case "$1" in reference) echo "$REFERENCE_IMAGE" ;; rust|rust-identity) echo "$RUST_IMAGE" ;; rust-base) echo "$BASE_RUST_IMAGE" ;; esac; }
 
 # Environment: parity/.env.reference, but with the reference's *default* process model for
 # SERVER_CPUS (config/puma.rb: workers = ceil(nproc * 0.666), JOB_CONCURRENCY the same, 5 threads;

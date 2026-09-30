@@ -300,6 +300,11 @@ won't make. They don't block the run and go into the final report.
 
 ## Found while working
 
+- (2026-09-30, tables run) Post to all 10,000 cable clients received is slower on the tip than on
+  v0.1.1: p50 52.5 against 51.3 ms (-2.3%), p99 85.1 against 76.0 ms (-11%); saturated post-to-all
+  p50 leans worse at 5k/10k too. Ranges overlap and p99 is 30 samples a rep, so it's unconfirmed.
+  Next: a cable-only `--apps rust-base,rust` run with more reps, then a bisect if it holds
+  (`bench/results/tables-20260930/README.md`).
 - (2026-09-29, VIEW-11 run) `database::tests::the_checkpointer_copies_the_wal_into_the_database`
   failed once in a full workspace run ("the WAL was never checkpointed", 10 s deadline), then
   passed 3/3 alone and in the next full run. A 10 s miss is more than load explains: look for a

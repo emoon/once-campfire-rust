@@ -6,7 +6,8 @@
 "Rust adv." is the Rust advantage: >1 means Rust is better (higher throughput, or lower
 latency/memory/time), computed from the medians. When the results include `rust-identity` runs
 (the Rust image serving `Accept-Encoding: identity`), the HTTP table adds a "Rust, no gzip" column
-and its advantage over Rust with gzip.
+and its advantage over Rust with gzip. When they include `rust-base` runs (a second Rust image, such as
+a release), the tables add its column and "vs base": the Rust image's advantage over it.
 """
 import glob, json, os, statistics, sys
 
@@ -16,7 +17,8 @@ for f in sorted(glob.glob(os.path.join(out, "*-*.json"))):
     r = json.load(open(f))
     runs.setdefault(r["app"], []).append(r)
 identity = runs.pop("rust-identity", None)
-apps = [a for a in ("reference", "rust") if a in runs]
+apps = [a for a in ("reference", "rust-base", "rust") if a in runs]
+NAMES = {"reference": "Rails", "rust-base": "Rust (base)", "rust": "Rust"}
 
 
 def cell(vals):
@@ -27,6 +29,12 @@ def cell(vals):
     fmt = (lambda v: f"{v:,.0f}") if m >= 100 else (lambda v: f"{v:.1f}") if m >= 10 else (lambda v: f"{v:.2f}")
     spread = f" [{fmt(min(vals))}–{fmt(max(vals))}]" if len(vals) > 1 else ""
     return m, fmt(m) + spread
+
+
+def advantage(new, old, higher_better, fmt="{:.1f}×"):
+    if not new or not old:
+        return "–"
+    return fmt.format(new / old if higher_better else old / new)
 
 
 def row(name, getter, higher_better, with_identity=False):
@@ -41,10 +49,9 @@ def row(name, getter, higher_better, with_identity=False):
         m, c = cell(vals)
         meds[a] = m
         cells.append(c)
-    ratio = "–"
-    if len(apps) == 2 and meds["reference"] and meds["rust"]:
-        x = meds["rust"] / meds["reference"] if higher_better else meds["reference"] / meds["rust"]
-        ratio = f"{x:.1f}×"
+    ratio = advantage(meds.get("rust"), meds.get("reference"), higher_better)
+    if "rust-base" in meds:
+        ratio += " | " + advantage(meds.get("rust"), meds["rust-base"], higher_better, "{:.3f}×")
     extra = ""
     if with_identity:
         vals = []
@@ -66,8 +73,9 @@ def header(title, with_identity=False, note=""):
     if note:
         print(note + "\n")
     more = " Rust, no gzip | vs Rust gzip |" if with_identity else ""
-    print("| Metric | " + " | ".join("Rails" if a == "reference" else "Rust" for a in apps) + " | Rust adv. |" + more)
-    print("|---|" + "---|" * len(apps) + "---|" + ("---|---|" if with_identity else ""))
+    base = " vs base |" if "rust-base" in apps else ""
+    print("| Metric | " + " | ".join(NAMES[a] for a in apps) + " | Rust adv. |" + base + more)
+    print("|---|" + "---|" * len(apps) + "---|" + ("---|" if base else "") + ("---|---|" if with_identity else ""))
 
 
 env = os.path.join(out, "env.txt")
@@ -139,11 +147,11 @@ def procmem(n, phase, what):
         p = c["process_memory"][phase]
         roles = p["roles"]
         if what == "app":
-            return roles["campfire" if r["app"] == "rust" else "puma"]["peak_pss_mb"]
+            return roles["campfire" if r["app"].startswith("rust") else "puma"]["peak_pss_mb"]
         if what == "app_anon":
-            return roles["campfire" if r["app"] == "rust" else "puma"]["peak_anon_mb"]
+            return roles["campfire" if r["app"].startswith("rust") else "puma"]["peak_anon_mb"]
         if what == "serving":  # everything that takes part in a cable delivery
-            keys = ["campfire"] if r["app"] == "rust" else ["puma", "redis", "thrust"]
+            keys = ["campfire"] if r["app"].startswith("rust") else ["puma", "redis", "thrust"]
             return sum(roles[k]["peak_pss_mb"] for k in keys if k in roles)
         return p["peak_total_pss_mb"]
     return get
