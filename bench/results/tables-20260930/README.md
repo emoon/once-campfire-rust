@@ -46,6 +46,10 @@ Compare the columns measured here with each other, not with the published column
 | Post to all 10,000 clients received, p99 | 1,239 ms | 76.0 ms | 85.1 ms | **15×** | *0.89×* | 1,519 ms | 61 ms |
 | Connect and subscribe 10,000 clients | 29.0 s | 1.84 s | 0.59 s | **49×** | **3.1×** | 29.1 s | 2.4 s |
 
+**Follow-up (same day): not a regression.** With 150 posts a rep, over two more sessions, these rows came out
+−1..−3% and then +0.5..+3%, inside run-to-run spread: the tip ties v0.1.1 on them (`../live-10-20260930/`,
+`../live-9-20260930/`). What this run showed:
+
 **The tip doesn't beat v0.1.1 on two rows:** post to all 10,000 clients received, at p50 (−2.3%) and p99 (−11%). The
 ranges overlap (p50: v0.1.1 50.7–56.1 ms, tip 52.0–55.6 ms; p99: 74.9–84.5 against 80.7–88.4). The p99 comes from
 only 30 paced posts a rep. The tip was worse in both of the clean reps, though, and the saturated post-to-all p50
